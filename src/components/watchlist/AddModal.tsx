@@ -132,6 +132,16 @@ export function AddModal({ open, onClose, onSave, editEntry, editMeta }: Props) 
             </div>
           </div>
 
+          <div className="grid gap-1.5">
+            <Label htmlFor="ct-duration">Duration</Label>
+            <Input
+              id="ct-duration" name="duration"
+              value={meta.duration ?? ''}
+              onChange={(e) => setM('duration', e.target.value)}
+              placeholder="e.g. 2h 28m or 45 min/ep"
+            />
+          </div>
+
           <div className="border-t border-[var(--border-subtle)] pt-3 grid gap-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">

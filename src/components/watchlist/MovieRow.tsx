@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ExternalLink, Pencil, Trash2, ChevronDown, ChevronUp, Link } from 'lucide-react';
+import { ExternalLink, Pencil, Trash2, ChevronDown, ChevronUp, Link, Clock } from 'lucide-react';
 import type { MovieEntry, WatchMeta, WatchStatus } from '@/types';
 import { StatusBadge } from './StatusBadge';
 import { RatingBadge } from './RatingBadge';
@@ -22,14 +22,37 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
   const [notesOpen, setNotesOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+  const ActionButtons = ({ className = '' }: { className?: string }) => (
+    <div className={`flex items-center gap-2 ${className}`}>
+      <motion.button
+        whileTap={{ scale: 0.93 }}
+        onClick={onEdit}
+        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold border transition-colors hover:border-indigo-500/40 hover:text-indigo-400"
+        style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)', background: 'var(--bg-elevated)' }}
+        title="Edit"
+      >
+        <Pencil className="h-3.5 w-3.5" /> Edit
+      </motion.button>
+      <motion.button
+        whileTap={{ scale: 0.93 }}
+        onClick={() => setConfirmOpen(true)}
+        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold border transition-colors hover:bg-red-500/10 hover:border-red-500/40 hover:text-red-400"
+        style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)', background: 'var(--bg-elevated)' }}
+        title="Delete"
+      >
+        <Trash2 className="h-3.5 w-3.5" /> Delete
+      </motion.button>
+    </div>
+  );
+
   return (
     <>
-      <motion.div
-        layout
+      {/* Use CSS transition for border — avoids Framer Motion hex→transparent warning */}
+      <div
         className="group rounded-xl border px-3 py-3 cursor-default"
-        style={{ borderColor: 'transparent' }}
-        whileHover={{ borderColor: 'var(--border-subtle)' }}
-        transition={{ duration: 0.18 }}
+        style={{ borderColor: 'transparent', transition: 'border-color 180ms ease' }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'transparent'; }}
       >
         <div className="rounded-lg transition-colors duration-200 group-hover:bg-[var(--bg-hover)] -mx-1 px-1 py-0.5">
           <div className="flex items-start gap-3">
@@ -56,11 +79,7 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
                     )}
                     <span
                       className="text-xs px-1.5 py-0.5 rounded-md font-medium border"
-                      style={{
-                        background: 'var(--bg-elevated)',
-                        color: 'var(--text-secondary)',
-                        borderColor: 'var(--border-subtle)',
-                      }}
+                      style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}
                     >
                       {entry.type}
                     </span>
@@ -70,46 +89,22 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
                   </div>
                 </div>
 
-                {/* Edit / Delete — visible only on hover */}
-                <div className="flex items-center gap-2 flex-shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                  <motion.button
-                    whileTap={{ scale: 0.93 }}
-                    onClick={onEdit}
-                    className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold border transition-colors"
-                    style={{
-                      color: 'var(--text-secondary)',
-                      borderColor: 'var(--border-subtle)',
-                      background: 'var(--bg-elevated)',
-                    }}
-                    title="Edit"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Edit
-                  </motion.button>
-
-                  <motion.button
-                    whileTap={{ scale: 0.93 }}
-                    onClick={() => setConfirmOpen(true)}
-                    className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold border transition-colors hover:bg-red-500/10 hover:border-red-500/40 hover:text-red-400"
-                    style={{
-                      color: 'var(--text-secondary)',
-                      borderColor: 'var(--border-subtle)',
-                      background: 'var(--bg-elevated)',
-                    }}
-                    title="Delete"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Delete
-                  </motion.button>
-                </div>
+                {/* Desktop: hover-only edit/delete in title row */}
+                <ActionButtons className="hidden sm:flex flex-shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150" />
               </div>
 
               {/* Badges row */}
               <div className="mt-2.5 flex items-start gap-3 flex-wrap">
-                {/* Status */}
                 <StatusBadge status={meta.status} onChange={onStatusChange} />
 
-                {/* IMDb rating */}
+                {/* Duration */}
+                {meta.duration && (
+                  <div className="flex items-center gap-1 self-center">
+                    <Clock className="h-3 w-3" style={{ color: 'var(--text-muted)' }} />
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{meta.duration}</span>
+                  </div>
+                )}
+
                 {entry.imdbRating && entry.imdbRating !== 'N/A' && (
                   <div className="flex flex-col items-center gap-0.5">
                     <a
@@ -126,7 +121,6 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
                   </div>
                 )}
 
-                {/* Personal rating */}
                 <div className="flex flex-col items-center gap-0.5">
                   <RatingBadge rating={meta.personalRating} onChange={onRatingChange} />
                   <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: 'var(--text-disabled)' }}>
@@ -134,21 +128,15 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
                   </span>
                 </div>
 
-                {/* Platform */}
                 {meta.watchPlatform && (
                   <span
                     className="text-xs font-semibold px-2 py-0.5 rounded-md border self-center"
-                    style={{
-                      background: 'var(--bg-elevated)',
-                      color: 'var(--text-secondary)',
-                      borderColor: 'var(--border-subtle)',
-                    }}
+                    style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}
                   >
                     {meta.watchPlatform}
                   </span>
                 )}
 
-                {/* Watched on with label */}
                 {meta.watchedOn && (
                   <div className="flex flex-col items-center gap-0.5">
                     <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
@@ -160,7 +148,6 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
                   </div>
                 )}
 
-                {/* Private watch link — moved to badges row */}
                 {meta.watchLink && (
                   <a
                     href={meta.watchLink}
@@ -178,7 +165,6 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
                   </a>
                 )}
 
-                {/* Notes toggle */}
                 {meta.notes && (
                   <button
                     onClick={() => setNotesOpen((p) => !p)}
@@ -190,7 +176,11 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
                 )}
               </div>
 
-              {/* Notes expansion */}
+              {/* Mobile: always-visible edit/delete below badges */}
+              <div className="mt-2.5 sm:hidden">
+                <ActionButtons />
+              </div>
+
               <AnimatePresence>
                 {notesOpen && meta.notes && (
                   <motion.div
@@ -201,11 +191,7 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
                   >
                     <p
                       className="text-sm leading-relaxed rounded-xl px-3 py-2.5 border"
-                      style={{
-                        background: 'var(--bg-elevated)',
-                        color: 'var(--text-secondary)',
-                        borderColor: 'var(--border-subtle)',
-                      }}
+                      style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}
                     >
                       {meta.notes}
                     </p>
@@ -215,7 +201,7 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       <ConfirmDialog
         open={confirmOpen}

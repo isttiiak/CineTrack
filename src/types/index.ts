@@ -47,6 +47,7 @@ export interface WatchMeta {
   watchedOn?: string;
   watchPlatform?: WatchPlatform;
   watchLink?: string;
+  duration?: string;
 }
 
 export interface WatchlistState {
@@ -69,6 +70,7 @@ export interface FilterState {
   type: string;
   status: string;
   platform: string;
+  sort: string;
 }
 
 export interface ToastMessage {

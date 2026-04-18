@@ -12,7 +12,7 @@ interface Props {
 
 export function FilterBar({ filters, onChange, sections }: Props) {
   const set = (k: keyof FilterState, v: string) => onChange({ ...filters, [k]: v });
-  const hasFilter = filters.query || filters.section || filters.type || filters.status || filters.platform;
+  const hasFilter = filters.query || filters.section || filters.type || filters.status || filters.platform || filters.sort;
 
   return (
     <div className="flex flex-wrap gap-2 items-center mb-4">
@@ -61,9 +61,20 @@ export function FilterBar({ filters, onChange, sections }: Props) {
         </SelectContent>
       </Select>
 
+      <Select value={filters.sort || '_default'} onValueChange={(v) => set('sort', v === '_default' ? '' : v)}>
+        <SelectTrigger className="h-8 text-xs w-[100px]"><SelectValue placeholder="Sort" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="_default">Default</SelectItem>
+          <SelectItem value="title_asc">A → Z</SelectItem>
+          <SelectItem value="title_desc">Z → A</SelectItem>
+          <SelectItem value="imdb_desc">IMDb ↓</SelectItem>
+          <SelectItem value="imdb_asc">IMDb ↑</SelectItem>
+        </SelectContent>
+      </Select>
+
       {hasFilter && (
         <button
-          onClick={() => onChange({ query: '', section: '', type: '', status: '', platform: '' })}
+          onClick={() => onChange({ query: '', section: '', type: '', status: '', platform: '', sort: '' })}
           className="flex items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
         >
           <X className="h-3.5 w-3.5" /> Clear

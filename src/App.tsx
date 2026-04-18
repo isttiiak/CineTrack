@@ -16,7 +16,7 @@ import { ToastContainer } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import type { FilterState, MovieEntry, WatchMeta, ThemeMode } from '@/types';
 
-const EMPTY_FILTERS: FilterState = { query: '', section: '', type: '', status: '', platform: '' };
+const EMPTY_FILTERS: FilterState = { query: '', section: '', type: '', status: '', platform: '', sort: '' };
 
 export default function App() {
   const { user, loading, signIn, signOut } = useAuth();
@@ -95,7 +95,7 @@ export default function App() {
   const handleToggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
 
   // Filter entries
-  const { query, section: sFilter, type: tFilter, status: stFilter, platform: pFilter } = filters;
+  const { query, section: sFilter, type: tFilter, status: stFilter, platform: pFilter, sort } = filters;
   const filteredEntries = state.entries.filter((e) => {
     const m = state.meta[e.id];
     if (query) {
@@ -109,8 +109,18 @@ export default function App() {
     return true;
   });
 
+  const sortedEntries = sort
+    ? [...filteredEntries].sort((a, b) => {
+        if (sort === 'title_asc') return a.title.localeCompare(b.title);
+        if (sort === 'title_desc') return b.title.localeCompare(a.title);
+        if (sort === 'imdb_desc') return parseFloat(b.imdbRating || '0') - parseFloat(a.imdbRating || '0');
+        if (sort === 'imdb_asc') return parseFloat(a.imdbRating || '0') - parseFloat(b.imdbRating || '0');
+        return 0;
+      })
+    : filteredEntries;
+
   const visibleSections = state.sectionOrder.filter((s) =>
-    filteredEntries.some((e) => e.section === s)
+    sortedEntries.some((e) => e.section === s)
   );
 
   if (loading || !initialised) {
@@ -164,8 +174,8 @@ export default function App() {
                 className="py-20 text-center text-sm"
                 style={{ color: 'var(--text-muted)' }}
               >
-                {query || sFilter || tFilter || stFilter || pFilter
-                  ? 'No entries match your filters.'
+                {query || sFilter || tFilter || stFilter || pFilter || sort
+                  ? 'No entries match your filters or sort.'
                   : 'No entries yet. Click "+ Add" to get started!'}
               </motion.div>
             ) : (
@@ -173,7 +183,7 @@ export default function App() {
                 <motion.div key={section} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                   <WatchlistSection
                     section={section}
-                    entries={filteredEntries.filter((e) => e.section === section)}
+                    entries={sortedEntries.filter((e) => e.section === section)}
                     meta={state.meta}
                     onStatusChange={(id, s) => {
                       setStatus(id, s);

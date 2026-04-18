@@ -6,6 +6,7 @@ import { getLocalStorage, setLocalStorage } from './useLocalStorage';
 import { SECTIONS } from '../lib/utils';
 
 const LS_KEY = 'cinetrack_state_v1';
+const LS_UID_KEY = 'cinetrack_last_uid';
 
 function buildInitialState(): WatchlistState {
   return {
@@ -29,15 +30,37 @@ export function useWatchlist(
 
   useEffect(() => {
     if (!uid) { setInitialised(true); return; }
+
+    // If a *different* signed-in user is signing in, don't carry over localStorage data
+    const lastUid = getLocalStorage<string>(LS_UID_KEY);
+    const isDifferentUser = lastUid !== null && lastUid !== uid;
+
     firestoreLoad().then((remote) => {
       if (remote) {
-        const local = getLocalStorage<WatchlistState>(LS_KEY);
-        const use = (local && local.lastModified > remote.lastModified) ? local : remote;
-        setState(use);
-        setLocalStorage(LS_KEY, use);
+        if (!isDifferentUser) {
+          // Same user or guest → signed-in: merge (local wins if newer)
+          const local = getLocalStorage<WatchlistState>(LS_KEY);
+          const use = (local && local.lastModified > remote.lastModified) ? local : remote;
+          setState(use);
+          setLocalStorage(LS_KEY, use);
+        } else {
+          // Different signed-in user: use their Firestore data only
+          setState(remote);
+          setLocalStorage(LS_KEY, remote);
+        }
       } else {
-        firestoreSave(state);
+        if (!isDifferentUser) {
+          // Same user or first-time guest-to-user: write current state to Firestore
+          firestoreSave(state);
+        } else {
+          // Brand new user signing in after another user: give them a fresh seed
+          const fresh = buildInitialState();
+          setState(fresh);
+          setLocalStorage(LS_KEY, fresh);
+          firestoreSave(fresh);
+        }
       }
+      setLocalStorage(LS_UID_KEY, uid);
       setInitialised(true);
     }).catch(() => setInitialised(true));
   // eslint-disable-next-line react-hooks/exhaustive-deps
