@@ -46,6 +46,12 @@ export const PLATFORMS = [
   'Other',
 ] as const;
 
+export const GENRES = [
+  'Action', 'Adventure', 'Animation', 'Biography', 'Comedy', 'Crime',
+  'Documentary', 'Drama', 'Fantasy', 'History', 'Horror', 'Music',
+  'Mystery', 'Romance', 'Sci-Fi', 'Sport', 'Thriller', 'War', 'Western',
+] as const;
+
 export const SECTION_COLORS: Record<string, string> = {
   'General': '#818cf8',
   'K-Drama & Asian': '#f9a8d4',

@@ -97,12 +97,19 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
               <div className="mt-2.5 flex items-start gap-3 flex-wrap">
                 <StatusBadge status={meta.status} onChange={onStatusChange} />
 
-                {/* Duration */}
+                {/* Duration — highlighted pill */}
                 {meta.duration && (
-                  <div className="flex items-center gap-1 self-center">
-                    <Clock className="h-3 w-3" style={{ color: 'var(--text-muted)' }} />
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{meta.duration}</span>
-                  </div>
+                  <span
+                    className="inline-flex items-center gap-1 self-center rounded-md px-2 py-0.5 text-xs font-semibold border"
+                    style={{
+                      color: 'var(--accent-cyan)',
+                      borderColor: 'color-mix(in srgb, var(--accent-cyan) 35%, transparent)',
+                      background: 'color-mix(in srgb, var(--accent-cyan) 8%, transparent)',
+                    }}
+                  >
+                    <Clock className="h-3 w-3" />
+                    {meta.duration}
+                  </span>
                 )}
 
                 {entry.imdbRating && entry.imdbRating !== 'N/A' && (

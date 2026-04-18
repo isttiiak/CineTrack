@@ -211,6 +211,7 @@ export default function App() {
         onSave={handleSave}
         editEntry={editEntry}
         editMeta={editMeta}
+        existingEntries={state.entries}
       />
 
       <ToastContainer toasts={toasts} onRemove={removeToast} />
