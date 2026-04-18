@@ -50,7 +50,7 @@ export function WatchlistSection({
         >
           {section}
         </h2>
-        <span className="text-xs text-[var(--text-muted)] font-mono">{entries.length}</span>
+        <span className="text-sm font-mono font-semibold" style={{ color: 'var(--text-muted)' }}>{entries.length}</span>
         <button
           onClick={() => setCollapsed((p) => !p)}
           className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"

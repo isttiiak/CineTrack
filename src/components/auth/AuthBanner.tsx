@@ -11,19 +11,25 @@ export function AuthBanner({ onSignIn }: Props) {
   if (dismissed) return null;
 
   return (
-    <div className="mx-auto max-w-6xl px-4 mb-4">
-      <div className="flex items-center justify-between gap-3 rounded-xl border border-indigo-500/20 bg-indigo-500/5 px-4 py-3">
+    <div className="mb-5">
+      <div className="flex items-center justify-between gap-3 rounded-xl px-4 py-3 border"
+        style={{
+          borderColor: 'var(--accent-purple)',
+          background: 'color-mix(in srgb, var(--accent-purple) 8%, var(--bg-surface))',
+        }}
+      >
         <div className="flex items-center gap-2.5 text-sm">
-          <CloudUpload className="h-4 w-4 text-indigo-400 flex-shrink-0" />
-          <span className="text-[var(--text-secondary)]">
-            Sign in with Google to sync your watchlist across all devices — your data is never lost.
+          <CloudUpload className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--accent-purple)' }} />
+          <span className="font-medium" style={{ color: 'var(--text-secondary)' }}>
+            Sign in with Google to sync your watchlist across all devices.
           </span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <Button size="sm" onClick={onSignIn}>Sign in with Google</Button>
           <button
             onClick={() => setDismissed(true)}
-            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+            className="rounded-lg p-1 transition-colors hover:bg-[var(--bg-hover)]"
+            style={{ color: 'var(--text-muted)' }}
           >
             <X className="h-4 w-4" />
           </button>

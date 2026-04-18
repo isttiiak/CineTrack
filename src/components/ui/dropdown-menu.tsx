@@ -19,11 +19,12 @@ const DropdownMenuContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        'z-50 min-w-[180px] overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-1 shadow-lg',
+        'z-50 min-w-[180px] overflow-hidden rounded-xl border p-1 shadow-xl',
         'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
         'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
         className
       )}
+      style={{ background: 'var(--bg-elevated)', borderColor: 'var(--border-subtle)' }}
       {...props}
     />
   </DropdownMenuPrimitive.Portal>
@@ -37,11 +38,12 @@ const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex cursor-pointer select-none items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] outline-none transition-colors',
-      'focus:bg-[var(--bg-hover)] focus:text-[var(--text-primary)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'relative flex cursor-pointer select-none items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium outline-none transition-colors',
+      'focus:bg-[var(--bg-hover)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
       inset && 'pl-8',
       className
     )}
+    style={{ color: 'var(--text-secondary)' }}
     {...props}
   />
 ));
@@ -59,7 +61,7 @@ const DropdownMenuLabel = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Label>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Label> & { inset?: boolean }
 >(({ className, inset, ...props }, ref) => (
-  <DropdownMenuPrimitive.Label ref={ref} className={cn('px-3 py-1.5 text-xs font-semibold text-[var(--text-muted)]', inset && 'pl-8', className)} {...props} />
+  <DropdownMenuPrimitive.Label ref={ref} className={cn('px-3 py-1.5 text-xs font-semibold', inset && 'pl-8', className)} style={{ color: 'var(--text-muted)' }} {...props} />
 ));
 DropdownMenuLabel.displayName = DropdownMenuPrimitive.Label.displayName;
 

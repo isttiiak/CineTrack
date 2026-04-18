@@ -23,9 +23,9 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
   return (
     <motion.div
       layout
-      className="group rounded-xl border border-transparent hover:border-[var(--border-subtle)] hover:bg-white/[0.025] transition-all duration-150 px-3 py-2.5"
+      className="group rounded-xl border border-transparent hover:border-[var(--border-subtle)] hover:bg-[var(--bg-hover)] transition-all duration-150 px-3 py-3"
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-start gap-3">
         <PosterThumb
           title={entry.title}
           year={entry.year}
@@ -38,34 +38,56 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
           <div className="flex items-start justify-between gap-2 flex-wrap">
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="font-medium text-[var(--text-primary)] text-sm leading-tight">{entry.title}</span>
-                {entry.year && <span className="text-xs text-[var(--text-muted)]">({entry.year})</span>}
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
+                <span className="font-semibold text-[var(--text-primary)] text-base leading-tight">{entry.title}</span>
+                {entry.year && (
+                  <span className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
+                    ({entry.year})
+                  </span>
+                )}
+                <span className="text-xs px-1.5 py-0.5 rounded-md font-medium"
+                  style={{
+                    background: 'var(--bg-elevated)',
+                    color: 'var(--text-secondary)',
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                >
                   {entry.type}
                 </span>
               </div>
-              <div className="mt-0.5 text-xs text-[var(--text-muted)] truncate">
+              <div className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
                 {[entry.country, entry.genre].filter(Boolean).join(' · ')}
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+            {/* Action buttons — always visible on mobile, hover on desktop */}
+            <div className="flex items-center gap-1 flex-shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
               {meta.watchLink && (
                 <a
                   href={meta.watchLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded p-1 text-[var(--text-muted)] hover:text-indigo-400 transition-colors"
+                  className="rounded-lg p-1.5 transition-colors hover:bg-[var(--bg-elevated)]"
+                  style={{ color: 'var(--text-muted)' }}
                   title="Watch Link"
                 >
-                  <Link className="h-3.5 w-3.5" />
+                  <Link className="h-4 w-4" />
                 </a>
               )}
-              <button onClick={onEdit} className="rounded p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
-                <Pencil className="h-3.5 w-3.5" />
+              <button
+                onClick={onEdit}
+                className="rounded-lg p-1.5 transition-colors hover:bg-[var(--bg-elevated)]"
+                style={{ color: 'var(--text-muted)' }}
+                title="Edit"
+              >
+                <Pencil className="h-4 w-4" />
               </button>
-              <button onClick={onDelete} className="rounded p-1 text-[var(--text-muted)] hover:text-red-400 transition-colors">
-                <Trash2 className="h-3.5 w-3.5" />
+              <button
+                onClick={onDelete}
+                className="rounded-lg p-1.5 transition-colors hover:bg-red-500/10"
+                style={{ color: 'var(--text-muted)' }}
+                title="Delete"
+              >
+                <Trash2 className="h-4 w-4" />
               </button>
             </div>
           </div>
@@ -79,26 +101,31 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
                 href={entry.imdbUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`inline-flex items-center gap-0.5 text-xs font-mono ${getImdbColor(entry.imdbRating)} hover:underline`}
+                className={`inline-flex items-center gap-0.5 text-sm font-mono font-medium ${getImdbColor(entry.imdbRating)} hover:underline`}
               >
-                {entry.imdbRating} <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                ★ {entry.imdbRating} <ExternalLink className="h-3 w-3 opacity-60" />
               </a>
             )}
 
             {meta.watchPlatform && (
-              <span className="text-xs text-[var(--text-muted)]">{meta.watchPlatform}</span>
+              <span className="text-sm font-medium px-2 py-0.5 rounded-md"
+                style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+              >
+                {meta.watchPlatform}
+              </span>
             )}
 
             {meta.watchedOn && (
-              <span className="text-xs text-[var(--text-disabled)]">{meta.watchedOn}</span>
+              <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{meta.watchedOn}</span>
             )}
 
             {meta.notes && (
               <button
                 onClick={() => setNotesOpen((p) => !p)}
-                className="inline-flex items-center gap-0.5 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                className="inline-flex items-center gap-0.5 text-sm font-medium transition-colors"
+                style={{ color: 'var(--accent-purple)' }}
               >
-                Notes {notesOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                Notes {notesOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
               </button>
             )}
           </div>
@@ -111,7 +138,13 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
                 exit={{ opacity: 0, height: 0 }}
                 className="mt-2 overflow-hidden"
               >
-                <p className="text-xs text-[var(--text-secondary)] leading-relaxed bg-[var(--bg-elevated)] rounded-lg px-3 py-2 border border-[var(--border-subtle)]">
+                <p className="text-sm leading-relaxed rounded-xl px-3 py-2.5 border"
+                  style={{
+                    background: 'var(--bg-elevated)',
+                    color: 'var(--text-secondary)',
+                    borderColor: 'var(--border-subtle)',
+                  }}
+                >
                   {meta.notes}
                 </p>
               </motion.div>

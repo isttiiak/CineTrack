@@ -24,7 +24,7 @@ export function Header({ state, user, theme, lastSync, onToggleTheme, onSignIn, 
   const progress = total > 0 ? Math.round((watched / total) * 100) : 0;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-[var(--border-subtle)] bg-[var(--bg-base)]/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b backdrop-blur-xl" style={{ borderColor: 'var(--border-subtle)', background: 'color-mix(in srgb, var(--bg-base) 85%, transparent)' }}>
       <div className="mx-auto max-w-6xl px-4 py-3">
         <div className="flex items-center justify-between gap-4">
           {/* Logo */}
@@ -38,13 +38,13 @@ export function Header({ state, user, theme, lastSync, onToggleTheme, onSignIn, 
           </div>
 
           {/* Stats */}
-          <div className="hidden md:flex items-center gap-4 text-xs text-[var(--text-muted)]">
-            <span><span className="font-mono text-[var(--text-primary)] font-medium">{total}</span> total</span>
-            <span><span className="font-mono text-emerald-400 font-medium">{watched}</span> watched</span>
-            <span><span className="font-mono text-yellow-400 font-medium">{watching}</span> watching</span>
-            <span><span className="font-mono text-purple-400 font-medium">{plan}</span> planned</span>
+          <div className="hidden md:flex items-center gap-4 text-sm" style={{ color: 'var(--text-muted)' }}>
+            <span><span className="font-mono font-bold text-base" style={{ color: 'var(--text-primary)' }}>{total}</span> total</span>
+            <span><span className="font-mono font-bold text-base text-emerald-400">{watched}</span> watched</span>
+            <span><span className="font-mono font-bold text-base text-yellow-400">{watching}</span> watching</span>
+            <span><span className="font-mono font-bold text-base" style={{ color: 'var(--accent-purple)' }}>{plan}</span> planned</span>
             {lastSync && (
-              <span className="text-[var(--text-disabled)]">synced {formatRelativeTime(lastSync)}</span>
+              <span className="text-xs" style={{ color: 'var(--text-disabled)' }}>synced {formatRelativeTime(lastSync)}</span>
             )}
           </div>
 
@@ -93,7 +93,7 @@ export function Header({ state, user, theme, lastSync, onToggleTheme, onSignIn, 
             style={{ width: `${progress}%` }}
           />
         </div>
-        <div className="mt-1 text-right text-[10px] text-[var(--text-disabled)]">{progress}% complete</div>
+        <div className="mt-1 text-right text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{progress}% complete</div>
       </div>
     </header>
   );

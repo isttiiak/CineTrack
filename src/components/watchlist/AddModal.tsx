@@ -159,12 +159,12 @@ export function AddModal({ open, onClose, onSave, editEntry, editMeta }: Props) 
               <div className="grid gap-1.5">
                 <Label>Platform</Label>
                 <Select
-                  value={meta.watchPlatform ?? ''}
-                  onValueChange={(v) => setM('watchPlatform', v as WatchPlatform)}
+                  value={meta.watchPlatform || '_none'}
+                  onValueChange={(v) => setM('watchPlatform', (v === '_none' ? '' : v) as WatchPlatform)}
                 >
                   <SelectTrigger><SelectValue placeholder="Platform" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="_none">None</SelectItem>
                     {PLATFORMS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                   </SelectContent>
                 </Select>
