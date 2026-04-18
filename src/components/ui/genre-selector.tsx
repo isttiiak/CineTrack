@@ -86,13 +86,15 @@ export function GenreSelector({ value, onChange }: Props) {
               }}
             >
               {g}
-              <button
-                type="button"
+              <span
+                role="button"
+                tabIndex={0}
                 onClick={(e) => { e.stopPropagation(); remove(g); }}
-                className="hover:text-red-400 transition-colors"
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); remove(g); } }}
+                className="hover:text-red-400 transition-colors cursor-pointer"
               >
                 <X className="h-2.5 w-2.5" />
-              </button>
+              </span>
             </span>
           ))}
         </div>
