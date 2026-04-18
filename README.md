@@ -1,6 +1,9 @@
-# 🎬 CineTrack
+# <img src="public/favicon.svg" alt="CineTrack logo" width="48" style="height:auto;" /> CineTrack
 
 A personal movie and TV series watchlist tracker. Works instantly as a guest, or sign in with Google for permanent cloud sync across all your devices.
+
+
+
 
 **Live:** [cine-track-silk.vercel.app](https://cine-track-silk.vercel.app)
 
