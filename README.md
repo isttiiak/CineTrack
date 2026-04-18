@@ -4,8 +4,6 @@ A personal movie and TV series watchlist tracker. Works instantly as a guest, or
 
 **Live:** [cine-track-silk.vercel.app](https://cine-track-silk.vercel.app)
 
-![CineTrack Screenshot](https://cine-track-silk.vercel.app/icon-512.png)
-
 ---
 
 ## Features
