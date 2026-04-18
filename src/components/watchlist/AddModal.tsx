@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { DuplicateDialog } from '@/components/ui/duplicate-dialog';
 import { GenreSelector } from '@/components/ui/genre-selector';
 import type { MovieEntry, WatchMeta, WatchStatus, MediaType, WatchPlatform, Section } from '@/types';
 import { SECTIONS, PLATFORMS } from '@/lib/utils';
@@ -17,6 +17,7 @@ interface Props {
   editEntry?: MovieEntry | null;
   editMeta?: WatchMeta | null;
   existingEntries?: MovieEntry[];
+  existingMeta?: Record<string, WatchMeta>;
 }
 
 const DEFAULT_ENTRY: Omit<MovieEntry, 'id' | 'isCustom'> = {
@@ -28,12 +29,12 @@ const DEFAULT_META: Partial<WatchMeta> = {
   notes: '', watchedOn: '', watchPlatform: '', watchLink: '', duration: '',
 };
 
-export function AddModal({ open, onClose, onSave, editEntry, editMeta, existingEntries = [] }: Props) {
+export function AddModal({ open, onClose, onSave, editEntry, editMeta, existingEntries = [], existingMeta = {} }: Props) {
   const [entry, setEntry] = useState<Omit<MovieEntry, 'id' | 'isCustom'>>(DEFAULT_ENTRY);
   const [meta, setMeta] = useState<Partial<WatchMeta>>(DEFAULT_META);
   const [customSection, setCustomSection] = useState('');
   const [dupDialogOpen, setDupDialogOpen] = useState(false);
-  const [dupTitle, setDupTitle] = useState('');
+  const [dupEntry, setDupEntry] = useState<MovieEntry | null>(null);
 
   useEffect(() => {
     if (editEntry) {
@@ -45,6 +46,7 @@ export function AddModal({ open, onClose, onSave, editEntry, editMeta, existingE
     }
     setMeta(editMeta ? { ...editMeta } : DEFAULT_META);
     setDupDialogOpen(false);
+    setDupEntry(null);
   }, [editEntry, editMeta, open]);
 
   const doSave = () => {
@@ -62,7 +64,7 @@ export function AddModal({ open, onClose, onSave, editEntry, editMeta, existingE
       const trimmed = entry.title.trim().toLowerCase();
       const dup = existingEntries.find((e) => e.title.trim().toLowerCase() === trimmed);
       if (dup) {
-        setDupTitle(dup.title);
+        setDupEntry(dup);
         setDupDialogOpen(true);
         return;
       }
@@ -249,15 +251,12 @@ export function AddModal({ open, onClose, onSave, editEntry, editMeta, existingE
         </DialogContent>
       </Dialog>
 
-      {/* Duplicate warning dialog — renders outside the Dialog to avoid z-index issues */}
-      <ConfirmDialog
+      {/* Duplicate warning — portal-rendered above the AddModal dialog */}
+      <DuplicateDialog
         open={dupDialogOpen}
-        variant="warning"
-        title="Duplicate Entry Found"
-        description={`"${dupTitle}" is already in your watchlist. Do you want to add it again anyway?`}
-        confirmLabel="Add Anyway"
-        onConfirm={() => { setDupDialogOpen(false); doSave(); }}
-        onCancel={() => setDupDialogOpen(false)}
+        entry={dupEntry}
+        meta={dupEntry ? existingMeta[dupEntry.id] : null}
+        onClose={() => { setDupDialogOpen(false); onClose(); }}
       />
     </>
   );

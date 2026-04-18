@@ -212,6 +212,7 @@ export default function App() {
         editEntry={editEntry}
         editMeta={editMeta}
         existingEntries={state.entries}
+        existingMeta={state.meta}
       />
 
       <ToastContainer toasts={toasts} onRemove={removeToast} />
