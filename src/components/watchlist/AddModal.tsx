@@ -64,8 +64,9 @@ export function AddModal({ open, onClose, onSave, editEntry, editMeta }: Props) 
 
         <div className="px-6 pb-2 grid gap-4">
           <div className="grid gap-1.5">
-            <Label>Title *</Label>
+            <Label htmlFor="ct-title">Title *</Label>
             <Input
+              id="ct-title" name="title"
               value={entry.title}
               onChange={(e) => setE('title', e.target.value)}
               placeholder="Movie or series title"
@@ -75,18 +76,18 @@ export function AddModal({ open, onClose, onSave, editEntry, editMeta }: Props) 
 
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">
-              <Label>Year</Label>
-              <Input value={entry.year} onChange={(e) => setE('year', e.target.value)} placeholder="2024" />
+              <Label htmlFor="ct-year">Year</Label>
+              <Input id="ct-year" name="year" value={entry.year} onChange={(e) => setE('year', e.target.value)} placeholder="2024" />
             </div>
             <div className="grid gap-1.5">
-              <Label>Country</Label>
-              <Input value={entry.country} onChange={(e) => setE('country', e.target.value)} placeholder="USA" />
+              <Label htmlFor="ct-country">Country</Label>
+              <Input id="ct-country" name="country" value={entry.country} onChange={(e) => setE('country', e.target.value)} placeholder="USA" />
             </div>
           </div>
 
           <div className="grid gap-1.5">
-            <Label>Genre</Label>
-            <Input value={entry.genre} onChange={(e) => setE('genre', e.target.value)} placeholder="Action, Drama" />
+            <Label htmlFor="ct-genre">Genre</Label>
+            <Input id="ct-genre" name="genre" value={entry.genre} onChange={(e) => setE('genre', e.target.value)} placeholder="Action, Drama" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -122,12 +123,12 @@ export function AddModal({ open, onClose, onSave, editEntry, editMeta }: Props) 
 
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">
-              <Label>IMDb Rating</Label>
-              <Input value={entry.imdbRating} onChange={(e) => setE('imdbRating', e.target.value)} placeholder="8.3" />
+              <Label htmlFor="ct-imdb-rating">IMDb Rating</Label>
+              <Input id="ct-imdb-rating" name="imdbRating" value={entry.imdbRating} onChange={(e) => setE('imdbRating', e.target.value)} placeholder="8.3" />
             </div>
             <div className="grid gap-1.5">
-              <Label>IMDb URL</Label>
-              <Input value={entry.imdbUrl} onChange={(e) => setE('imdbUrl', e.target.value)} placeholder="https://imdb.com/..." />
+              <Label htmlFor="ct-imdb-url">IMDb URL</Label>
+              <Input id="ct-imdb-url" name="imdbUrl" value={entry.imdbUrl} onChange={(e) => setE('imdbUrl', e.target.value)} placeholder="https://imdb.com/..." />
             </div>
           </div>
 
@@ -145,8 +146,9 @@ export function AddModal({ open, onClose, onSave, editEntry, editMeta }: Props) 
                 </Select>
               </div>
               <div className="grid gap-1.5">
-                <Label>My Rating (1–10)</Label>
+                <Label htmlFor="ct-rating">My Rating (1–10)</Label>
                 <Input
+                  id="ct-rating" name="personalRating"
                   type="number" min={1} max={10}
                   value={meta.personalRating ?? ''}
                   onChange={(e) => setM('personalRating', e.target.value ? parseFloat(e.target.value) : undefined)}
@@ -170,8 +172,9 @@ export function AddModal({ open, onClose, onSave, editEntry, editMeta }: Props) 
                 </Select>
               </div>
               <div className="grid gap-1.5">
-                <Label>Watched On</Label>
+                <Label htmlFor="ct-watched-on">Watched On</Label>
                 <Input
+                  id="ct-watched-on" name="watchedOn"
                   type="date"
                   value={meta.watchedOn ?? ''}
                   onChange={(e) => setM('watchedOn', e.target.value)}
@@ -181,8 +184,9 @@ export function AddModal({ open, onClose, onSave, editEntry, editMeta }: Props) 
             </div>
 
             <div className="grid gap-1.5">
-              <Label>Watch Link (private)</Label>
+              <Label htmlFor="ct-watch-link">Watch Link (private)</Label>
               <Input
+                id="ct-watch-link" name="watchLink"
                 value={meta.watchLink ?? ''}
                 onChange={(e) => setM('watchLink', e.target.value)}
                 placeholder="https://..."
@@ -190,8 +194,9 @@ export function AddModal({ open, onClose, onSave, editEntry, editMeta }: Props) 
             </div>
 
             <div className="grid gap-1.5">
-              <Label>Notes / Review</Label>
+              <Label htmlFor="ct-notes">Notes / Review</Label>
               <Textarea
+                id="ct-notes" name="notes"
                 value={meta.notes ?? ''}
                 onChange={(e) => setM('notes', e.target.value.slice(0, 500))}
                 placeholder="Your thoughts..."

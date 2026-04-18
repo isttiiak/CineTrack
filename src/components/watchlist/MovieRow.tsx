@@ -30,14 +30,8 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
         style={{ borderColor: 'transparent' }}
         whileHover={{ borderColor: 'var(--border-subtle)' }}
         transition={{ duration: 0.18 }}
-        onHoverStart={(e) => {
-          (e.target as HTMLElement).closest?.('.group')?.setAttribute('data-hovered', 'true');
-        }}
       >
-        {/* Inner bg via CSS transition for smoothness */}
-        <div
-          className="rounded-lg transition-colors duration-200 group-hover:bg-[var(--bg-hover)] -mx-1 px-1 py-0.5"
-        >
+        <div className="rounded-lg transition-colors duration-200 group-hover:bg-[var(--bg-hover)] -mx-1 px-1 py-0.5">
           <div className="flex items-start gap-3">
             <PosterThumb
               title={entry.title}
@@ -76,27 +70,8 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
                   </div>
                 </div>
 
-                {/* Action buttons */}
-                <div className="flex items-center gap-2 flex-shrink-0 mt-0.5">
-                  {/* Private watch link */}
-                  {meta.watchLink && (
-                    <a
-                      href={meta.watchLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold border transition-all hover:opacity-80"
-                      style={{
-                        color: 'var(--accent-cyan)',
-                        borderColor: 'var(--accent-cyan)',
-                        background: 'color-mix(in srgb, var(--accent-cyan) 8%, transparent)',
-                      }}
-                      title="Private Watch Link"
-                    >
-                      <Link className="h-3 w-3" /> Watch
-                    </a>
-                  )}
-
-                  {/* Edit */}
+                {/* Edit / Delete — visible only on hover */}
+                <div className="flex items-center gap-2 flex-shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                   <motion.button
                     whileTap={{ scale: 0.93 }}
                     onClick={onEdit}
@@ -112,7 +87,6 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
                     Edit
                   </motion.button>
 
-                  {/* Delete */}
                   <motion.button
                     whileTap={{ scale: 0.93 }}
                     onClick={() => setConfirmOpen(true)}
@@ -135,7 +109,7 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
                 {/* Status */}
                 <StatusBadge status={meta.status} onChange={onStatusChange} />
 
-                {/* IMDb rating with label */}
+                {/* IMDb rating */}
                 {entry.imdbRating && entry.imdbRating !== 'N/A' && (
                   <div className="flex flex-col items-center gap-0.5">
                     <a
@@ -152,7 +126,7 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
                   </div>
                 )}
 
-                {/* Personal rating with label */}
+                {/* Personal rating */}
                 <div className="flex flex-col items-center gap-0.5">
                   <RatingBadge rating={meta.personalRating} onChange={onRatingChange} />
                   <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: 'var(--text-disabled)' }}>
@@ -174,11 +148,34 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
                   </span>
                 )}
 
-                {/* Watched on */}
+                {/* Watched on with label */}
                 {meta.watchedOn && (
-                  <span className="text-xs self-center" style={{ color: 'var(--text-muted)' }}>
-                    {meta.watchedOn}
-                  </span>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+                      {meta.watchedOn}
+                    </span>
+                    <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: 'var(--text-disabled)' }}>
+                      Watched On
+                    </span>
+                  </div>
+                )}
+
+                {/* Private watch link — moved to badges row */}
+                {meta.watchLink && (
+                  <a
+                    href={meta.watchLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 self-center rounded-lg px-2 py-1 text-xs font-semibold border transition-all hover:opacity-80"
+                    style={{
+                      color: 'var(--accent-cyan)',
+                      borderColor: 'var(--accent-cyan)',
+                      background: 'color-mix(in srgb, var(--accent-cyan) 8%, transparent)',
+                    }}
+                    title="Private Watch Link"
+                  >
+                    <Link className="h-3 w-3" /> Watch
+                  </a>
                 )}
 
                 {/* Notes toggle */}
@@ -220,7 +217,6 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
         </div>
       </motion.div>
 
-      {/* Interactive delete confirmation */}
       <ConfirmDialog
         open={confirmOpen}
         title={`Delete "${entry.title}"?`}
