@@ -42,6 +42,7 @@ A personal movie and TV series watchlist tracker. Works instantly as a guest, or
 - Search by title, genre, or country
 - Filter by section, type (Film/Series), status, or platform
 - One-click clear all filters
+- Sort alphabetically and imdb rating
 
 ---
 
