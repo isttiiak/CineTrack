@@ -34,7 +34,6 @@
     --status-watched-border: #065f46;
   }
 
-  /* Light mode — fully readable */
   .light {
     --bg-base: #f0f2f8;
     --bg-surface: #ffffff;
@@ -51,6 +50,7 @@
     --accent-green: #059669;
     --accent-yellow: #d97706;
     --accent-red: #dc2626;
+    --accent-cyan: #0891b2;
     --status-plan-bg: #ede9fe;
     --status-plan-text: #5b21b6;
     --status-plan-border: #a78bfa;
@@ -64,6 +64,9 @@
 
   * { border-color: var(--border-subtle); box-sizing: border-box; }
 
+  html { color-scheme: dark; }
+  .light { color-scheme: light; }
+
   body {
     background-color: var(--bg-base);
     color: var(--text-primary);
@@ -76,6 +79,32 @@
   }
 
   h1, h2, h3 { font-family: 'Syne', sans-serif; }
+
+  /* Force all form elements to inherit theme text color — prevents browser defaulting to black */
+  input, textarea, select, button {
+    color: inherit;
+    font-family: inherit;
+  }
+
+  /* Placeholder styling */
+  input::placeholder, textarea::placeholder {
+    color: var(--text-disabled);
+    opacity: 1;
+  }
+
+  /* Date input in dark mode */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.7);
+  }
+  .light input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: none;
+  }
+
+  /* Number input arrows */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    opacity: 0.4;
+  }
 }
 
 .glow-pulse {
@@ -92,6 +121,3 @@
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
-
-/* Light mode scrollbar */
-.light ::-webkit-scrollbar-thumb { background: #c8cce0; }

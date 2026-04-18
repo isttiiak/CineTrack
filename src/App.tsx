@@ -72,7 +72,6 @@ export default function App() {
   };
 
   const handleDelete = (id: string) => {
-    if (!confirm('Delete this entry?')) return;
     deleteEntry(id);
     addToast('Entry deleted', 'info');
     pulse();

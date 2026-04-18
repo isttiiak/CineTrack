@@ -5,6 +5,7 @@ import type { MovieEntry, WatchMeta, WatchStatus } from '@/types';
 import { StatusBadge } from './StatusBadge';
 import { RatingBadge } from './RatingBadge';
 import { PosterThumb } from './PosterThumb';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { getImdbColor } from '@/lib/utils';
 
 interface Props {
@@ -19,139 +20,215 @@ interface Props {
 
 export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, onDelete, onPosterLoaded }: Props) {
   const [notesOpen, setNotesOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   return (
-    <motion.div
-      layout
-      className="group rounded-xl border border-transparent hover:border-[var(--border-subtle)] hover:bg-[var(--bg-hover)] transition-all duration-150 px-3 py-3"
-    >
-      <div className="flex items-start gap-3">
-        <PosterThumb
-          title={entry.title}
-          year={entry.year}
-          type={entry.type}
-          posterUrl={entry.posterUrl}
-          onPosterLoaded={onPosterLoaded}
-        />
+    <>
+      <motion.div
+        layout
+        className="group rounded-xl border px-3 py-3 cursor-default"
+        style={{ borderColor: 'transparent' }}
+        whileHover={{ borderColor: 'var(--border-subtle)' }}
+        transition={{ duration: 0.18 }}
+        onHoverStart={(e) => {
+          (e.target as HTMLElement).closest?.('.group')?.setAttribute('data-hovered', 'true');
+        }}
+      >
+        {/* Inner bg via CSS transition for smoothness */}
+        <div
+          className="rounded-lg transition-colors duration-200 group-hover:bg-[var(--bg-hover)] -mx-1 px-1 py-0.5"
+        >
+          <div className="flex items-start gap-3">
+            <PosterThumb
+              title={entry.title}
+              year={entry.year}
+              type={entry.type}
+              posterUrl={entry.posterUrl}
+              onPosterLoaded={onPosterLoaded}
+            />
 
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2 flex-wrap">
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="font-semibold text-[var(--text-primary)] text-base leading-tight">{entry.title}</span>
-                {entry.year && (
-                  <span className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
-                    ({entry.year})
+            <div className="min-w-0 flex-1">
+              {/* Title row */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-bold text-base leading-tight" style={{ color: 'var(--text-primary)' }}>
+                      {entry.title}
+                    </span>
+                    {entry.year && (
+                      <span className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
+                        ({entry.year})
+                      </span>
+                    )}
+                    <span
+                      className="text-xs px-1.5 py-0.5 rounded-md font-medium border"
+                      style={{
+                        background: 'var(--bg-elevated)',
+                        color: 'var(--text-secondary)',
+                        borderColor: 'var(--border-subtle)',
+                      }}
+                    >
+                      {entry.type}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    {[entry.country, entry.genre].filter(Boolean).join(' · ')}
+                  </div>
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex items-center gap-2 flex-shrink-0 mt-0.5">
+                  {/* Private watch link */}
+                  {meta.watchLink && (
+                    <a
+                      href={meta.watchLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold border transition-all hover:opacity-80"
+                      style={{
+                        color: 'var(--accent-cyan)',
+                        borderColor: 'var(--accent-cyan)',
+                        background: 'color-mix(in srgb, var(--accent-cyan) 8%, transparent)',
+                      }}
+                      title="Private Watch Link"
+                    >
+                      <Link className="h-3 w-3" /> Watch
+                    </a>
+                  )}
+
+                  {/* Edit */}
+                  <motion.button
+                    whileTap={{ scale: 0.93 }}
+                    onClick={onEdit}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold border transition-colors"
+                    style={{
+                      color: 'var(--text-secondary)',
+                      borderColor: 'var(--border-subtle)',
+                      background: 'var(--bg-elevated)',
+                    }}
+                    title="Edit"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Edit
+                  </motion.button>
+
+                  {/* Delete */}
+                  <motion.button
+                    whileTap={{ scale: 0.93 }}
+                    onClick={() => setConfirmOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold border transition-colors hover:bg-red-500/10 hover:border-red-500/40 hover:text-red-400"
+                    style={{
+                      color: 'var(--text-secondary)',
+                      borderColor: 'var(--border-subtle)',
+                      background: 'var(--bg-elevated)',
+                    }}
+                    title="Delete"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* Badges row */}
+              <div className="mt-2.5 flex items-start gap-3 flex-wrap">
+                {/* Status */}
+                <StatusBadge status={meta.status} onChange={onStatusChange} />
+
+                {/* IMDb rating with label */}
+                {entry.imdbRating && entry.imdbRating !== 'N/A' && (
+                  <div className="flex flex-col items-center gap-0.5">
+                    <a
+                      href={entry.imdbUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`inline-flex items-center gap-0.5 text-sm font-bold font-mono ${getImdbColor(entry.imdbRating)} hover:underline`}
+                    >
+                      ★ {entry.imdbRating} <ExternalLink className="h-3 w-3 opacity-50" />
+                    </a>
+                    <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: 'var(--text-disabled)' }}>
+                      IMDb
+                    </span>
+                  </div>
+                )}
+
+                {/* Personal rating with label */}
+                <div className="flex flex-col items-center gap-0.5">
+                  <RatingBadge rating={meta.personalRating} onChange={onRatingChange} />
+                  <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: 'var(--text-disabled)' }}>
+                    My Rating
+                  </span>
+                </div>
+
+                {/* Platform */}
+                {meta.watchPlatform && (
+                  <span
+                    className="text-xs font-semibold px-2 py-0.5 rounded-md border self-center"
+                    style={{
+                      background: 'var(--bg-elevated)',
+                      color: 'var(--text-secondary)',
+                      borderColor: 'var(--border-subtle)',
+                    }}
+                  >
+                    {meta.watchPlatform}
                   </span>
                 )}
-                <span className="text-xs px-1.5 py-0.5 rounded-md font-medium"
-                  style={{
-                    background: 'var(--bg-elevated)',
-                    color: 'var(--text-secondary)',
-                    border: '1px solid var(--border-subtle)',
-                  }}
-                >
-                  {entry.type}
-                </span>
-              </div>
-              <div className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                {[entry.country, entry.genre].filter(Boolean).join(' · ')}
-              </div>
-            </div>
 
-            {/* Action buttons — always visible on mobile, hover on desktop */}
-            <div className="flex items-center gap-1 flex-shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-              {meta.watchLink && (
-                <a
-                  href={meta.watchLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="rounded-lg p-1.5 transition-colors hover:bg-[var(--bg-elevated)]"
-                  style={{ color: 'var(--text-muted)' }}
-                  title="Watch Link"
-                >
-                  <Link className="h-4 w-4" />
-                </a>
-              )}
-              <button
-                onClick={onEdit}
-                className="rounded-lg p-1.5 transition-colors hover:bg-[var(--bg-elevated)]"
-                style={{ color: 'var(--text-muted)' }}
-                title="Edit"
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
-              <button
-                onClick={onDelete}
-                className="rounded-lg p-1.5 transition-colors hover:bg-red-500/10"
-                style={{ color: 'var(--text-muted)' }}
-                title="Delete"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+                {/* Watched on */}
+                {meta.watchedOn && (
+                  <span className="text-xs self-center" style={{ color: 'var(--text-muted)' }}>
+                    {meta.watchedOn}
+                  </span>
+                )}
+
+                {/* Notes toggle */}
+                {meta.notes && (
+                  <button
+                    onClick={() => setNotesOpen((p) => !p)}
+                    className="inline-flex items-center gap-0.5 text-xs font-semibold self-center transition-colors"
+                    style={{ color: 'var(--accent-purple)' }}
+                  >
+                    Notes {notesOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                  </button>
+                )}
+              </div>
+
+              {/* Notes expansion */}
+              <AnimatePresence>
+                {notesOpen && meta.notes && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-2 overflow-hidden"
+                  >
+                    <p
+                      className="text-sm leading-relaxed rounded-xl px-3 py-2.5 border"
+                      style={{
+                        background: 'var(--bg-elevated)',
+                        color: 'var(--text-secondary)',
+                        borderColor: 'var(--border-subtle)',
+                      }}
+                    >
+                      {meta.notes}
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
-
-          <div className="mt-2 flex items-center gap-2 flex-wrap">
-            <StatusBadge status={meta.status} onChange={onStatusChange} />
-            <RatingBadge rating={meta.personalRating} onChange={onRatingChange} />
-
-            {entry.imdbRating && entry.imdbRating !== 'N/A' && (
-              <a
-                href={entry.imdbUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`inline-flex items-center gap-0.5 text-sm font-mono font-medium ${getImdbColor(entry.imdbRating)} hover:underline`}
-              >
-                ★ {entry.imdbRating} <ExternalLink className="h-3 w-3 opacity-60" />
-              </a>
-            )}
-
-            {meta.watchPlatform && (
-              <span className="text-sm font-medium px-2 py-0.5 rounded-md"
-                style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
-              >
-                {meta.watchPlatform}
-              </span>
-            )}
-
-            {meta.watchedOn && (
-              <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{meta.watchedOn}</span>
-            )}
-
-            {meta.notes && (
-              <button
-                onClick={() => setNotesOpen((p) => !p)}
-                className="inline-flex items-center gap-0.5 text-sm font-medium transition-colors"
-                style={{ color: 'var(--accent-purple)' }}
-              >
-                Notes {notesOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-              </button>
-            )}
-          </div>
-
-          <AnimatePresence>
-            {notesOpen && meta.notes && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="mt-2 overflow-hidden"
-              >
-                <p className="text-sm leading-relaxed rounded-xl px-3 py-2.5 border"
-                  style={{
-                    background: 'var(--bg-elevated)',
-                    color: 'var(--text-secondary)',
-                    borderColor: 'var(--border-subtle)',
-                  }}
-                >
-                  {meta.notes}
-                </p>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
-      </div>
-    </motion.div>
+      </motion.div>
+
+      {/* Interactive delete confirmation */}
+      <ConfirmDialog
+        open={confirmOpen}
+        title={`Delete "${entry.title}"?`}
+        description="This will permanently remove this entry from your watchlist. This action cannot be undone."
+        confirmLabel="Delete Entry"
+        onConfirm={() => { setConfirmOpen(false); onDelete(); }}
+        onCancel={() => setConfirmOpen(false)}
+      />
+    </>
   );
 }
