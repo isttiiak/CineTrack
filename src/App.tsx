@@ -12,6 +12,7 @@ import { AuthBanner } from '@/components/auth/AuthBanner';
 import { FilterBar } from '@/components/filters/FilterBar';
 import { WatchlistSection } from '@/components/watchlist/WatchlistSection';
 import { AddModal } from '@/components/watchlist/AddModal';
+import { DuplicateDialog } from '@/components/ui/duplicate-dialog';
 import { ToastContainer } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import type { FilterState, MovieEntry, WatchMeta, ThemeMode } from '@/types';
@@ -36,6 +37,7 @@ export default function App() {
   const [editEntry, setEditEntry] = useState<MovieEntry | null>(null);
   const [editMeta, setEditMeta] = useState<WatchMeta | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [dupEntry, setDupEntry] = useState<MovieEntry | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
   // Apply theme
@@ -209,13 +211,20 @@ export default function App() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onSave={handleSave}
+        onDuplicate={(dup) => setDupEntry(dup)}
         editEntry={editEntry}
         editMeta={editMeta}
         existingEntries={state.entries}
-        existingMeta={state.meta}
       />
 
       <ToastContainer toasts={toasts} onRemove={removeToast} />
+
+      <DuplicateDialog
+        open={dupEntry !== null}
+        entry={dupEntry}
+        meta={dupEntry ? state.meta[dupEntry.id] : null}
+        onClose={() => setDupEntry(null)}
+      />
 
       <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImportFile} />
 

@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DuplicateDialog } from '@/components/ui/duplicate-dialog';
 import { GenreSelector } from '@/components/ui/genre-selector';
 import type { MovieEntry, WatchMeta, WatchStatus, MediaType, WatchPlatform, Section } from '@/types';
 import { SECTIONS, PLATFORMS } from '@/lib/utils';
@@ -14,10 +13,10 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onSave: (entry: Omit<MovieEntry, 'id' | 'isCustom'>, meta: Partial<WatchMeta>) => void;
+  onDuplicate?: (dup: MovieEntry) => void;
   editEntry?: MovieEntry | null;
   editMeta?: WatchMeta | null;
   existingEntries?: MovieEntry[];
-  existingMeta?: Record<string, WatchMeta>;
 }
 
 const DEFAULT_ENTRY: Omit<MovieEntry, 'id' | 'isCustom'> = {
@@ -29,12 +28,10 @@ const DEFAULT_META: Partial<WatchMeta> = {
   notes: '', watchedOn: '', watchPlatform: '', watchLink: '', duration: '',
 };
 
-export function AddModal({ open, onClose, onSave, editEntry, editMeta, existingEntries = [], existingMeta = {} }: Props) {
+export function AddModal({ open, onClose, onSave, onDuplicate, editEntry, editMeta, existingEntries = [] }: Props) {
   const [entry, setEntry] = useState<Omit<MovieEntry, 'id' | 'isCustom'>>(DEFAULT_ENTRY);
   const [meta, setMeta] = useState<Partial<WatchMeta>>(DEFAULT_META);
   const [customSection, setCustomSection] = useState('');
-  const [dupDialogOpen, setDupDialogOpen] = useState(false);
-  const [dupEntry, setDupEntry] = useState<MovieEntry | null>(null);
 
   useEffect(() => {
     if (editEntry) {
@@ -45,8 +42,6 @@ export function AddModal({ open, onClose, onSave, editEntry, editMeta, existingE
       setEntry(DEFAULT_ENTRY);
     }
     setMeta(editMeta ? { ...editMeta } : DEFAULT_META);
-    setDupDialogOpen(false);
-    setDupEntry(null);
   }, [editEntry, editMeta, open]);
 
   const doSave = () => {
@@ -59,13 +54,12 @@ export function AddModal({ open, onClose, onSave, editEntry, editMeta, existingE
 
   const handleSave = () => {
     if (!entry.title.trim()) return;
-    // Duplicate check — only when adding new (not editing)
     if (!editEntry) {
       const trimmed = entry.title.trim().toLowerCase();
       const dup = existingEntries.find((e) => e.title.trim().toLowerCase() === trimmed);
       if (dup) {
-        setDupEntry(dup);
-        setDupDialogOpen(true);
+        onClose();           // close AddModal first — releases Radix focus trap
+        onDuplicate?.(dup);  // then parent shows DuplicateDialog freely
         return;
       }
     }
@@ -251,13 +245,6 @@ export function AddModal({ open, onClose, onSave, editEntry, editMeta, existingE
         </DialogContent>
       </Dialog>
 
-      {/* Duplicate warning — portal-rendered above the AddModal dialog */}
-      <DuplicateDialog
-        open={dupDialogOpen}
-        entry={dupEntry}
-        meta={dupEntry ? existingMeta[dupEntry.id] : null}
-        onClose={() => { setDupDialogOpen(false); onClose(); }}
-      />
     </>
   );
 }
