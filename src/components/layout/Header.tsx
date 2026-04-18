@@ -1,4 +1,4 @@
-import { Clapperboard, Moon, Sun, LogIn, Download } from 'lucide-react';
+import { Moon, Sun, LogIn, Download } from 'lucide-react';
 import { UserProfile } from './UserProfile';
 import { Button } from '@/components/ui/button';
 import type { WatchlistState, UserProfile as UserProfileType, ThemeMode } from '@/types';
@@ -29,9 +29,7 @@ export function Header({ state, user, theme, lastSync, onToggleTheme, onSignIn, 
         <div className="flex items-center justify-between gap-4">
           {/* Logo */}
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10">
-              <Clapperboard className="h-4 w-4 text-indigo-400" />
-            </div>
+            <img src="/favicon.svg" alt="CineTrack" className="h-8 w-8 rounded-lg" />
             <h1 className="text-lg font-bold text-[var(--text-primary)] tracking-tight">
               Cine<span className="text-indigo-400">Track</span>
             </h1>
