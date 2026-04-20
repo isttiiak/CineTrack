@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trash2, AlertTriangle, FilePlus } from 'lucide-react';
 import { Button } from './button';
@@ -20,7 +21,7 @@ export function ConfirmDialog({
 }: Props) {
   const isDanger = variant === 'danger';
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {open && (
         <>
@@ -28,7 +29,8 @@ export function ConfirmDialog({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            style={{ zIndex: 200 }}
             onClick={onCancel}
           />
           <motion.div
@@ -36,8 +38,8 @@ export function ConfirmDialog({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.92, y: 12 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl border shadow-2xl p-6"
-            style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)' }}
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100vw-2rem)] max-w-sm rounded-2xl border shadow-2xl p-6"
+            style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)', zIndex: 201 }}
           >
             <div className="flex justify-center mb-4">
               <div className={`flex h-12 w-12 items-center justify-center rounded-full border ${
@@ -62,15 +64,15 @@ export function ConfirmDialog({
             )}
 
             <div className="flex gap-3 mt-5">
-              <Button variant="outline" className="flex-1" onClick={onCancel}>
+              <Button variant="outline" className="flex-1 h-11" onClick={onCancel}>
                 Cancel
               </Button>
               <button
                 onClick={onConfirm}
-                className={`flex-1 inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg text-sm font-medium text-white transition-colors ${
+                className={`flex-1 inline-flex items-center justify-center gap-2 h-11 px-4 rounded-lg text-sm font-medium text-white transition-colors ${
                   isDanger
-                    ? 'bg-red-500 hover:bg-red-600'
-                    : 'bg-amber-500 hover:bg-amber-600'
+                    ? 'bg-red-500 hover:bg-red-600 active:bg-red-700'
+                    : 'bg-amber-500 hover:bg-amber-600 active:bg-amber-700'
                 }`}
               >
                 {isDanger
@@ -83,6 +85,7 @@ export function ConfirmDialog({
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

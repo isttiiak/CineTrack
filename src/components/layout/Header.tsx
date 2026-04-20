@@ -63,6 +63,19 @@ export function Header({ state, user, theme, lastSync, syncing, onToggleTheme, o
 
           {/* Actions */}
           <div className="flex items-center gap-2">
+            {/* Sync Now — visible on mobile too (moved out of hidden stats bar) */}
+            {user && onForceSync && (
+              <button
+                onClick={onForceSync}
+                disabled={syncing}
+                className="md:hidden flex items-center gap-1 text-xs rounded-md px-2 py-1 border transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
+                style={{ color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)' }}
+                title="Sync to cloud"
+              >
+                <RefreshCw className={`h-3 w-3 ${syncing ? 'animate-spin' : ''}`} />
+                {syncing ? '…' : 'Sync'}
+              </button>
+            )}
             <button
               onClick={onProfile}
               className="rounded-lg p-2 transition-colors hover:bg-[var(--bg-hover)]"
