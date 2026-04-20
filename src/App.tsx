@@ -22,7 +22,7 @@ const EMPTY_FILTERS: FilterState = { query: '', section: '', type: '', status: '
 
 export default function App() {
   const { user, loading, signIn, signOut } = useAuth();
-  const { load, save, saveProfile, lastSyncRef } = useFirestore(user?.uid ?? null);
+  const { load, save, saveImmediate, saveProfile, lastSyncRef } = useFirestore(user?.uid ?? null);
   const {
     state, initialised,
     addEntry, updateEntry, deleteEntry,
@@ -96,6 +96,22 @@ export default function App() {
   };
 
   const handleExport = () => { exportJSON(); addToast('Exported!', 'success'); };
+
+  const [syncing, setSyncing] = useState(false);
+  const handleForceSync = async () => {
+    if (!user || syncing) return;
+    setSyncing(true);
+    try {
+      const snap = { ...state, lastModified: new Date().toISOString() };
+      await saveImmediate(snap);
+      lastSyncRef.current = new Date().toISOString();
+      addToast('Synced to cloud!', 'success');
+    } catch {
+      addToast('Sync failed — check connection', 'error');
+    } finally {
+      setSyncing(false);
+    }
+  };
   const handleToggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
 
   // Filter entries
@@ -151,12 +167,14 @@ export default function App() {
           user={user}
           theme={theme}
           lastSync={lastSyncRef.current}
+          syncing={syncing}
           onToggleTheme={handleToggleTheme}
           onSignIn={signIn}
           onSignOut={signOut}
           onExport={handleExport}
           onImport={handleImport}
           onProfile={() => setProfileOpen(true)}
+          onForceSync={handleForceSync}
         />
 
         <main className="mx-auto max-w-6xl px-4 py-6">

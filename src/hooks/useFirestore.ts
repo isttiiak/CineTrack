@@ -50,5 +50,13 @@ export function useFirestore(uid: string | null) {
     };
   }, [uid]);
 
-  return { load, save, saveProfile, lastSyncRef };
+  const saveImmediate = useCallback(async (state: WatchlistState): Promise<void> => {
+    if (!uid) return;
+    if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
+    pendingRef.current = null;
+    await saveUserWatchlist(uid, state);
+    lastSyncRef.current = new Date().toISOString();
+  }, [uid]);
+
+  return { load, save, saveImmediate, saveProfile, lastSyncRef };
 }

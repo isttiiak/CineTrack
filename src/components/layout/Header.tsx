@@ -1,4 +1,4 @@
-import { Moon, Sun, LogIn, Download, BarChart2 } from 'lucide-react';
+import { Moon, Sun, LogIn, Download, BarChart2, RefreshCw } from 'lucide-react';
 import { UserProfile } from './UserProfile';
 import { Button } from '@/components/ui/button';
 import type { WatchlistState, UserProfile as UserProfileType, ThemeMode } from '@/types';
@@ -9,15 +9,17 @@ interface Props {
   user: UserProfileType | null;
   theme: ThemeMode;
   lastSync: string | null;
+  syncing?: boolean;
   onToggleTheme: () => void;
   onSignIn: () => void;
   onSignOut: () => void;
   onExport: () => void;
   onImport: () => void;
   onProfile: () => void;
+  onForceSync?: () => void;
 }
 
-export function Header({ state, user, theme, lastSync, onToggleTheme, onSignIn, onSignOut, onExport, onImport, onProfile }: Props) {
+export function Header({ state, user, theme, lastSync, syncing, onToggleTheme, onSignIn, onSignOut, onExport, onImport, onProfile, onForceSync }: Props) {
   const total = state.entries.length;
   const watched = Object.values(state.meta).filter((m) => m.status === 'watched').length;
   const watching = Object.values(state.meta).filter((m) => m.status === 'watching').length;
@@ -44,6 +46,18 @@ export function Header({ state, user, theme, lastSync, onToggleTheme, onSignIn, 
             <span><span className="font-mono font-bold text-base" style={{ color: 'var(--accent-purple)' }}>{plan}</span> planned</span>
             {lastSync && (
               <span className="text-xs" style={{ color: 'var(--text-disabled)' }}>synced {formatRelativeTime(lastSync)}</span>
+            )}
+            {user && onForceSync && (
+              <button
+                onClick={onForceSync}
+                disabled={syncing}
+                className="flex items-center gap-1 text-xs rounded-md px-2 py-0.5 border transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
+                style={{ color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)' }}
+                title="Force push your data to the cloud"
+              >
+                <RefreshCw className={`h-3 w-3 ${syncing ? 'animate-spin' : ''}`} />
+                {syncing ? 'Syncing…' : 'Sync Now'}
+              </button>
             )}
           </div>
 
