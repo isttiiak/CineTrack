@@ -1,4 +1,4 @@
-import { Moon, Sun, LogIn, Download } from 'lucide-react';
+import { Moon, Sun, LogIn, Download, BarChart2 } from 'lucide-react';
 import { UserProfile } from './UserProfile';
 import { Button } from '@/components/ui/button';
 import type { WatchlistState, UserProfile as UserProfileType, ThemeMode } from '@/types';
@@ -14,9 +14,10 @@ interface Props {
   onSignOut: () => void;
   onExport: () => void;
   onImport: () => void;
+  onProfile: () => void;
 }
 
-export function Header({ state, user, theme, lastSync, onToggleTheme, onSignIn, onSignOut, onExport, onImport }: Props) {
+export function Header({ state, user, theme, lastSync, onToggleTheme, onSignIn, onSignOut, onExport, onImport, onProfile }: Props) {
   const total = state.entries.length;
   const watched = Object.values(state.meta).filter((m) => m.status === 'watched').length;
   const watching = Object.values(state.meta).filter((m) => m.status === 'watching').length;
@@ -48,6 +49,14 @@ export function Header({ state, user, theme, lastSync, onToggleTheme, onSignIn, 
 
           {/* Actions */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={onProfile}
+              className="rounded-lg p-2 transition-colors hover:bg-[var(--bg-hover)]"
+              style={{ color: 'var(--text-muted)' }}
+              title="Stats & Profile"
+            >
+              <BarChart2 className="h-4 w-4" />
+            </button>
             {!user && (
               <button
                 onClick={onToggleTheme}

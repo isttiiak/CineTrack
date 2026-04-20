@@ -38,22 +38,25 @@ export function useWatchlist(
     firestoreLoad().then((remote) => {
       if (remote) {
         if (!isDifferentUser) {
-          // Same user or guest → signed-in: merge (local wins if newer)
           const local = getLocalStorage<WatchlistState>(LS_KEY);
-          const use = (local && local.lastModified > remote.lastModified) ? local : remote;
+          const localIsNewer = local != null && local.lastModified > remote.lastModified;
+          const use = localIsNewer ? local : remote;
           setState(use);
           setLocalStorage(LS_KEY, use);
+          // Critical: if local was ahead of Firestore (e.g. tab closed before debounce fired),
+          // push it back so every other device gets the latest version.
+          if (localIsNewer) firestoreSave(local!);
         } else {
-          // Different signed-in user: use their Firestore data only
+          // Different signed-in user: always use their own Firestore data
           setState(remote);
           setLocalStorage(LS_KEY, remote);
         }
       } else {
         if (!isDifferentUser) {
-          // Same user or first-time guest-to-user: write current state to Firestore
+          // First time for this user: write current local state to Firestore
           firestoreSave(state);
         } else {
-          // Brand new user signing in after another user: give them a fresh seed
+          // Different user with no Firestore data: fresh seed
           const fresh = buildInitialState();
           setState(fresh);
           setLocalStorage(LS_KEY, fresh);

@@ -67,6 +67,8 @@ export function FilterBar({ filters, onChange, sections }: Props) {
           <SelectItem value="_default">Default</SelectItem>
           <SelectItem value="title_asc">A → Z</SelectItem>
           <SelectItem value="title_desc">Z → A</SelectItem>
+          <SelectItem value="year_desc">Year ↓</SelectItem>
+          <SelectItem value="year_asc">Year ↑</SelectItem>
           <SelectItem value="imdb_desc">IMDb ↓</SelectItem>
           <SelectItem value="imdb_asc">IMDb ↑</SelectItem>
         </SelectContent>

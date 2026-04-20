@@ -13,6 +13,7 @@ import { FilterBar } from '@/components/filters/FilterBar';
 import { WatchlistSection } from '@/components/watchlist/WatchlistSection';
 import { AddModal } from '@/components/watchlist/AddModal';
 import { DuplicateDialog } from '@/components/ui/duplicate-dialog';
+import { ProfilePage } from '@/components/profile/ProfilePage';
 import { ToastContainer } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import type { FilterState, MovieEntry, WatchMeta, ThemeMode } from '@/types';
@@ -38,6 +39,7 @@ export default function App() {
   const [editMeta, setEditMeta] = useState<WatchMeta | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [dupEntry, setDupEntry] = useState<MovieEntry | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
 
   // Apply theme
@@ -115,6 +117,8 @@ export default function App() {
     ? [...filteredEntries].sort((a, b) => {
         if (sort === 'title_asc') return a.title.localeCompare(b.title);
         if (sort === 'title_desc') return b.title.localeCompare(a.title);
+        if (sort === 'year_desc') return parseInt(b.year || '0') - parseInt(a.year || '0');
+        if (sort === 'year_asc') return parseInt(a.year || '0') - parseInt(b.year || '0');
         if (sort === 'imdb_desc') return parseFloat(b.imdbRating || '0') - parseFloat(a.imdbRating || '0');
         if (sort === 'imdb_asc') return parseFloat(a.imdbRating || '0') - parseFloat(b.imdbRating || '0');
         return 0;
@@ -152,6 +156,7 @@ export default function App() {
           onSignOut={signOut}
           onExport={handleExport}
           onImport={handleImport}
+          onProfile={() => setProfileOpen(true)}
         />
 
         <main className="mx-auto max-w-6xl px-4 py-6">
@@ -218,6 +223,17 @@ export default function App() {
       />
 
       <ToastContainer toasts={toasts} onRemove={removeToast} />
+
+      <AnimatePresence>
+        {profileOpen && (
+          <ProfilePage
+            key="profile"
+            state={state}
+            user={user}
+            onClose={() => setProfileOpen(false)}
+          />
+        )}
+      </AnimatePresence>
 
       <DuplicateDialog
         open={dupEntry !== null}
