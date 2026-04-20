@@ -105,6 +105,13 @@ export default function App() {
   const [syncing, setSyncing] = useState(false);
   const handleForceSync = async () => {
     if (!user || syncing) return;
+    // Safety: never push seed-only data (≤7 entries) if Firestore might have more.
+    // Require at least 1 custom entry or explicit user-triggered add before force-syncing.
+    const hasCustomData = state.entries.some(e => e.isCustom) || state.entries.length > 7;
+    if (!hasCustomData) {
+      addToast('Nothing to sync yet — add some entries first', 'info');
+      return;
+    }
     setSyncing(true);
     try {
       const snap = { ...state, lastModified: new Date().toISOString() };
