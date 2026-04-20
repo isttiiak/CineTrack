@@ -15,6 +15,9 @@ interface Props {
   onDelete: (id: string) => void;
   onPosterLoaded: (id: string, url: string) => void;
   dragHandleProps?: Record<string, unknown>;
+  selectMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }
 
 const itemVariants = {
@@ -25,7 +28,7 @@ const itemVariants = {
 export function WatchlistSection({
   section, entries, meta,
   onStatusChange, onRatingChange, onEdit, onDelete, onPosterLoaded,
-  dragHandleProps,
+  dragHandleProps, selectMode, selectedIds, onToggleSelect,
 }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const color = SECTION_COLORS[section] ?? '#818cf8';
@@ -82,6 +85,9 @@ export function WatchlistSection({
                     onEdit={() => onEdit(entry)}
                     onDelete={() => onDelete(entry.id)}
                     onPosterLoaded={(url) => onPosterLoaded(entry.id, url)}
+                    selectMode={selectMode}
+                    selected={selectedIds?.has(entry.id)}
+                    onToggleSelect={() => onToggleSelect?.(entry.id)}
                   />
                 </motion.div>
               ))}

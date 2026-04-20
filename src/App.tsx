@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Plus, ArrowUp } from 'lucide-react';
+import { Plus, ArrowUp, Compass, List, CheckSquare } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useFirestore } from '@/hooks/useFirestore';
 import { useWatchlist } from '@/hooks/useWatchlist';
@@ -14,9 +14,11 @@ import { WatchlistSection } from '@/components/watchlist/WatchlistSection';
 import { AddModal } from '@/components/watchlist/AddModal';
 import { DuplicateDialog } from '@/components/ui/duplicate-dialog';
 import { ProfilePage } from '@/components/profile/ProfilePage';
+import { DiscoverPage } from '@/components/discover/DiscoverPage';
+import { BulkActionBar } from '@/components/ui/bulk-action-bar';
 import { ToastContainer } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
-import type { FilterState, MovieEntry, WatchMeta, ThemeMode } from '@/types';
+import type { FilterState, MovieEntry, WatchMeta, ThemeMode, WatchStatus } from '@/types';
 
 const EMPTY_FILTERS: FilterState = { query: '', section: '', type: '', status: '', platform: '', sort: '' };
 
@@ -40,6 +42,9 @@ export default function App() {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [dupEntry, setDupEntry] = useState<MovieEntry | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'watchlist' | 'discover'>('watchlist');
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const importRef = useRef<HTMLInputElement>(null);
 
   // Apply theme
@@ -114,6 +119,28 @@ export default function App() {
   };
   const handleToggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkStatus = (status: WatchStatus) => {
+    selectedIds.forEach(id => setStatus(id, status));
+    addToast(`${selectedIds.size} entries → ${status}`, 'success');
+    setSelectedIds(new Set());
+    pulse();
+  };
+
+  const handleBulkDelete = () => {
+    selectedIds.forEach(id => deleteEntry(id));
+    addToast(`${selectedIds.size} entries deleted`, 'info');
+    setSelectedIds(new Set());
+    pulse();
+  };
+
   // Filter entries
   const { query, section: sFilter, type: tFilter, status: stFilter, platform: pFilter, sort } = filters;
   const filteredEntries = state.entries.filter((e) => {
@@ -180,53 +207,113 @@ export default function App() {
         <main className="mx-auto max-w-6xl px-4 py-6">
           {!user && <AuthBanner onSignIn={signIn} />}
 
-          <div className="flex items-start gap-3 mb-4 flex-wrap">
-            <div className="flex-1 min-w-0">
-              <FilterBar filters={filters} onChange={setFilters} sections={state.sectionOrder} />
+          {/* Tab navigation */}
+          <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+            <div className="flex gap-1 p-1 rounded-xl" style={{ background: 'var(--bg-elevated)' }}>
+              <button
+                onClick={() => { setActiveTab('watchlist'); setSelectMode(false); setSelectedIds(new Set()); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                style={{
+                  background: activeTab === 'watchlist' ? 'var(--bg-surface)' : 'transparent',
+                  color: activeTab === 'watchlist' ? 'var(--text-primary)' : 'var(--text-muted)',
+                  boxShadow: activeTab === 'watchlist' ? '0 1px 4px rgba(0,0,0,0.3)' : 'none',
+                }}
+              >
+                <List className="h-3.5 w-3.5" /> Watchlist
+              </button>
+              <button
+                onClick={() => { setActiveTab('discover'); setSelectMode(false); setSelectedIds(new Set()); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                style={{
+                  background: activeTab === 'discover' ? 'var(--bg-surface)' : 'transparent',
+                  color: activeTab === 'discover' ? 'var(--text-primary)' : 'var(--text-muted)',
+                  boxShadow: activeTab === 'discover' ? '0 1px 4px rgba(0,0,0,0.3)' : 'none',
+                }}
+              >
+                <Compass className="h-3.5 w-3.5" /> Discover
+              </button>
             </div>
-            <Button onClick={openAdd} size="sm" className="flex-shrink-0 gap-1.5">
-              <Plus className="h-4 w-4" /> Add
-            </Button>
+
+            {activeTab === 'watchlist' && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setSelectMode(p => !p); setSelectedIds(new Set()); }}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
+                  style={{
+                    color: selectMode ? 'var(--accent-purple)' : 'var(--text-muted)',
+                    borderColor: selectMode ? 'var(--accent-purple)' : 'var(--border-subtle)',
+                    background: selectMode ? 'color-mix(in srgb, var(--accent-purple) 10%, transparent)' : 'transparent',
+                  }}
+                >
+                  <CheckSquare className="h-3.5 w-3.5" /> Select
+                </button>
+                <Button onClick={openAdd} size="sm" className="gap-1.5">
+                  <Plus className="h-4 w-4" /> Add
+                </Button>
+              </div>
+            )}
           </div>
 
-          <AnimatePresence mode="popLayout">
-            {visibleSections.length === 0 ? (
-              <motion.div
-                key="empty"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="py-20 text-center text-sm"
-                style={{ color: 'var(--text-muted)' }}
-              >
-                {query || sFilter || tFilter || stFilter || pFilter || sort
-                  ? 'No entries match your filters or sort.'
-                  : 'No entries yet. Click "+ Add" to get started!'}
-              </motion.div>
-            ) : (
-              visibleSections.map((section) => (
-                <motion.div key={section} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                  <WatchlistSection
-                    section={section}
-                    entries={sortedEntries.filter((e) => e.section === section)}
-                    meta={state.meta}
-                    onStatusChange={(id, s) => {
-                      setStatus(id, s);
-                      pulse();
-                      addToast(`Status → ${s}`, 'success');
-                    }}
-                    onRatingChange={(id, r) => {
-                      setMeta(id, { personalRating: r });
-                      pulse();
-                    }}
-                    onEdit={openEdit}
-                    onDelete={handleDelete}
-                    onPosterLoaded={updatePoster}
-                  />
-                </motion.div>
-              ))
-            )}
-          </AnimatePresence>
+          {activeTab === 'discover' && (
+            <DiscoverPage
+              existingEntries={state.entries}
+              onAdd={(entryData, metaData) => {
+                addEntry(entryData, metaData);
+                addToast('Added to watchlist!', 'success');
+                pulse();
+              }}
+            />
+          )}
+
+          {activeTab === 'watchlist' && (
+            <>
+              <div className="mb-4">
+                <FilterBar filters={filters} onChange={setFilters} sections={state.sectionOrder} />
+              </div>
+
+              <AnimatePresence mode="popLayout">
+                {visibleSections.length === 0 ? (
+                  <motion.div
+                    key="empty"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="py-20 text-center text-sm"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    {query || sFilter || tFilter || stFilter || pFilter || sort
+                      ? 'No entries match your filters or sort.'
+                      : 'No entries yet. Click "+ Add" to get started!'}
+                  </motion.div>
+                ) : (
+                  visibleSections.map((section) => (
+                    <motion.div key={section} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                      <WatchlistSection
+                        section={section}
+                        entries={sortedEntries.filter((e) => e.section === section)}
+                        meta={state.meta}
+                        onStatusChange={(id, s) => {
+                          setStatus(id, s);
+                          pulse();
+                          addToast(`Status → ${s}`, 'success');
+                        }}
+                        onRatingChange={(id, r) => {
+                          setMeta(id, { personalRating: r });
+                          pulse();
+                        }}
+                        onEdit={openEdit}
+                        onDelete={handleDelete}
+                        onPosterLoaded={updatePoster}
+                        selectMode={selectMode}
+                        selectedIds={selectedIds}
+                        onToggleSelect={toggleSelect}
+                      />
+                    </motion.div>
+                  ))
+                )}
+              </AnimatePresence>
+            </>
+          )}
         </main>
       </div>
 
@@ -261,6 +348,13 @@ export default function App() {
       />
 
       <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImportFile} />
+
+      <BulkActionBar
+        count={selectedIds.size}
+        onStatusChange={handleBulkStatus}
+        onDelete={handleBulkDelete}
+        onClear={() => { setSelectedIds(new Set()); setSelectMode(false); }}
+      />
 
       <AnimatePresence>
         {showScrollTop && (

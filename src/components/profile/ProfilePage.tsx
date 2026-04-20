@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { X, Film, Tv, Clock, Calendar, Star, MonitorPlay } from 'lucide-react';
+import { X, Film, Clock, Calendar, Star, MonitorPlay, Activity } from 'lucide-react';
 import type { WatchlistState, UserProfile as UserProfileType } from '@/types';
 
 interface Props {
@@ -24,6 +24,69 @@ function fmtHours(mins: number): string {
 }
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+function HeatmapGrid({ cells }: { cells: { date: string; count: number }[] }) {
+  const maxCount = Math.max(...cells.map(c => c.count), 1);
+  // Group into columns of 7 (weeks)
+  const weeks: { date: string; count: number }[][] = [];
+  for (let i = 0; i < cells.length; i += 7) {
+    weeks.push(cells.slice(i, i + 7));
+  }
+  // Month labels: find first cell of each month
+  const monthLabels: { weekIdx: number; label: string }[] = [];
+  weeks.forEach((week, wi) => {
+    week.forEach(cell => {
+      if (cell.date.endsWith('-01')) {
+        const mo = parseInt(cell.date.slice(5, 7)) - 1;
+        monthLabels.push({ weekIdx: wi, label: MONTH_NAMES[mo] });
+      }
+    });
+  });
+
+  function cellColor(count: number) {
+    if (count === 0) return 'var(--bg-elevated)';
+    const intensity = Math.min(count / Math.max(maxCount, 3), 1);
+    if (intensity < 0.33) return 'color-mix(in srgb, var(--accent-green) 30%, transparent)';
+    if (intensity < 0.66) return 'color-mix(in srgb, var(--accent-green) 60%, transparent)';
+    return 'var(--accent-green)';
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <div className="flex gap-0.5" style={{ minWidth: `${weeks.length * 13}px` }}>
+        {/* Day labels */}
+        <div className="flex flex-col gap-0.5 mr-1">
+          <div className="h-4" /> {/* month label spacer */}
+          {DAY_LABELS.map((d, i) => (
+            <div key={d} className="h-[11px] text-[8px] flex items-center" style={{ color: 'var(--text-disabled)', visibility: i % 2 === 1 ? 'visible' : 'hidden' }}>
+              {d}
+            </div>
+          ))}
+        </div>
+        {/* Weeks */}
+        {weeks.map((week, wi) => {
+          const monthLabel = monthLabels.find(m => m.weekIdx === wi);
+          return (
+            <div key={wi} className="flex flex-col gap-0.5">
+              <div className="h-4 text-[8px] leading-4 whitespace-nowrap" style={{ color: 'var(--text-disabled)' }}>
+                {monthLabel?.label ?? ''}
+              </div>
+              {week.map(cell => (
+                <div
+                  key={cell.date}
+                  className="h-[11px] w-[11px] rounded-[2px] transition-opacity hover:opacity-80"
+                  style={{ background: cellColor(cell.count) }}
+                  title={cell.count > 0 ? `${cell.count} watched on ${cell.date}` : cell.date}
+                />
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export function ProfilePage({ state, user, onClose }: Props) {
   const S = useMemo(() => {
@@ -69,6 +132,31 @@ export function ProfilePage({ state, user, onClose }: Props) {
     const films  = entries.filter(e => e.type === 'Film').length;
     const series = entries.filter(e => e.type === 'Series').length;
 
+    // Heatmap: last 52 weeks (364 days) of watch activity
+    const dayMap: Record<string, number> = {};
+    for (const m of watched) {
+      if (!m.watchedOn) continue;
+      dayMap[m.watchedOn] = (dayMap[m.watchedOn] || 0) + 1;
+    }
+    const today = new Date();
+    // Start from Sunday 52 weeks ago
+    const startDay = new Date(today);
+    startDay.setDate(startDay.getDate() - 363);
+    const dayOfWeek = startDay.getDay(); // 0=Sun
+    startDay.setDate(startDay.getDate() - dayOfWeek);
+    const heatmap: { date: string; count: number }[] = [];
+    for (let i = 0; i < 371; i++) {
+      const d = new Date(startDay);
+      d.setDate(d.getDate() + i);
+      if (d > today) break;
+      const key = d.toISOString().slice(0, 10);
+      heatmap.push({ date: key, count: dayMap[key] || 0 });
+    }
+
+    // Average personal rating
+    const ratings = metaList.filter(m => m.personalRating != null).map(m => m.personalRating!);
+    const avgRating = ratings.length > 0 ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1) : null;
+
     return {
       total: entries.length,
       watched: watched.length, watching: watching.length, plan: plan.length,
@@ -76,6 +164,7 @@ export function ProfilePage({ state, user, onClose }: Props) {
       last12, topMonth,
       platforms: Object.entries(platforms).sort((a,b)=>b[1]-a[1]).slice(0,6),
       topGenres, films, series,
+      heatmap, avgRating,
     };
   }, [state]);
 
@@ -132,10 +221,10 @@ export function ProfilePage({ state, user, onClose }: Props) {
         {/* Summary stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
           {[
-            { label: 'Total',         value: S.total,    color: 'var(--accent-purple)',       sub: null },
-            { label: 'Watched',       value: S.watched,  color: 'var(--accent-green)',        sub: fmtHours(S.watchedMins) },
-            { label: 'Watching',      value: S.watching, color: 'var(--accent-yellow)',       sub: null },
-            { label: 'Plan to Watch', value: S.plan,     color: 'var(--status-plan-text)',    sub: fmtHours(S.planMins) + ' ahead' },
+            { label: 'Total',         value: S.total,                        color: 'var(--accent-purple)',    sub: null },
+            { label: 'Watched',       value: S.watched,                      color: 'var(--accent-green)',     sub: fmtHours(S.watchedMins) },
+            { label: 'Watching',      value: S.watching,                     color: 'var(--accent-yellow)',    sub: null },
+            { label: 'Plan to Watch', value: S.plan,                         color: 'var(--status-plan-text)', sub: fmtHours(S.planMins) + ' queued' },
           ].map(({ label, value, color, sub }) => (
             <div key={label} className="rounded-xl border p-4" style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)' }}>
               <p className="text-3xl font-bold font-mono" style={{ color }}>{value}</p>
@@ -143,6 +232,40 @@ export function ProfilePage({ state, user, onClose }: Props) {
               {sub && <p className="text-xs mt-1 font-mono" style={{ color: 'var(--text-disabled)' }}>{sub}</p>}
             </div>
           ))}
+        </div>
+
+        {/* Secondary stats: avg rating + total time */}
+        <div className="flex flex-wrap gap-3 mb-5">
+          {S.avgRating && (
+            <div className="flex items-center gap-2.5 rounded-xl border px-4 py-3"
+                 style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)' }}>
+              <Star className="h-4 w-4" style={{ color: 'var(--accent-yellow)' }} />
+              <div>
+                <p className="text-xl font-bold font-mono" style={{ color: 'var(--accent-yellow)' }}>{S.avgRating}<span className="text-sm text-[var(--text-muted)]">/10</span></p>
+                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-disabled)' }}>Avg My Rating</p>
+              </div>
+            </div>
+          )}
+          {S.watchedMins > 0 && (
+            <div className="flex items-center gap-2.5 rounded-xl border px-4 py-3"
+                 style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)' }}>
+              <Clock className="h-4 w-4" style={{ color: 'var(--accent-green)' }} />
+              <div>
+                <p className="text-xl font-bold font-mono" style={{ color: 'var(--accent-green)' }}>{fmtHours(S.watchedMins)}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-disabled)' }}>Time Watched</p>
+              </div>
+            </div>
+          )}
+          {S.planMins > 0 && (
+            <div className="flex items-center gap-2.5 rounded-xl border px-4 py-3"
+                 style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)' }}>
+              <Clock className="h-4 w-4" style={{ color: 'var(--accent-purple)' }} />
+              <div>
+                <p className="text-xl font-bold font-mono" style={{ color: 'var(--accent-purple)' }}>{fmtHours(S.planMins)}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-disabled)' }}>Still to Watch</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Monthly activity chart */}
@@ -176,6 +299,18 @@ export function ProfilePage({ state, user, onClose }: Props) {
             ))}
           </div>
         </div>
+
+        {/* Watch History Heatmap */}
+        {S.heatmap.some(d => d.count > 0) && (
+          <div className="rounded-2xl border p-5 mb-5 overflow-hidden" style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)' }}>
+            <h2 className="text-sm font-bold mb-4 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+              <Activity className="h-4 w-4" style={{ color: 'var(--accent-green)' }} />
+              Watch History
+              <span className="text-xs font-normal ml-auto" style={{ color: 'var(--text-disabled)' }}>last 12 months</span>
+            </h2>
+            <HeatmapGrid cells={S.heatmap} />
+          </div>
+        )}
 
         {/* Film vs Series  +  Platforms */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
@@ -252,27 +387,6 @@ export function ProfilePage({ state, user, onClose }: Props) {
           </div>
         )}
 
-        {/* Hours summary footer */}
-        <div className="mt-4 flex flex-wrap gap-3">
-          {S.watchedMins > 0 && (
-            <div className="flex items-center gap-2 rounded-xl border px-3 py-2"
-                 style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-surface)' }}>
-              <Clock className="h-3.5 w-3.5" style={{ color: 'var(--accent-green)' }} />
-              <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                <span className="font-mono font-bold" style={{ color: 'var(--accent-green)' }}>{fmtHours(S.watchedMins)}</span> watched
-              </span>
-            </div>
-          )}
-          {S.planMins > 0 && (
-            <div className="flex items-center gap-2 rounded-xl border px-3 py-2"
-                 style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-surface)' }}>
-              <Clock className="h-3.5 w-3.5" style={{ color: 'var(--accent-purple)' }} />
-              <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                <span className="font-mono font-bold" style={{ color: 'var(--accent-purple)' }}>{fmtHours(S.planMins)}</span> still to watch
-              </span>
-            </div>
-          )}
-        </div>
 
       </div>
     </motion.div>

@@ -16,9 +16,12 @@ interface Props {
   onEdit: () => void;
   onDelete: () => void;
   onPosterLoaded: (url: string) => void;
+  selectMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
 }
 
-export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, onDelete, onPosterLoaded }: Props) {
+export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, onDelete, onPosterLoaded, selectMode, selected, onToggleSelect }: Props) {
   const [notesOpen, setNotesOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -47,15 +50,33 @@ export function MovieRow({ entry, meta, onStatusChange, onRatingChange, onEdit, 
 
   return (
     <>
-      {/* Use CSS transition for border — avoids Framer Motion hex→transparent warning */}
       <div
         className="group rounded-xl border px-3 py-3 cursor-default"
-        style={{ borderColor: 'transparent', transition: 'border-color 180ms ease' }}
-        onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'transparent'; }}
+        style={{
+          borderColor: selected ? 'var(--accent-purple)' : 'transparent',
+          background: selected ? 'color-mix(in srgb, var(--accent-purple) 6%, transparent)' : 'transparent',
+          transition: 'border-color 180ms ease, background 180ms ease',
+        }}
+        onMouseEnter={(e) => { if (!selected) e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
+        onMouseLeave={(e) => { if (!selected) e.currentTarget.style.borderColor = 'transparent'; }}
+        onClick={selectMode ? onToggleSelect : undefined}
       >
         <div className="rounded-lg transition-colors duration-200 group-hover:bg-[var(--bg-hover)] -mx-1 px-1 py-0.5">
           <div className="flex items-start gap-3">
+            {/* Selection checkbox */}
+            {selectMode && (
+              <div className="flex-shrink-0 mt-1 flex items-center">
+                <div
+                  className="h-4 w-4 rounded border-2 flex items-center justify-center transition-colors"
+                  style={{
+                    borderColor: selected ? 'var(--accent-purple)' : 'var(--text-muted)',
+                    background: selected ? 'var(--accent-purple)' : 'transparent',
+                  }}
+                >
+                  {selected && <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 10 8"><path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                </div>
+              </div>
+            )}
             <PosterThumb
               title={entry.title}
               year={entry.year}
