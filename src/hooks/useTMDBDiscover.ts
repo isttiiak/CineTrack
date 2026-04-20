@@ -55,12 +55,15 @@ export async function fetchTMDBDetails(id: number, mediaType: 'movie' | 'tv'): P
     const imdbUrl = extIds.imdb_id ? `https://www.imdb.com/title/${extIds.imdb_id}/` : '';
 
     let duration = '';
-    if (mediaType === 'movie' && details.runtime > 0) {
-      const h = Math.floor(details.runtime / 60);
-      const m = details.runtime % 60;
-      duration = h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
-    } else if (mediaType === 'tv') {
-      const rt = details.episode_run_time?.[0] ?? details.runtime ?? 0;
+    if (mediaType === 'movie') {
+      const rt = details.runtime ?? 0;
+      if (rt > 0) {
+        const h = Math.floor(rt / 60), m = rt % 60;
+        duration = h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
+      }
+    } else {
+      // TMDB deprecated episode_run_time; fall back chain: runtime → episode_run_time[0]
+      const rt = details.runtime ?? details.episode_run_time?.[0] ?? 0;
       if (rt > 0) duration = `${rt} min/ep`;
     }
 

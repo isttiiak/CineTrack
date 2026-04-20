@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { X, Film, Clock, Calendar, Star, MonitorPlay, Activity } from 'lucide-react';
+import { X, Film, Calendar, MonitorPlay, Activity, Star } from 'lucide-react';
 import type { WatchlistState, UserProfile as UserProfileType } from '@/types';
 
 interface Props {
@@ -218,54 +218,37 @@ export function ProfilePage({ state, user, onClose }: Props) {
           </div>
         )}
 
-        {/* Summary stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+        {/* Summary stats — 5 cards: 2 cols mobile, 3 cols sm, 5 cols lg */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
           {[
-            { label: 'Total',         value: S.total,                        color: 'var(--accent-purple)',    sub: null },
-            { label: 'Watched',       value: S.watched,                      color: 'var(--accent-green)',     sub: fmtHours(S.watchedMins) },
-            { label: 'Watching',      value: S.watching,                     color: 'var(--accent-yellow)',    sub: null },
-            { label: 'Plan to Watch', value: S.plan,                         color: 'var(--status-plan-text)', sub: fmtHours(S.planMins) + ' queued' },
+            {
+              label: 'Total', value: S.total, color: 'var(--accent-purple)',
+              sub: `${S.films} films · ${S.series} series`,
+            },
+            {
+              label: 'Watched', value: S.watched, color: 'var(--accent-green)',
+              sub: S.watchedMins > 0 ? fmtHours(S.watchedMins) + ' watched' : null,
+            },
+            {
+              label: 'Watching', value: S.watching, color: 'var(--accent-yellow)',
+              sub: null,
+            },
+            {
+              label: 'Plan to Watch', value: S.plan, color: 'var(--status-plan-text)',
+              sub: S.planMins > 0 ? fmtHours(S.planMins) + ' queued' : null,
+            },
+            {
+              label: 'Avg Rating', value: S.avgRating ? `${S.avgRating}/10` : '—', color: 'var(--accent-yellow)',
+              sub: S.avgRating ? `from ${Object.values(state.meta).filter(m => m.personalRating != null).length} rated` : 'no ratings yet',
+              mono: true,
+            },
           ].map(({ label, value, color, sub }) => (
             <div key={label} className="rounded-xl border p-4" style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)' }}>
-              <p className="text-3xl font-bold font-mono" style={{ color }}>{value}</p>
-              <p className="text-xs font-semibold mt-0.5" style={{ color: 'var(--text-muted)' }}>{label}</p>
-              {sub && <p className="text-xs mt-1 font-mono" style={{ color: 'var(--text-disabled)' }}>{sub}</p>}
+              <p className="text-2xl sm:text-3xl font-bold font-mono leading-none" style={{ color }}>{value}</p>
+              <p className="text-xs font-semibold mt-1" style={{ color: 'var(--text-muted)' }}>{label}</p>
+              {sub && <p className="text-[10px] mt-1 font-mono leading-snug" style={{ color: 'var(--text-disabled)' }}>{sub}</p>}
             </div>
           ))}
-        </div>
-
-        {/* Secondary stats: avg rating + total time */}
-        <div className="flex flex-wrap gap-3 mb-5">
-          {S.avgRating && (
-            <div className="flex items-center gap-2.5 rounded-xl border px-4 py-3"
-                 style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)' }}>
-              <Star className="h-4 w-4" style={{ color: 'var(--accent-yellow)' }} />
-              <div>
-                <p className="text-xl font-bold font-mono" style={{ color: 'var(--accent-yellow)' }}>{S.avgRating}<span className="text-sm text-[var(--text-muted)]">/10</span></p>
-                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-disabled)' }}>Avg My Rating</p>
-              </div>
-            </div>
-          )}
-          {S.watchedMins > 0 && (
-            <div className="flex items-center gap-2.5 rounded-xl border px-4 py-3"
-                 style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)' }}>
-              <Clock className="h-4 w-4" style={{ color: 'var(--accent-green)' }} />
-              <div>
-                <p className="text-xl font-bold font-mono" style={{ color: 'var(--accent-green)' }}>{fmtHours(S.watchedMins)}</p>
-                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-disabled)' }}>Time Watched</p>
-              </div>
-            </div>
-          )}
-          {S.planMins > 0 && (
-            <div className="flex items-center gap-2.5 rounded-xl border px-4 py-3"
-                 style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)' }}>
-              <Clock className="h-4 w-4" style={{ color: 'var(--accent-purple)' }} />
-              <div>
-                <p className="text-xl font-bold font-mono" style={{ color: 'var(--accent-purple)' }}>{fmtHours(S.planMins)}</p>
-                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-disabled)' }}>Still to Watch</p>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Monthly activity chart */}
