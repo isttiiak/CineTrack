@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { v4 as uuid } from 'uuid';
 import type { MovieEntry, WatchMeta, WatchlistState, WatchStatus, Section } from '../types';
 import { seedMovies, defaultMeta } from '../data/seedMovies';
@@ -27,14 +27,23 @@ export function useWatchlist(
     return cached ?? buildInitialState();
   });
   const [initialised, setInitialised] = useState(false);
+  // Ref mirrors initialised so commit() always sees the current value without
+  // needing to be in its dependency array (avoids stale closures).
+  const initialisedRef = useRef(false);
 
   useEffect(() => {
-    if (!uid) { setInitialised(true); return; }
+    if (!uid) {
+      initialisedRef.current = true;
+      setInitialised(true);
+      return;
+    }
 
-    // sameUser = this exact UID was already signed in on this device before.
-    // Only in that case can local localStorage data be "newer" than Firestore
-    // (e.g. tab was closed before the debounce fired).
-    // For a fresh device or a different account, Firestore always wins.
+    // Block any Firestore saves until the sync with Firestore is complete.
+    // This prevents a race where the user interacts before the load finishes
+    // and commits a stale local state (e.g. 8 entries) that overwrites real data.
+    initialisedRef.current = false;
+    setInitialised(false);
+
     const lastUid = getLocalStorage<string>(LS_UID_KEY);
     const sameUser = lastUid === uid;
     const isDifferentUser = lastUid !== null && lastUid !== uid;
@@ -45,34 +54,39 @@ export function useWatchlist(
           // Same user, same device: local may have unsaved edits from a closed tab
           const local = getLocalStorage<WatchlistState>(LS_KEY);
           const localIsNewer = local != null && local.lastModified > remote.lastModified;
-          const use = localIsNewer ? local : remote;
+          const use = localIsNewer ? local! : remote;
           setState(use);
           setLocalStorage(LS_KEY, use);
           if (localIsNewer) firestoreSave(local!);
         } else {
           // First sign-in on this device, OR a different Google account:
-          // always pull from Firestore — never let seed/local data overwrite real data.
+          // always pull from Firestore.
           setState(remote);
           setLocalStorage(LS_KEY, remote);
         }
       } else {
         if (sameUser) {
-          // Same user but Firestore is empty (shouldn't normally happen): push local up
-          firestoreSave(state);
+          // Same user but Firestore is empty: push local up
+          const local = getLocalStorage<WatchlistState>(LS_KEY);
+          if (local) firestoreSave(local);
         } else if (isDifferentUser) {
-          // Different user with no Firestore data: give them a clean seed
           const fresh = buildInitialState();
           setState(fresh);
           setLocalStorage(LS_KEY, fresh);
           firestoreSave(fresh);
         } else {
-          // Truly new user (no lastUid stored): write current local/seed to Firestore
-          firestoreSave(state);
+          // Brand new user: seed Firestore
+          const local = getLocalStorage<WatchlistState>(LS_KEY);
+          firestoreSave(local ?? buildInitialState());
         }
       }
       setLocalStorage(LS_UID_KEY, uid);
+      initialisedRef.current = true;
       setInitialised(true);
-    }).catch(() => setInitialised(true));
+    }).catch(() => {
+      initialisedRef.current = true;
+      setInitialised(true);
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid]);
 
@@ -80,7 +94,9 @@ export function useWatchlist(
     const updated = { ...next, lastModified: new Date().toISOString() };
     setState(updated);
     setLocalStorage(LS_KEY, updated);
-    if (uid) firestoreSave(updated);
+    // Guard: never save to Firestore before the initial sync completes.
+    // initialisedRef is a ref so this always reads the current value.
+    if (uid && initialisedRef.current) firestoreSave(updated);
   }, [uid, firestoreSave]);
 
   const addEntry = useCallback((entry: Omit<MovieEntry, 'id' | 'isCustom'>, meta: Partial<WatchMeta> = {}) => {
@@ -136,7 +152,7 @@ export function useWatchlist(
         lastModified: new Date().toISOString(),
       };
       setLocalStorage(LS_KEY, updated);
-      if (uid) firestoreSave(updated);
+      if (uid && initialisedRef.current) firestoreSave(updated);
       return updated;
     });
   }, [uid, firestoreSave]);

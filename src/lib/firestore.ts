@@ -10,7 +10,9 @@ export async function loadUserWatchlist(uid: string): Promise<WatchlistState | n
 
 export async function saveUserWatchlist(uid: string, state: WatchlistState): Promise<void> {
   const ref = doc(db, 'users', uid, 'data', 'watchlist');
-  await setDoc(ref, state, { merge: true });
+  // No merge: true — always write the complete document so arrays (entries, sectionOrder)
+  // are fully replaced and never left in a split state with the old meta keys.
+  await setDoc(ref, state);
 }
 
 export async function saveUserProfile(uid: string, profile: UserProfile): Promise<void> {
