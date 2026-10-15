@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -14,7 +14,8 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Firestore throws on `undefined` field values; ignore them instead of failing the whole write.
+export const db = initializeFirestore(app, { ignoreUndefinedProperties: true });
 export const googleProvider = new GoogleAuthProvider();
 
 // Analytics is loaded lazily to avoid SSR issues

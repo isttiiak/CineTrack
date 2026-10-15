@@ -1,0 +1,31 @@
+rules_version = '2';
+
+// Deploy with: firebase deploy --only firestore:rules  (or paste into Console → Firestore → Rules)
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    match /users/{userId}/data/watchlist {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && request.resource.data.keys().hasOnly(['entries', 'meta', 'sectionOrder', 'lastModified'])
+        && request.resource.data.entries is list
+        && request.resource.data.entries.size() <= 2000
+        && request.resource.data.meta is map
+        && request.resource.data.sectionOrder is list
+        && request.resource.data.sectionOrder.size() <= 200
+        && request.resource.data.lastModified is string;
+    }
+
+    match /users/{userId}/data/profile {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'email', 'avatar', 'updatedAt'])
+        && request.resource.data.uid == userId;
+    }
+
+    // Everything else is denied by default.
+  }
+}

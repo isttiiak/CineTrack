@@ -25,21 +25,20 @@ export function useAuth() {
     return unsubscribe;
   }, []);
 
-  const signIn = async () => {
+  /** Resolves false when the user simply closed the popup; throws on real failures. */
+  const signIn = async (): Promise<boolean> => {
     try {
       await signInWithPopup(auth, googleProvider);
+      return true;
     } catch (err) {
+      const code = (err as { code?: string }).code;
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return false;
       console.error('Sign in error:', err);
+      throw err;
     }
   };
 
-  const signOut = async () => {
-    try {
-      await firebaseSignOut(auth);
-    } catch (err) {
-      console.error('Sign out error:', err);
-    }
-  };
+  const signOut = () => firebaseSignOut(auth);
 
   return { user, loading, signIn, signOut };
 }

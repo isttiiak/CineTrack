@@ -82,6 +82,9 @@ export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string) {
   useEffect(() => {
     if (!TMDB_KEY) { setLoading(false); setError(true); return; }
 
+    // Ignore responses from superseded queries so a slow older search can't overwrite newer results.
+    const controller = new AbortController();
+
     const doFetch = () => {
       setLoading(true);
       setError(false);
@@ -95,7 +98,7 @@ export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string) {
             tv:       `${BASE}/tv/popular?api_key=${TMDB_KEY}&language=en-US`,
           } as Record<DiscoverTab, string>)[tab];
 
-      fetch(url)
+      fetch(url, { signal: controller.signal })
         .then(r => { if (!r.ok) throw new Error(); return r.json(); })
         .then(data => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -112,7 +115,10 @@ export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string) {
           setItems(results);
           setLoading(false);
         })
-        .catch(() => { setLoading(false); setError(true); });
+        .catch((err) => {
+          if (err?.name === 'AbortError') return;
+          setLoading(false); setError(true);
+        });
     };
 
     const q = searchQuery.trim();
@@ -121,7 +127,10 @@ export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string) {
       ? setTimeout(doFetch, 350)
       : (doFetch(), null);
 
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    return () => {
+      controller.abort();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [tab, searchQuery]);
 
   return { items, loading, error };

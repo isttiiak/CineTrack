@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Film, Tv, TrendingUp, Plus, Star, ExternalLink, Search, X, Loader2 } from 'lucide-react';
 import { useTMDBDiscover, fetchTMDBDetails, TMDB_IMG, type TMDBItem, type DiscoverTab } from '@/hooks/useTMDBDiscover';
 import type { MovieEntry, WatchMeta } from '@/types';
+import { findDuplicate } from '@/lib/duplicates';
 
 interface Props {
   existingEntries: MovieEntry[];
@@ -32,11 +33,17 @@ export function DiscoverPage({ existingEntries, onAdd }: Props) {
   // Track per-item adding state: 'idle' | 'loading' | 'done'
   const [addState, setAddState] = useState<Record<number, 'loading' | 'done'>>({});
 
-  const existingTitles = new Set(existingEntries.map(e => e.title.toLowerCase()));
+  const findExisting = (item: TMDBItem) => findDuplicate(existingEntries, {
+    title: item.title ?? item.name ?? '',
+    year: (item.release_date ?? item.first_air_date ?? '').slice(0, 4),
+    type: item.media_type === 'movie' ? 'Film' : 'Series',
+    imdbUrl: '',
+    tmdbId: item.id,
+  });
 
   async function handleAdd(item: TMDBItem) {
     const title = item.title ?? item.name ?? '';
-    if (addState[item.id] || existingTitles.has(title.toLowerCase())) return;
+    if (addState[item.id] || findExisting(item)) return;
 
     setAddState(prev => ({ ...prev, [item.id]: 'loading' }));
 
@@ -50,6 +57,12 @@ export function DiscoverPage({ existingEntries, onAdd }: Props) {
     // Fetch extra details (country, IMDb URL, duration) in parallel
     const details = await fetchTMDBDetails(item.id, item.media_type);
 
+    // The IMDb id from details is the strongest duplicate key; re-check now that we have it.
+    if (findDuplicate(existingEntries, { title, year, type, imdbUrl: details.imdbUrl, tmdbId: item.id })) {
+      setAddState(prev => ({ ...prev, [item.id]: 'done' }));
+      return;
+    }
+
     onAdd(
       {
         title, year,
@@ -58,6 +71,7 @@ export function DiscoverPage({ existingEntries, onAdd }: Props) {
         imdbRating,
         imdbUrl: details.imdbUrl,
         section, type, posterUrl,
+        tmdbId: item.id,
       },
       { status: 'plan', duration: details.duration }
     );
@@ -164,7 +178,7 @@ export function DiscoverPage({ existingEntries, onAdd }: Props) {
             {items.map(item => {
               const title = item.title ?? item.name ?? '';
               const year = (item.release_date ?? item.first_air_date ?? '').slice(0, 4);
-              const inList = existingTitles.has(title.toLowerCase()) || addState[item.id] === 'done';
+              const inList = !!findExisting(item) || addState[item.id] === 'done';
               const isAdding = addState[item.id] === 'loading';
               const rating = item.vote_average;
 

@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,15 +9,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { GenreSelector } from '@/components/ui/genre-selector';
 import type { MovieEntry, WatchMeta, WatchStatus, MediaType, WatchPlatform, Section } from '@/types';
 import { SECTIONS, PLATFORMS } from '@/lib/utils';
+import { findDuplicate } from '@/lib/duplicates';
+import { safeUrl, clampRating } from '@/lib/schema';
 
 interface Props {
   open: boolean;
   onClose: () => void;
   onSave: (entry: Omit<MovieEntry, 'id' | 'isCustom'>, meta: Partial<WatchMeta>) => void;
-  onDuplicate?: (dup: MovieEntry) => void;
+  onOpenExisting?: (entry: MovieEntry) => void;
   editEntry?: MovieEntry | null;
   editMeta?: WatchMeta | null;
   existingEntries?: MovieEntry[];
+  sections?: string[];
 }
 
 const DEFAULT_ENTRY: Omit<MovieEntry, 'id' | 'isCustom'> = {
@@ -28,7 +32,7 @@ const DEFAULT_META: Partial<WatchMeta> = {
   notes: '', watchedOn: '', watchPlatform: '', watchLink: '', duration: '',
 };
 
-export function AddModal({ open, onClose, onSave, onDuplicate, editEntry, editMeta, existingEntries = [] }: Props) {
+export function AddModal({ open, onClose, onSave, onOpenExisting, editEntry, editMeta, existingEntries = [], sections = [] }: Props) {
   const [entry, setEntry] = useState<Omit<MovieEntry, 'id' | 'isCustom'>>(DEFAULT_ENTRY);
   const [meta, setMeta] = useState<Partial<WatchMeta>>(DEFAULT_META);
   const [customSection, setCustomSection] = useState('');
@@ -42,28 +46,35 @@ export function AddModal({ open, onClose, onSave, onDuplicate, editEntry, editMe
       setEntry(DEFAULT_ENTRY);
     }
     setMeta(editMeta ? { ...editMeta } : DEFAULT_META);
+    setCustomSection('');
   }, [editEntry, editMeta, open]);
 
-  const doSave = () => {
-    const finalSection = entry.section === '__custom__'
-      ? (customSection.trim() || 'General')
-      : entry.section;
-    onSave({ ...entry, section: finalSection as Section }, meta);
-    onClose();
-  };
+  // Predefined sections plus any custom ones the user already has, so they can be re-picked.
+  const sectionOptions = useMemo(() => {
+    const all = [...SECTIONS, ...sections.filter((s) => !(SECTIONS as readonly string[]).includes(s))];
+    if (entry.section !== '__custom__' && !all.includes(entry.section)) all.push(entry.section);
+    return all;
+  }, [sections, entry.section]);
+
+  const duplicate = useMemo(
+    () => entry.title.trim() ? findDuplicate(existingEntries, entry, editEntry?.id) : null,
+    [existingEntries, entry, editEntry],
+  );
+
+  const imdbUrlInvalid = !!entry.imdbUrl.trim() && !safeUrl(entry.imdbUrl);
+  const watchLinkInvalid = !!meta.watchLink?.trim() && !safeUrl(meta.watchLink);
+  const canSave = !!entry.title.trim() && !imdbUrlInvalid && !watchLinkInvalid;
 
   const handleSave = () => {
-    if (!entry.title.trim()) return;
-    if (!editEntry) {
-      const trimmed = entry.title.trim().toLowerCase();
-      const dup = existingEntries.find((e) => e.title.trim().toLowerCase() === trimmed);
-      if (dup) {
-        onClose();           // close AddModal first — releases Radix focus trap
-        onDuplicate?.(dup);  // then parent shows DuplicateDialog freely
-        return;
-      }
-    }
-    doSave();
+    if (!canSave) return;
+    const finalSection = entry.section === '__custom__'
+      ? (customSection.trim().slice(0, 60) || 'General')
+      : entry.section;
+    onSave(
+      { ...entry, title: entry.title.trim(), imdbUrl: safeUrl(entry.imdbUrl), section: finalSection as Section },
+      { ...meta, personalRating: clampRating(meta.personalRating), watchLink: safeUrl(meta.watchLink) },
+    );
+    onClose();
   };
 
   const setE = <K extends keyof typeof entry>(k: K, v: typeof entry[K]) =>
@@ -89,6 +100,31 @@ export function AddModal({ open, onClose, onSave, onDuplicate, editEntry, editMe
                 placeholder="Movie or series title"
                 autoFocus
               />
+              {duplicate && (
+                <div
+                  className="mt-1 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs"
+                  style={{ borderColor: 'rgba(245,158,11,0.35)', background: 'rgba(245,158,11,0.08)', color: 'var(--text-secondary)' }}
+                  role="status"
+                >
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-400" />
+                  <span className="flex-1">
+                    <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+                      {duplicate.title}{duplicate.year ? ` (${duplicate.year})` : ''}
+                    </span>{' '}
+                    is already in <span className="font-medium">{duplicate.section}</span>.
+                    {' '}Change the year if this is a different release.
+                  </span>
+                  {onOpenExisting && (
+                    <button
+                      type="button"
+                      onClick={() => { onClose(); onOpenExisting(duplicate); }}
+                      className="flex-shrink-0 font-semibold text-amber-400 hover:underline"
+                    >
+                      View
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -123,7 +159,7 @@ export function AddModal({ open, onClose, onSave, onDuplicate, editEntry, editMe
                 <Select value={entry.section} onValueChange={(v) => setE('section', v as Section)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {SECTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    {sectionOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                     <SelectItem value="__custom__">+ Custom…</SelectItem>
                   </SelectContent>
                 </Select>
@@ -131,6 +167,7 @@ export function AddModal({ open, onClose, onSave, onDuplicate, editEntry, editMe
                   <Input
                     value={customSection}
                     onChange={(e) => setCustomSection(e.target.value)}
+                    maxLength={60}
                     placeholder="Section name"
                     className="mt-1.5"
                   />
@@ -145,7 +182,8 @@ export function AddModal({ open, onClose, onSave, onDuplicate, editEntry, editMe
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="ct-imdb-url">IMDb URL</Label>
-                <Input id="ct-imdb-url" name="imdbUrl" value={entry.imdbUrl} onChange={(e) => setE('imdbUrl', e.target.value)} placeholder="https://imdb.com/..." />
+                <Input id="ct-imdb-url" name="imdbUrl" value={entry.imdbUrl} onChange={(e) => setE('imdbUrl', e.target.value)} placeholder="https://imdb.com/..." aria-invalid={imdbUrlInvalid} />
+                {imdbUrlInvalid && <span className="text-[11px] text-red-400">Must start with https://</span>}
               </div>
             </div>
 
@@ -217,7 +255,9 @@ export function AddModal({ open, onClose, onSave, onDuplicate, editEntry, editMe
                   value={meta.watchLink ?? ''}
                   onChange={(e) => setM('watchLink', e.target.value)}
                   placeholder="https://..."
+                  aria-invalid={watchLinkInvalid}
                 />
+                {watchLinkInvalid && <span className="text-[11px] text-red-400">Must be an http(s) link</span>}
               </div>
 
               <div className="grid gap-1.5">
@@ -238,8 +278,8 @@ export function AddModal({ open, onClose, onSave, onDuplicate, editEntry, editMe
 
           <DialogFooter>
             <Button variant="ghost" onClick={onClose}>Cancel</Button>
-            <Button onClick={handleSave} disabled={!entry.title.trim()}>
-              {editEntry ? 'Save Changes' : 'Add Entry'}
+            <Button onClick={handleSave} disabled={!canSave}>
+              {editEntry ? 'Save Changes' : duplicate ? 'Add Anyway' : 'Add Entry'}
             </Button>
           </DialogFooter>
         </DialogContent>

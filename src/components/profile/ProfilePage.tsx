@@ -23,6 +23,11 @@ function fmtHours(mins: number): string {
   return h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
 }
 
+/** YYYY-MM-DD in the user's local timezone (toISOString() is UTC and shifts dates east of GMT). */
+function localDateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
@@ -91,7 +96,8 @@ function HeatmapGrid({ cells }: { cells: { date: string; count: number }[] }) {
 export function ProfilePage({ state, user, onClose }: Props) {
   const S = useMemo(() => {
     const entries = state.entries;
-    const metaList = Object.values(state.meta);
+    // Derive from entries so meta left behind by deleted/imported data can't skew the stats.
+    const metaList = entries.map((e) => state.meta[e.id] ?? { id: e.id, status: 'plan' as const });
 
     const watched  = metaList.filter(m => m.status === 'watched');
     const watching = metaList.filter(m => m.status === 'watching');
@@ -149,7 +155,7 @@ export function ProfilePage({ state, user, onClose }: Props) {
       const d = new Date(startDay);
       d.setDate(d.getDate() + i);
       if (d > today) break;
-      const key = d.toISOString().slice(0, 10);
+      const key = localDateKey(d);
       heatmap.push({ date: key, count: dayMap[key] || 0 });
     }
 
@@ -164,7 +170,7 @@ export function ProfilePage({ state, user, onClose }: Props) {
       last12, topMonth,
       platforms: Object.entries(platforms).sort((a,b)=>b[1]-a[1]).slice(0,6),
       topGenres, films, series,
-      heatmap, avgRating,
+      heatmap, avgRating, ratedCount: ratings.length,
     };
   }, [state]);
 
@@ -239,7 +245,7 @@ export function ProfilePage({ state, user, onClose }: Props) {
             },
             {
               label: 'Avg Rating', value: S.avgRating ? `${S.avgRating}/10` : '—', color: 'var(--accent-yellow)',
-              sub: S.avgRating ? `from ${Object.values(state.meta).filter(m => m.personalRating != null).length} rated` : 'no ratings yet',
+              sub: S.avgRating ? `from ${S.ratedCount} rated` : 'no ratings yet',
               mono: true,
             },
           ].map(({ label, value, color, sub }) => (
