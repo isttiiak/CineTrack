@@ -1,46 +1,80 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { loadUserWatchlist, saveUserWatchlist, saveUserProfile } from '../lib/firestore';
-import type { WatchlistState, UserProfile } from '../types';
+import type { WatchlistState, UserProfile, SyncStatus } from '../types';
+
+const DEBOUNCE_MS = 1500;
 
 export function useFirestore(uid: string | null) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSyncRef = useRef<string | null>(null);
   const pendingRef  = useRef<WatchlistState | null>(null);
+  const [lastSync, setLastSync] = useState<string | null>(null);
+  const [status, setStatus] = useState<SyncStatus>(uid ? 'loading' : 'local');
+
+  // A new account must never receive the previous account's queued write.
+  useEffect(() => {
+    pendingRef.current = null;
+    setStatus(uid ? 'loading' : 'local');
+    setLastSync(null);
+  }, [uid]);
+
+  const write = useCallback(async (state: WatchlistState) => {
+    if (!uid) return;
+    setStatus('saving');
+    try {
+      await saveUserWatchlist(uid, state);
+      setLastSync(new Date().toISOString());
+      setStatus('saved');
+    } catch (err) {
+      console.error('Firestore save failed:', err);
+      setStatus('error');
+      throw err;
+    }
+  }, [uid]);
 
   const load = useCallback(async (): Promise<WatchlistState | null> => {
     if (!uid) return null;
-    return loadUserWatchlist(uid);
+    setStatus('loading');
+    try {
+      const remote = await loadUserWatchlist(uid);
+      setStatus('saved');
+      if (remote) setLastSync(new Date().toISOString());
+      return remote;
+    } catch (err) {
+      setStatus('error');
+      throw err;
+    }
   }, [uid]);
+
+  const flush = useCallback(async () => {
+    if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
+    const snap = pendingRef.current;
+    pendingRef.current = null;
+    if (snap) await write(snap).catch(() => { pendingRef.current ??= snap; });
+  }, [write]);
 
   const save = useCallback((state: WatchlistState) => {
     if (!uid) return;
     pendingRef.current = state;
+    setStatus('saving');
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      await saveUserWatchlist(uid, state);
-      lastSyncRef.current = new Date().toISOString();
-      pendingRef.current = null;
-    }, 1500);
-  }, [uid]);
+    debounceRef.current = setTimeout(() => { void flush(); }, DEBOUNCE_MS);
+  }, [uid, flush]);
+
+  const saveImmediate = useCallback(async (state: WatchlistState): Promise<void> => {
+    if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
+    pendingRef.current = null;
+    await write(state);
+  }, [write]);
 
   const saveProfile = useCallback(async (profile: UserProfile) => {
     if (!uid) return;
     await saveUserProfile(uid, profile);
   }, [uid]);
 
-  // Flush any pending debounced save when the tab is hidden or closed.
-  // This prevents data loss when the user closes the tab within 1.5s of their last edit.
+  // Flush any pending debounced save when the tab is hidden or closed, so edits made
+  // within the debounce window are not lost.
   useEffect(() => {
-    const flush = () => {
-      if (!uid || !pendingRef.current) return;
-      if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
-      const snap = pendingRef.current;
-      pendingRef.current = null;
-      saveUserWatchlist(uid, snap).then(() => {
-        lastSyncRef.current = new Date().toISOString();
-      }).catch(() => {});
-    };
-    const onVisibility = () => { if (document.visibilityState === 'hidden') flush(); };
+    const onVisibility = () => { if (document.visibilityState === 'hidden') void flush(); };
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('beforeunload', flush);
     return () => {
@@ -48,15 +82,7 @@ export function useFirestore(uid: string | null) {
       window.removeEventListener('beforeunload', flush);
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [uid]);
+  }, [flush]);
 
-  const saveImmediate = useCallback(async (state: WatchlistState): Promise<void> => {
-    if (!uid) return;
-    if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
-    pendingRef.current = null;
-    await saveUserWatchlist(uid, state);
-    lastSyncRef.current = new Date().toISOString();
-  }, [uid]);
-
-  return { load, save, saveImmediate, saveProfile, lastSyncRef };
+  return { load, save, saveImmediate, saveProfile, flush, lastSync, status };
 }

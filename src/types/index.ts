@@ -36,6 +36,7 @@ export interface MovieEntry {
   imdbRating: string;
   imdbUrl: string;
   posterUrl?: string;
+  tmdbId?: number;              // set when added from Discover; strongest duplicate key
   isCustom: boolean;
 }
 
@@ -63,6 +64,10 @@ export interface UserProfile {
   email: string;
   avatar: string;
 }
+
+export type ViewMode = 'grid' | 'list';
+
+export type SyncStatus = 'local' | 'loading' | 'saving' | 'saved' | 'error';
 
 export interface FilterState {
   query: string;

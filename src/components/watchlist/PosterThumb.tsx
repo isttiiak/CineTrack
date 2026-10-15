@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Film } from 'lucide-react';
-import { useTMDB } from '@/hooks/useTMDB';
+import { useTMDB, posterAt } from '@/hooks/useTMDB';
+import { safeUrl } from '@/lib/schema';
+import { cn } from '@/lib/utils';
 import type { MediaType } from '@/types';
 
 interface Props {
@@ -8,42 +10,51 @@ interface Props {
   year: string;
   type: MediaType;
   posterUrl?: string;
-  onPosterLoaded: (url: string) => void;
+  onPosterLoaded?: (url: string) => void;
+  size?: 'w92' | 'w185' | 'w342' | 'w500';
+  className?: string;
 }
 
-export function PosterThumb({ title, year, type, posterUrl, onPosterLoaded }: Props) {
+export function PosterThumb({ title, year, type, posterUrl, onPosterLoaded, size = 'w185', className }: Props) {
   const [loaded, setLoaded] = useState(false);
-  const [src, setSrc] = useState(posterUrl ?? '');
+  const [failed, setFailed] = useState(false);
+  const [fetched, setFetched] = useState('');
   const { fetchPoster } = useTMDB();
 
   useEffect(() => {
-    if (posterUrl) { setSrc(posterUrl); return; }
+    setFailed(false);
+    if (posterUrl) return;
+    let active = true;
     fetchPoster(title, year, type).then((url) => {
-      if (url) { setSrc(url); onPosterLoaded(url); }
+      if (!active || !url) return;
+      setFetched(url);
+      onPosterLoaded?.(url);
     });
+    return () => { active = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, year, type, posterUrl]);
 
-  if (!src) {
-    return (
-      <div className="flex h-[69px] w-[46px] flex-shrink-0 items-center justify-center rounded bg-[var(--bg-elevated)]">
-        <Film className="h-5 w-5 text-[var(--text-disabled)]" />
-      </div>
-    );
-  }
+  const src = failed ? '' : safeUrl(posterAt(posterUrl || fetched, size));
 
   return (
-    <div className="relative h-[69px] w-[46px] flex-shrink-0 overflow-hidden rounded">
-      {!loaded && (
-        <div className="absolute inset-0 bg-[var(--bg-elevated)] animate-pulse rounded" />
+    <div className={cn('relative flex-shrink-0 overflow-hidden rounded-md bg-[var(--bg-elevated)]', className)}>
+      {src ? (
+        <>
+          {!loaded && <div className="absolute inset-0 animate-pulse bg-[var(--bg-elevated)]" />}
+          <img
+            src={src}
+            alt={title}
+            loading="lazy"
+            className={cn('h-full w-full object-cover transition-opacity duration-300', loaded ? 'opacity-100' : 'opacity-0')}
+            onLoad={() => setLoaded(true)}
+            onError={() => setFailed(true)}
+          />
+        </>
+      ) : (
+        <div className="flex h-full w-full items-center justify-center">
+          <Film className="h-1/3 w-1/3 max-h-8 max-w-8 text-[var(--text-disabled)]" />
+        </div>
       )}
-      <img
-        src={src}
-        alt={title}
-        className={`h-full w-full object-cover transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
-        onLoad={() => setLoaded(true)}
-        onError={() => setSrc('')}
-      />
     </div>
   );
 }

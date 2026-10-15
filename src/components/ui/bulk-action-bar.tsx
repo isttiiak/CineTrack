@@ -13,12 +13,14 @@ export function BulkActionBar({ count, onStatusChange, onDelete, onClear }: Prop
   return (
     <AnimatePresence>
       {count > 0 && (
+        // Centring lives on a static wrapper: framer's `y` animation overwrites a Tailwind translate on the same node.
+        <div key="bulk" className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-4">
         <motion.div
           initial={{ y: 80, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 80, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-2xl border shadow-2xl max-w-[calc(100vw-2rem)] overflow-x-auto"
+          className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-2xl border shadow-2xl max-w-full overflow-x-auto"
           style={{
             background: 'var(--bg-surface)',
             borderColor: 'var(--border-subtle)',
@@ -83,6 +85,7 @@ export function BulkActionBar({ count, onStatusChange, onDelete, onClear }: Prop
             <X className="h-3.5 w-3.5" />
           </button>
         </motion.div>
+        </div>
       )}
     </AnimatePresence>
   );

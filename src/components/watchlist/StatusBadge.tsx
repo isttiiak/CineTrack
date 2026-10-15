@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import type { WatchStatus } from '@/types';
 
-const CONFIG: Record<WatchStatus, { label: string; style: React.CSSProperties }> = {
+export const STATUS_CONFIG: Record<WatchStatus, { label: string; style: React.CSSProperties }> = {
   plan: {
     label: 'Plan to Watch',
     style: { background: 'var(--status-plan-bg)', color: 'var(--status-plan-text)', border: '1px solid var(--status-plan-border)' },
@@ -21,16 +21,18 @@ const CYCLE: Record<WatchStatus, WatchStatus> = { plan: 'watching', watching: 'w
 interface Props {
   status: WatchStatus;
   onChange: (next: WatchStatus) => void;
+  disabled?: boolean;
 }
 
-export function StatusBadge({ status, onChange }: Props) {
-  const { label, style } = CONFIG[status];
+export function StatusBadge({ status, onChange, disabled }: Props) {
+  const { label, style } = STATUS_CONFIG[status];
   return (
     <motion.button
       whileHover={{ scale: 1.06, filter: 'brightness(1.15)' }}
       whileTap={{ scale: 0.94 }}
-      onClick={() => onChange(CYCLE[status])}
-      className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium whitespace-nowrap cursor-pointer select-none"
+      disabled={disabled}
+      onClick={(e) => { e.stopPropagation(); onChange(CYCLE[status]); }}
+      className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium whitespace-nowrap cursor-pointer select-none disabled:pointer-events-none"
       style={style}
       title="Click to change status"
     >
