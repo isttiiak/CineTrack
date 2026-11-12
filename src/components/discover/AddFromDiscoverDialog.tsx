@@ -1,0 +1,206 @@
+import { useEffect, useState } from 'react';
+import { Film, Star } from 'lucide-react';
+import { Dialog, DialogContent, DialogFooter, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { STATUS_CONFIG } from '@/components/watchlist/StatusBadge';
+import { TMDB_IMG, type TMDBItem } from '@/hooks/useTMDBDiscover';
+import { PLATFORMS, SECTIONS, todayKey } from '@/lib/utils';
+import { getDetails, suggestPlatform, type RegionProviders } from '@/lib/titleData';
+import { useRatings } from '@/hooks/useRatings';
+import { RatingsRow } from '@/components/ratings/RatingsRow';
+import { WhereToWatch } from '@/components/ratings/WhereToWatch';
+import type { WatchPlatform, WatchStatus } from '@/types';
+
+export interface DiscoverAddChoice {
+  status: WatchStatus;
+  watchedOn?: string;
+  personalRating?: number;
+  watchPlatform?: WatchPlatform;
+  section: string;
+}
+
+interface Props {
+  item: TMDBItem | null;
+  sections: string[];        // the user's existing sections
+  region: string;
+  myServices: string[];
+  onCancel: () => void;
+  onConfirm: (item: TMDBItem, choice: DiscoverAddChoice) => void;
+}
+
+const STATUSES: WatchStatus[] = ['plan', 'watching', 'watched'];
+const defaultSectionFor = (item: TMDBItem) => (item.media_type === 'movie' ? 'General' : 'TV Series');
+
+/**
+ * Confirms how a Discover title goes into the list. Lets users log something they've already
+ * watched: status, an optional watch date (left empty unless they set one), rating, platform.
+ */
+export function AddFromDiscoverDialog({ item, sections, region, myServices, onCancel, onConfirm }: Props) {
+  const [status, setStatus] = useState<WatchStatus>('plan');
+  const [watchedOn, setWatchedOn] = useState('');
+  const [rating, setRating] = useState<number | undefined>();
+  const [platform, setPlatform] = useState<WatchPlatform>('');
+  const [section, setSection] = useState('General');
+  const [platformTouched, setPlatformTouched] = useState(false);
+  const [providers, setProviders] = useState<RegionProviders | undefined>();
+  const [providersLoading, setProvidersLoading] = useState(false);
+  const { ratings, loading: ratingsLoading } = useRatings(item?.media_type ?? 'movie', item?.id, !!item);
+
+  // Fresh defaults each time a new title is opened.
+  useEffect(() => {
+    if (!item) return;
+    setStatus('plan'); setWatchedOn(''); setRating(undefined); setPlatform(''); setPlatformTouched(false);
+    setSection(defaultSectionFor(item));
+    setProviders(undefined);
+    let active = true;
+    setProvidersLoading(true);
+    // Same cached request the add uses afterwards for country/runtime/IMDb id.
+    getDetails(item.media_type, item.id)
+      .then((d) => { if (active) setProviders(d['watch/providers']?.results?.[region]); })
+      .catch(() => {})
+      .finally(() => { if (active) setProvidersLoading(false); });
+    return () => { active = false; };
+  }, [item, region]);
+
+  // Pre-fill Platform with a service the user has (or the main streaming service) until they pick one.
+  useEffect(() => {
+    if (platformTouched) return;
+    setPlatform(suggestPlatform(providers, myServices) ?? '');
+  }, [providers, myServices, platformTouched]);
+
+  if (!item) return null;
+  const title = item.title ?? item.name ?? '';
+  const year = (item.release_date ?? item.first_air_date ?? '').slice(0, 4);
+  const sectionOptions = [...new Set([...SECTIONS, ...sections])];
+
+  const confirm = () => onConfirm(item, {
+    status,
+    watchedOn: status === 'watched' && watchedOn ? watchedOn : undefined,
+    personalRating: status !== 'plan' ? rating : undefined,
+    watchPlatform: platform || undefined,
+    section,
+  });
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onCancel()}>
+      <DialogContent className="max-w-md" aria-describedby={undefined}>
+        <form onSubmit={(e) => { e.preventDefault(); confirm(); }}>
+          <div className="flex gap-4 p-6 pb-2 pr-12">
+            <div className="h-24 w-16 flex-shrink-0 overflow-hidden rounded-lg" style={{ background: 'var(--bg-elevated)' }}>
+              {item.poster_path
+                ? <img src={`${TMDB_IMG}${item.poster_path}`} alt="" className="h-full w-full object-cover" />
+                : <div className="flex h-full items-center justify-center"><Film className="h-6 w-6 opacity-30" /></div>}
+            </div>
+            <div className="min-w-0">
+              <DialogTitle className="text-lg leading-tight">{title}</DialogTitle>
+              <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                {[year, item.media_type === 'movie' ? 'Film' : 'Series'].filter(Boolean).join(' · ')}
+              </p>
+              {item.vote_average > 0 && (
+                <p className="mt-1 inline-flex items-center gap-1 font-mono text-xs font-bold text-amber-400">
+                  <Star className="h-3 w-3 fill-current" /> {item.vote_average.toFixed(1)}
+                  <span className="font-sans text-[10px] tracking-widest opacity-70">TMDB</span>
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-4 px-6 py-3">
+            <RatingsRow ratings={ratings} loading={ratingsLoading} tmdbFallback={item.vote_average || undefined} />
+
+            <div className="grid gap-1.5">
+              <Label>Where to watch</Label>
+              <WhereToWatch providers={providers} region={region} myServices={myServices} loading={providersLoading} />
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label>Status</Label>
+              <div className="grid grid-cols-3 gap-1.5 rounded-xl p-1" style={{ background: 'var(--bg-elevated)' }} role="radiogroup" aria-label="Status">
+                {STATUSES.map((s) => (
+                  <button
+                    key={s} type="button" role="radio" aria-checked={status === s}
+                    onClick={() => setStatus(s)}
+                    className="rounded-lg px-2 py-2 text-xs font-semibold transition-all"
+                    style={status === s ? STATUS_CONFIG[s].style : { color: 'var(--text-muted)', border: '1px solid transparent' }}
+                  >
+                    {STATUS_CONFIG[s].label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {status === 'watched' && (
+              <div className="grid gap-1.5">
+                <Label htmlFor="discover-watched-on">Watched on <span className="font-normal" style={{ color: 'var(--text-muted)' }}>(optional)</span></Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="discover-watched-on" type="date" value={watchedOn} max={todayKey()}
+                    onChange={(e) => setWatchedOn(e.target.value)}
+                    className="flex-1 [color-scheme:dark]"
+                  />
+                  <Button type="button" variant="outline" size="sm" className="h-9" onClick={() => setWatchedOn(todayKey())}>Today</Button>
+                  {watchedOn && <Button type="button" variant="ghost" size="sm" className="h-9" onClick={() => setWatchedOn('')}>Clear</Button>}
+                </div>
+              </div>
+            )}
+
+            {status !== 'plan' && (
+              <div className="grid gap-1.5">
+                <Label>My rating <span className="font-normal" style={{ color: 'var(--text-muted)' }}>(optional)</span></Label>
+                <div className="grid grid-cols-10 gap-1">
+                  {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => {
+                    const filled = rating != null && n <= rating;
+                    return (
+                      <button
+                        key={n} type="button"
+                        onClick={() => setRating(rating === n ? undefined : n)}
+                        aria-label={`Rate ${n} out of 10`} aria-pressed={rating === n}
+                        className="h-8 rounded-md font-mono text-xs font-semibold transition-colors"
+                        style={{
+                          background: filled ? 'color-mix(in srgb, var(--accent-cyan) 22%, transparent)' : 'var(--bg-elevated)',
+                          color: filled ? 'var(--accent-cyan)' : 'var(--text-muted)',
+                        }}
+                      >
+                        {n}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label>Platform</Label>
+                <Select value={platform || '_none'} onValueChange={(v) => { setPlatformTouched(true); setPlatform((v === '_none' ? '' : v) as WatchPlatform); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">None</SelectItem>
+                    {PLATFORMS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Section</Label>
+                <Select value={section} onValueChange={setSection}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {sectionOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
+            <Button type="submit" autoFocus>Add to list</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

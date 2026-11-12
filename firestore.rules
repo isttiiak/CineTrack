@@ -1,0 +1,40 @@
+rules_version = '2';
+
+// Deploy with: firebase deploy --only firestore:rules  (or paste into Console → Firestore → Rules)
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    match /users/{userId}/data/watchlist {
+      allow read, delete: if isOwner(userId);
+      // Shape and size limits keep one account from storing arbitrary data. The app itself caps
+      // a list at 2000 entries (src/lib/schema.ts), and Firestore caps a document at 1 MB.
+      allow create, update: if isOwner(userId)
+        && request.resource.data.keys().hasOnly(['entries', 'meta', 'sectionOrder', 'lastModified'])
+        && request.resource.data.entries is list
+        && request.resource.data.entries.size() <= 2000
+        && request.resource.data.meta is map
+        && request.resource.data.meta.size() <= 2000
+        && request.resource.data.sectionOrder is list
+        && request.resource.data.sectionOrder.size() <= 200
+        && request.resource.data.lastModified is string
+        && request.resource.data.lastModified.size() <= 40;
+    }
+
+    // Display name and avatar only; the email address stays in Firebase Auth.
+    match /users/{userId}/data/profile {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'avatar', 'updatedAt'])
+        && request.resource.data.uid == userId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 200
+        && request.resource.data.avatar is string
+        && request.resource.data.avatar.size() <= 2000;
+    }
+
+    // Everything else is denied by default.
+  }
+}

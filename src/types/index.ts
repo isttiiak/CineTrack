@@ -36,6 +36,8 @@ export interface MovieEntry {
   imdbRating: string;
   imdbUrl: string;
   posterUrl?: string;
+  tmdbId?: number;              // set when added from Discover; strongest duplicate key
+  ratingSource?: 'imdb' | 'tmdb'; // which site `imdbRating` came from; see ratingSourceOf()
   isCustom: boolean;
 }
 
@@ -48,6 +50,8 @@ export interface WatchMeta {
   watchPlatform?: WatchPlatform;
   watchLink?: string;
   duration?: string;
+  progressSeason?: number;      // series: last watched episode (season, episode)
+  progressEpisode?: number;
 }
 
 export interface WatchlistState {
@@ -63,6 +67,10 @@ export interface UserProfile {
   email: string;
   avatar: string;
 }
+
+export type ViewMode = 'grid' | 'list';
+
+export type SyncStatus = 'local' | 'loading' | 'saving' | 'saved' | 'error';
 
 export interface FilterState {
   query: string;

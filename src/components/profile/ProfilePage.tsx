@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { X, Film, Calendar, MonitorPlay, Activity, Star } from 'lucide-react';
-import type { WatchlistState, UserProfile as UserProfileType } from '@/types';
+import type { WatchlistState, WatchMeta, UserProfile as UserProfileType } from '@/types';
+import { localDateKey, parseMins } from '@/lib/utils';
 
 interface Props {
   state: WatchlistState;
@@ -9,12 +10,14 @@ interface Props {
   onClose: () => void;
 }
 
-function parseMins(d?: string): number {
-  if (!d) return 0;
-  let t = 0;
-  const h = d.match(/(\d+)\s*h/i);   if (h) t += parseInt(h[1]) * 60;
-  const m = d.match(/(\d+)\s*m(?:in)?/i); if (m) t += parseInt(m[1]);
-  return t;
+/** Sums known runtimes; `unknown` counts series whose total length can't be worked out. */
+function totalMins(list: WatchMeta[]): { mins: number; unknown: number } {
+  let mins = 0, unknown = 0;
+  for (const m of list) {
+    const v = parseMins(m.duration);
+    if (v === null) unknown++; else mins += v;
+  }
+  return { mins, unknown };
 }
 
 function fmtHours(mins: number): string {
@@ -22,6 +25,9 @@ function fmtHours(mins: number): string {
   const h = Math.floor(mins / 60), m = mins % 60;
   return h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
 }
+
+
+const unknownNote = (n: number) => (n > 0 ? ` (+${n} series, length unknown)` : '');
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -91,14 +97,15 @@ function HeatmapGrid({ cells }: { cells: { date: string; count: number }[] }) {
 export function ProfilePage({ state, user, onClose }: Props) {
   const S = useMemo(() => {
     const entries = state.entries;
-    const metaList = Object.values(state.meta);
+    // Derive from entries so meta left behind by deleted/imported data can't skew the stats.
+    const metaList = entries.map((e) => state.meta[e.id] ?? { id: e.id, status: 'plan' as const });
 
     const watched  = metaList.filter(m => m.status === 'watched');
     const watching = metaList.filter(m => m.status === 'watching');
     const plan     = metaList.filter(m => m.status === 'plan');
 
-    const watchedMins = watched.reduce((s, m) => s + parseMins(m.duration), 0);
-    const planMins    = plan.reduce((s, m)    => s + parseMins(m.duration), 0);
+    const { mins: watchedMins, unknown: watchedUnknown } = totalMins(watched);
+    const { mins: planMins, unknown: planUnknown } = totalMins(plan);
 
     // Monthly watched counts (last 12 months)
     const monthMap: Record<string, number> = {};
@@ -149,7 +156,7 @@ export function ProfilePage({ state, user, onClose }: Props) {
       const d = new Date(startDay);
       d.setDate(d.getDate() + i);
       if (d > today) break;
-      const key = d.toISOString().slice(0, 10);
+      const key = localDateKey(d);
       heatmap.push({ date: key, count: dayMap[key] || 0 });
     }
 
@@ -160,11 +167,11 @@ export function ProfilePage({ state, user, onClose }: Props) {
     return {
       total: entries.length,
       watched: watched.length, watching: watching.length, plan: plan.length,
-      watchedMins, planMins,
+      watchedMins, planMins, watchedUnknown, planUnknown,
       last12, topMonth,
       platforms: Object.entries(platforms).sort((a,b)=>b[1]-a[1]).slice(0,6),
       topGenres, films, series,
-      heatmap, avgRating,
+      heatmap, avgRating, ratedCount: ratings.length,
     };
   }, [state]);
 
@@ -227,7 +234,7 @@ export function ProfilePage({ state, user, onClose }: Props) {
             },
             {
               label: 'Watched', value: S.watched, color: 'var(--accent-green)',
-              sub: S.watchedMins > 0 ? fmtHours(S.watchedMins) + ' watched' : null,
+              sub: S.watchedMins > 0 ? fmtHours(S.watchedMins) + ' watched' + unknownNote(S.watchedUnknown) : null,
             },
             {
               label: 'Watching', value: S.watching, color: 'var(--accent-yellow)',
@@ -235,11 +242,11 @@ export function ProfilePage({ state, user, onClose }: Props) {
             },
             {
               label: 'Plan to Watch', value: S.plan, color: 'var(--status-plan-text)',
-              sub: S.planMins > 0 ? fmtHours(S.planMins) + ' queued' : null,
+              sub: S.planMins > 0 ? fmtHours(S.planMins) + ' queued' + unknownNote(S.planUnknown) : null,
             },
             {
               label: 'Avg Rating', value: S.avgRating ? `${S.avgRating}/10` : '—', color: 'var(--accent-yellow)',
-              sub: S.avgRating ? `from ${Object.values(state.meta).filter(m => m.personalRating != null).length} rated` : 'no ratings yet',
+              sub: S.avgRating ? `from ${S.ratedCount} rated` : 'no ratings yet',
               mono: true,
             },
           ].map(({ label, value, color, sub }) => (

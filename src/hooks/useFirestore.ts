@@ -1,62 +1,115 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { loadUserWatchlist, saveUserWatchlist, saveUserProfile } from '../lib/firestore';
-import type { WatchlistState, UserProfile } from '../types';
+import { useEffect, useRef, useCallback, useState } from 'react';
+import { loadUserWatchlist, syncUserWatchlist } from '../lib/firestore';
+import type { WatchlistState, SyncStatus } from '../types';
 
-export function useFirestore(uid: string | null) {
+const DEBOUNCE_MS = 1500;
+
+export interface SyncHandlers {
+  /** The current local list; read when the save actually runs, so it is never stale. */
+  getLocal: () => WatchlistState;
+  /** The cloud version this device last saw (the merge ancestor). */
+  getBase: () => WatchlistState | null;
+  /** Called after a successful save with what was sent and what the cloud now holds. */
+  onSynced: (uid: string, sent: WatchlistState, cloud: WatchlistState) => void;
+}
+
+/**
+ * Debounced, serialised cloud saves. Callers only mark the list dirty (`requestSave`); the save
+ * reads the latest local state when it runs and merges it with the cloud copy in a transaction.
+ */
+export function useFirestore(uid: string | null, handlers: SyncHandlers) {
+  const handlersRef = useRef(handlers);
+  useEffect(() => { handlersRef.current = handlers; });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSyncRef = useRef<string | null>(null);
-  const pendingRef  = useRef<WatchlistState | null>(null);
+  const dirtyRef = useRef(false);
+  const inFlightRef = useRef<Promise<void> | null>(null);
+  const [lastSync, setLastSync] = useState<string | null>(null);
+  const [status, setStatus] = useState<SyncStatus>(uid ? 'loading' : 'local');
+
+  // A new account must never receive the previous account's queued write.
+  useEffect(() => {
+    dirtyRef.current = false;
+    if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
+    setStatus(uid ? 'loading' : 'local');
+    setLastSync(null);
+  }, [uid]);
+
+  const write = useCallback(async (): Promise<void> => {
+    if (!uid) return;
+    // One save at a time: a second save waits, then sends whatever is newest.
+    while (inFlightRef.current) await inFlightRef.current.catch(() => {});
+    if (!dirtyRef.current) return;
+    dirtyRef.current = false;
+    setStatus('saving');
+    const run = (async () => {
+      const { getLocal, getBase, onSynced } = handlersRef.current;
+      const sent = getLocal();
+      try {
+        const cloud = await syncUserWatchlist(uid, getBase(), sent);
+        onSynced(uid, sent, cloud);
+        setLastSync(new Date().toISOString());
+        setStatus(dirtyRef.current ? 'saving' : 'saved');
+      } catch (err) {
+        console.error('Firestore save failed:', err);
+        dirtyRef.current = true;           // retried on the next edit, reconnect, or tab hide
+        setStatus('error');
+        throw err;
+      }
+    })();
+    inFlightRef.current = run;
+    try { await run; } finally { if (inFlightRef.current === run) inFlightRef.current = null; }
+  }, [uid]);
 
   const load = useCallback(async (): Promise<WatchlistState | null> => {
     if (!uid) return null;
-    return loadUserWatchlist(uid);
+    setStatus('loading');
+    try {
+      const remote = await loadUserWatchlist(uid);
+      setStatus('saved');
+      if (remote) setLastSync(new Date().toISOString());
+      return remote;
+    } catch (err) {
+      setStatus('error');
+      throw err;
+    }
   }, [uid]);
 
-  const save = useCallback((state: WatchlistState) => {
+  /** Sends pending changes now. Never throws. */
+  const flush = useCallback(async () => {
+    if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
+    if (dirtyRef.current) await write().catch(() => {});
+  }, [write]);
+
+  const requestSave = useCallback(() => {
     if (!uid) return;
-    pendingRef.current = state;
+    dirtyRef.current = true;
+    setStatus('saving');
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      await saveUserWatchlist(uid, state);
-      lastSyncRef.current = new Date().toISOString();
-      pendingRef.current = null;
-    }, 1500);
-  }, [uid]);
+    debounceRef.current = setTimeout(() => { void flush(); }, DEBOUNCE_MS);
+  }, [uid, flush]);
 
-  const saveProfile = useCallback(async (profile: UserProfile) => {
-    if (!uid) return;
-    await saveUserProfile(uid, profile);
-  }, [uid]);
+  /** Saves now and rejects if the save fails (for the manual "Sync now" button). */
+  const saveNow = useCallback(async () => {
+    if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
+    dirtyRef.current = true;
+    await write();
+  }, [write]);
 
-  // Flush any pending debounced save when the tab is hidden or closed.
-  // This prevents data loss when the user closes the tab within 1.5s of their last edit.
+  // Flush when the tab is hidden or closed so edits made within the debounce window are sent,
+  // and retry a failed save as soon as the connection comes back.
   useEffect(() => {
-    const flush = () => {
-      if (!uid || !pendingRef.current) return;
-      if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
-      const snap = pendingRef.current;
-      pendingRef.current = null;
-      saveUserWatchlist(uid, snap).then(() => {
-        lastSyncRef.current = new Date().toISOString();
-      }).catch(() => {});
-    };
-    const onVisibility = () => { if (document.visibilityState === 'hidden') flush(); };
+    const onVisibility = () => { if (document.visibilityState === 'hidden') void flush(); };
+    const onOnline = () => { void flush(); };
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('beforeunload', flush);
+    window.addEventListener('online', onOnline);
     return () => {
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('beforeunload', flush);
+      window.removeEventListener('online', onOnline);
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [uid]);
+  }, [flush]);
 
-  const saveImmediate = useCallback(async (state: WatchlistState): Promise<void> => {
-    if (!uid) return;
-    if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
-    pendingRef.current = null;
-    await saveUserWatchlist(uid, state);
-    lastSyncRef.current = new Date().toISOString();
-  }, [uid]);
-
-  return { load, save, saveImmediate, saveProfile, lastSyncRef };
+  return { load, requestSave, saveNow, flush, lastSync, status };
 }

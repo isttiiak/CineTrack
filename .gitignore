@@ -1,4 +1,3 @@
-CLAUDE.md
 node_modules/
 dist/
 .env.local
@@ -7,3 +6,4 @@ dist/
 .DS_Store
 .vscode/
 .vite/
+.claude/

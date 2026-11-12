@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import { tmdb, TMDB_IMG } from '../lib/tmdb';
+import { getDetails, itemFromDetails, findByImdb, type TmdbKind } from '../lib/titleData';
+import { parseTitleLink } from '../lib/links';
 
-const TMDB_KEY = import.meta.env.VITE_TMDB_API_KEY;
-const BASE = 'https://api.themoviedb.org/3';
-export const TMDB_IMG = 'https://image.tmdb.org/t/p/w185';
+export { TMDB_IMG };
 
 export interface TMDBItem {
   id: number;
@@ -35,13 +36,12 @@ const COUNTRY_CODES: Record<string, string> = {
   TW: 'Taiwan', AR: 'Argentina', CO: 'Colombia', PT: 'Portugal', AT: 'Austria',
 };
 
-export async function fetchTMDBDetails(id: number, mediaType: 'movie' | 'tv'): Promise<TMDBDetails> {
-  if (!TMDB_KEY) return { country: '', imdbUrl: '', duration: '' };
+/** Country, IMDb link and duration for a new entry. Shares the cached details request. */
+export async function fetchTMDBDetails(id: number, mediaType: TmdbKind): Promise<TMDBDetails> {
   try {
-    const [details, extIds] = await Promise.all([
-      fetch(`${BASE}/${mediaType}/${id}?api_key=${TMDB_KEY}&language=en-US`).then(r => r.json()),
-      fetch(`${BASE}/${mediaType}/${id}/external_ids?api_key=${TMDB_KEY}`).then(r => r.json()),
-    ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const details = await getDetails(mediaType, id) as any;
+    const extIds = details.external_ids ?? {};
 
     let country = '';
     if (mediaType === 'movie') {
@@ -62,9 +62,11 @@ export async function fetchTMDBDetails(id: number, mediaType: 'movie' | 'tv'): P
         duration = h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
       }
     } else {
-      // TMDB deprecated episode_run_time; fall back chain: runtime → episode_run_time[0]
-      const rt = details.runtime ?? details.episode_run_time?.[0] ?? 0;
-      if (rt > 0) duration = `${rt} min/ep`;
+      // TMDB deprecated episode_run_time; fall back chain: runtime → episode_run_time[0] → latest episode.
+      const rt = details.runtime ?? details.episode_run_time?.[0] ?? details.last_episode_to_air?.runtime ?? 0;
+      // The episode count lets stats total a whole series instead of counting a single episode.
+      const eps = details.number_of_episodes ?? 0;
+      if (rt > 0) duration = eps > 0 ? `${rt} min/ep · ${eps} eps` : `${rt} min/ep`;
     }
 
     return { country, imdbUrl, duration };
@@ -73,30 +75,47 @@ export async function fetchTMDBDetails(id: number, mediaType: 'movie' | 'tv'): P
   }
 }
 
+/** A pasted/shared IMDb or TMDB link → that exact title (or null if it can't be found). */
+export async function resolveLinkItem(text: string): Promise<TMDBItem | null> {
+  const link = parseTitleLink(text);
+  if (!link) return null;
+  if (link.kind === 'tmdb') return itemFromDetails(await getDetails(link.type, link.id), link.type);
+  const found = await findByImdb(link.id);
+  return found ? itemFromDetails(await getDetails(found.kind, found.id), found.kind) : null;
+}
+
 export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string) {
   const [items, setItems] = useState<TMDBItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [fromLink, setFromLink] = useState(false);
 
   useEffect(() => {
-    if (!TMDB_KEY) { setLoading(false); setError(true); return; }
+    // Ignore responses from superseded queries so a slow older search can't overwrite newer results.
+    const controller = new AbortController();
+    let cancelled = false;
+    const trimmed = searchQuery.trim();
 
     const doFetch = () => {
       setLoading(true);
       setError(false);
 
-      const trimmed = searchQuery.trim();
-      const url = trimmed.length > 1
-        ? `${BASE}/search/multi?api_key=${TMDB_KEY}&language=en-US&query=${encodeURIComponent(trimmed)}`
-        : ({
-            trending: `${BASE}/trending/all/week?api_key=${TMDB_KEY}&language=en-US`,
-            movies:   `${BASE}/movie/popular?api_key=${TMDB_KEY}&language=en-US`,
-            tv:       `${BASE}/tv/popular?api_key=${TMDB_KEY}&language=en-US`,
-          } as Record<DiscoverTab, string>)[tab];
+      // Pasting an IMDb/TMDB link finds that exact title.
+      if (parseTitleLink(trimmed)) {
+        resolveLinkItem(trimmed)
+          .then((item) => { if (!cancelled) { setItems(item ? [item] : []); setFromLink(true); setLoading(false); } })
+          .catch(() => { if (!cancelled) { setLoading(false); setError(true); } });
+        return;
+      }
 
-      fetch(url)
-        .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      const path = trimmed.length > 1
+        ? 'search/multi'
+        : ({ trending: 'trending/all/week', movies: 'movie/popular', tv: 'tv/popular' } as Record<DiscoverTab, string>)[tab];
+      const params: Record<string, string> = { language: 'en-US' };
+      if (trimmed.length > 1) params.query = trimmed;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      tmdb<any>(path, params, controller.signal)
         .then(data => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const results: TMDBItem[] = (data.results || [] as any[])
@@ -110,19 +129,24 @@ export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string) {
                 : (tab === 'movies' ? 'movie' : 'tv'),
             })) as TMDBItem[];
           setItems(results);
+          setFromLink(false);
           setLoading(false);
         })
-        .catch(() => { setLoading(false); setError(true); });
+        .catch((err) => {
+          if (err?.name === 'AbortError') return;
+          setLoading(false); setError(true);
+        });
     };
 
-    const q = searchQuery.trim();
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = q.length > 1
-      ? setTimeout(doFetch, 350)
-      : (doFetch(), null);
+    const timer = trimmed.length > 1 ? setTimeout(doFetch, 350) : null;
+    if (!timer) doFetch();
 
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    return () => {
+      cancelled = true;
+      controller.abort();
+      if (timer) clearTimeout(timer);
+    };
   }, [tab, searchQuery]);
 
-  return { items, loading, error };
+  return { items, loading, error, fromLink };
 }
