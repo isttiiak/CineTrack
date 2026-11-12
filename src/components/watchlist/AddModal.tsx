@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { GenreSelector } from '@/components/ui/genre-selector';
 import type { MovieEntry, WatchMeta, WatchStatus, MediaType, WatchPlatform, Section } from '@/types';
-import { SECTIONS, PLATFORMS, ratingSourceOf } from '@/lib/utils';
+import { SECTIONS, PLATFORMS, ratingSourceOf, todayKey } from '@/lib/utils';
 import { findDuplicate } from '@/lib/duplicates';
 import { safeUrl, clampRating } from '@/lib/schema';
 
@@ -202,7 +202,16 @@ export function AddModal({ open, onClose, onSave, onOpenExisting, editEntry, edi
               <div className="grid grid-cols-2 gap-3">
                 <div className="grid gap-1.5">
                   <Label>Status</Label>
-                  <Select value={meta.status ?? 'plan'} onValueChange={(v) => setM('status', v as WatchStatus)}>
+                  {/* Editing an entry to Watched pre-fills today (visible and clearable); a new entry
+                      keeps an empty date, since it may have been watched long ago. */}
+                  <Select
+                    value={meta.status ?? 'plan'}
+                    onValueChange={(v) => setMeta((p) => ({
+                      ...p,
+                      status: v as WatchStatus,
+                      ...(editEntry && v === 'watched' && p.status !== 'watched' && !p.watchedOn ? { watchedOn: todayKey() } : {}),
+                    }))}
+                  >
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="plan">Plan to Watch</SelectItem>

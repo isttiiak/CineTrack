@@ -1,7 +1,13 @@
+import { useEffect, useState } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X, ExternalLink, Pencil, Trash2, Link as LinkIcon, Clock, Calendar, MonitorPlay, Star } from 'lucide-react';
-import type { MovieEntry, WatchMeta, WatchStatus } from '@/types';
+import { X, ExternalLink, Pencil, Trash2, Link as LinkIcon, Clock, Calendar, MonitorPlay, Star, Minus, Plus, Tv } from 'lucide-react';
+import type { MovieEntry, WatchMeta, WatchPlatform, WatchStatus } from '@/types';
+import { getDetails, kindOf, regularSeasons, resolveTmdbId, suggestPlatform, type TitleDetails } from '@/lib/titleData';
+import { episodesLeft, isCaughtUp, nextEpisode, prevEpisode, statusAfterProgress, type EpisodePos } from '@/lib/progress';
+import { useRatings } from '@/hooks/useRatings';
+import { RatingsRow } from '@/components/ratings/RatingsRow';
+import { WhereToWatch } from '@/components/ratings/WhereToWatch';
 import { PosterThumb } from './PosterThumb';
 import { STATUS_CONFIG } from './StatusBadge';
 import { safeUrl } from '@/lib/schema';
@@ -15,6 +21,12 @@ interface Props {
   onRatingChange: (rating: number | undefined) => void;
   onEdit: () => void;
   onDelete: () => void;
+  region: string;
+  myServices: string[];
+  /** Saves data looked up automatically (TMDB id, real IMDb rating/link). */
+  onEnrich: (patch: Partial<MovieEntry>) => void;
+  onProgress: (pos: EpisodePos | null, status: WatchStatus) => void;
+  onSetPlatform: (platform: WatchPlatform) => void;
 }
 
 const STATUSES: WatchStatus[] = ['plan', 'watching', 'watched'];
@@ -31,7 +43,7 @@ function Fact({ icon, label, children }: { icon: React.ReactNode; label: string;
 }
 
 /** Right-side sheet on desktop, bottom sheet on mobile. Holds everything that used to be collapsed into rows. */
-export function EntryDrawer({ entry, meta, onClose, onStatusChange, onRatingChange, onEdit, onDelete }: Props) {
+export function EntryDrawer({ entry, meta, onClose, ...rest }: Props) {
   const open = entry !== null && meta !== null;
 
   return (
@@ -58,11 +70,7 @@ export function EntryDrawer({ entry, meta, onClose, onStatusChange, onRatingChan
                 exit={{ opacity: 0, y: 40 }}
                 transition={{ type: 'spring', stiffness: 380, damping: 36 }}
               >
-                <DrawerBody
-                  entry={entry} meta={meta}
-                  onStatusChange={onStatusChange} onRatingChange={onRatingChange}
-                  onEdit={onEdit} onDelete={onDelete}
-                />
+                <DrawerBody key={entry.id} entry={entry} meta={meta} {...rest} />
               </motion.div>
             </DialogPrimitive.Content>
           </DialogPrimitive.Portal>
@@ -72,7 +80,57 @@ export function EntryDrawer({ entry, meta, onClose, onStatusChange, onRatingChan
   );
 }
 
-function DrawerBody({ entry, meta, onStatusChange, onRatingChange, onEdit, onDelete }: Omit<Props, 'entry' | 'meta' | 'onClose'> & { entry: MovieEntry; meta: WatchMeta }) {
+const sectionTitle = 'mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest';
+
+function DrawerBody({ entry, meta, onStatusChange, onRatingChange, onEdit, onDelete, region, myServices, onEnrich, onProgress, onSetPlatform }: Omit<Props, 'entry' | 'meta' | 'onClose'> & { entry: MovieEntry; meta: WatchMeta }) {
+  const kind = kindOf(entry.type);
+  const [tmdbId, setTmdbId] = useState<number | null>(entry.tmdbId ?? null);
+  const [details, setDetails] = useState<TitleDetails | null>(null);
+  const [detailsLoading, setDetailsLoading] = useState(true);
+  const { ratings, loading: ratingsLoading } = useRatings(kind, tmdbId);
+
+  // Entries added by hand get their TMDB id looked up once and saved, so the rest works for them too.
+  useEffect(() => {
+    let active = true;
+    resolveTmdbId(entry).then((id) => {
+      if (!active) return;
+      setTmdbId(id);
+      if (id && !entry.tmdbId) onEnrich({ tmdbId: id });
+      if (!id) setDetailsLoading(false);
+    });
+    return () => { active = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entry.id]);
+
+  useEffect(() => {
+    if (!tmdbId) return;
+    let active = true;
+    getDetails(kind, tmdbId)
+      .then((d) => { if (active) setDetails(d); })
+      .catch(() => {})
+      .finally(() => { if (active) setDetailsLoading(false); });
+    return () => { active = false; };
+  }, [kind, tmdbId]);
+
+  // Keep the card's star rating honest: replace TMDB scores (or stale IMDb ones) with the live IMDb rating.
+  useEffect(() => {
+    if (!ratings) return;
+    const patch: Partial<MovieEntry> = {};
+    const live = ratings.imdb?.toFixed(1);
+    if (live && (entry.imdbRating !== live || entry.ratingSource !== 'imdb')) { patch.imdbRating = live; patch.ratingSource = 'imdb'; }
+    if (ratings.imdbId && !entry.imdbUrl) patch.imdbUrl = `https://www.imdb.com/title/${ratings.imdbId}/`;
+    if (Object.keys(patch).length) onEnrich(patch);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ratings]);
+
+  const providers = details?.['watch/providers']?.results?.[region];
+  const suggested = !meta.watchPlatform ? suggestPlatform(providers, myServices) : null;
+  const seasons = details ? regularSeasons(details) : [];
+  const pos: EpisodePos | null = meta.progressSeason != null && meta.progressEpisode != null
+    ? { season: meta.progressSeason, episode: meta.progressEpisode } : null;
+  const logProgress = (next: EpisodePos | null) =>
+    onProgress(next, statusAfterProgress(meta.status, next, details?.last_episode_to_air, details?.status));
+
   const imdbUrl = safeUrl(entry.imdbUrl);
   const watchLink = safeUrl(meta.watchLink);
   const hasImdb = entry.imdbRating && entry.imdbRating !== 'N/A';
@@ -117,7 +175,7 @@ function DrawerBody({ entry, meta, onStatusChange, onRatingChange, onEdit, onDel
                 ))}
               </div>
             )}
-            {hasImdb && (
+            {hasImdb && !ratings && (
               ratingUrl ? (
                 <a href={ratingUrl} target="_blank" rel="noopener noreferrer"
                    className={cn('mt-3 inline-flex items-center gap-1 font-mono text-sm font-bold hover:underline', getImdbColor(entry.imdbRating))}>
@@ -130,6 +188,13 @@ function DrawerBody({ entry, meta, onStatusChange, onRatingChange, onEdit, onDel
             )}
           </div>
         </div>
+
+        {(ratings || ratingsLoading) && (
+          <section className="mt-5">
+            <h3 className={sectionTitle} style={{ color: 'var(--text-disabled)' }}><Star className="h-3 w-3" /> Ratings</h3>
+            <RatingsRow ratings={ratings} loading={ratingsLoading && !ratings} tmdbFallback={details?.vote_average || undefined} />
+          </section>
+        )}
 
         <section className="mt-6">
           <h3 className="mb-2 text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--text-disabled)' }}>Status</h3>
@@ -181,6 +246,73 @@ function DrawerBody({ entry, meta, onStatusChange, onRatingChange, onEdit, onDel
           </div>
         </section>
 
+        {entry.type === 'Series' && seasons.length > 0 && (
+          <section className="mt-5">
+            <h3 className={sectionTitle} style={{ color: 'var(--text-disabled)' }}><Tv className="h-3 w-3" /> Progress</h3>
+            <div className="rounded-xl border p-3" style={{ background: 'var(--bg-elevated)', borderColor: 'var(--border-subtle)' }}>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => pos && logProgress(prevEpisode(seasons, pos))}
+                  disabled={!pos}
+                  aria-label="Previous episode"
+                  className="rounded-lg border p-2 transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-30"
+                  style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-secondary)' }}
+                >
+                  <Minus className="h-3.5 w-3.5" />
+                </button>
+                <div className="min-w-0 flex-1 text-center">
+                  <div className="font-mono text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
+                    {pos ? `S${pos.season} · E${pos.episode}` : 'Not started'}
+                  </div>
+                  <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                    {isCaughtUp(pos, details?.last_episode_to_air)
+                      ? 'Caught up'
+                      : `${episodesLeft(seasons, pos, details?.last_episode_to_air)} aired episodes left`}
+                  </div>
+                </div>
+                <button
+                  onClick={() => { const n = nextEpisode(seasons, pos); if (n) logProgress(n); }}
+                  disabled={!nextEpisode(seasons, pos) || isCaughtUp(pos, details?.last_episode_to_air)}
+                  className="flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold text-white transition-opacity disabled:opacity-30"
+                  style={{ background: 'var(--accent-purple)' }}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Episode
+                </button>
+              </div>
+              <div className="mt-2.5 flex items-center justify-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                <span>Jump to</span>
+                <select
+                  aria-label="Season"
+                  value={pos?.season ?? ''}
+                  onChange={(e) => logProgress({ season: Number(e.target.value), episode: 1 })}
+                  className="rounded-md border bg-transparent px-1.5 py-1"
+                  style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}
+                >
+                  {!pos && <option value="">Season</option>}
+                  {seasons.map((s) => <option key={s.season_number} value={s.season_number} style={{ background: 'var(--bg-surface)' }}>S{s.season_number}</option>)}
+                </select>
+                <select
+                  aria-label="Episode"
+                  value={pos?.episode ?? ''}
+                  disabled={!pos}
+                  onChange={(e) => pos && logProgress({ season: pos.season, episode: Number(e.target.value) })}
+                  className="rounded-md border bg-transparent px-1.5 py-1 disabled:opacity-40"
+                  style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}
+                >
+                  {!pos && <option value="">Ep</option>}
+                  {Array.from({ length: seasons.find((s) => s.season_number === pos?.season)?.episode_count ?? 0 }, (_, i) => i + 1)
+                    .map((n) => <option key={n} value={n} style={{ background: 'var(--bg-surface)' }}>E{n}</option>)}
+                </select>
+              </div>
+              {details?.next_episode_to_air?.air_date && (
+                <p className="mt-2 text-center text-[11px]" style={{ color: 'var(--accent-cyan)' }}>
+                  Next: S{details.next_episode_to_air.season_number}E{details.next_episode_to_air.episode_number} airs {details.next_episode_to_air.air_date}
+                </p>
+              )}
+            </div>
+          </section>
+        )}
+
         {(meta.duration || meta.watchPlatform || meta.watchedOn) && (
           <section className="mt-5 grid grid-cols-2 gap-2">
             {meta.duration && <Fact icon={<Clock className="h-3 w-3" />} label="Duration">{meta.duration}</Fact>}
@@ -199,9 +331,25 @@ function DrawerBody({ entry, meta, onStatusChange, onRatingChange, onEdit, onDel
           </a>
         )}
 
+        {(tmdbId || detailsLoading) && (
+          <section className="mt-5">
+            <h3 className={sectionTitle} style={{ color: 'var(--text-disabled)' }}><MonitorPlay className="h-3 w-3" /> Where to watch</h3>
+            <WhereToWatch providers={providers} region={region} myServices={myServices} loading={detailsLoading} />
+            {suggested && (
+              <button
+                onClick={() => onSetPlatform(suggested)}
+                className="mt-2 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors hover:bg-[var(--bg-hover)]"
+                style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-secondary)' }}
+              >
+                Set platform to {suggested}
+              </button>
+            )}
+          </section>
+        )}
+
         <section className="mt-5">
           <h3 className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--text-disabled)' }}>
-            <Star className="h-3 w-3" /> Notes
+            <Pencil className="h-3 w-3" /> Notes
           </h3>
           {meta.notes ? (
             <p className="whitespace-pre-wrap rounded-xl border px-3 py-2.5 text-sm leading-relaxed"

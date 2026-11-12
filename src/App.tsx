@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Plus, ArrowUp, Compass, List, CheckSquare, LayoutGrid, Rows3 } from 'lucide-react';
+import { Plus, ArrowUp, Compass, List, CheckSquare, LayoutGrid, Rows3, Search, X, CalendarClock } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { saveUserProfile } from '@/lib/firestore';
 import { track } from '@/lib/analytics';
@@ -8,28 +8,37 @@ import { useWatchlist, type ImportMode } from '@/hooks/useWatchlist';
 import { useToast } from '@/hooks/useToast';
 import { useCursorGlow } from '@/hooks/useCursorGlow';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { usePreferences } from '@/hooks/usePreferences';
 import { Header } from '@/components/layout/Header';
 import { AuthBanner } from '@/components/auth/AuthBanner';
 import { FilterBar } from '@/components/filters/FilterBar';
-import { SectionSidebar, SectionChips } from '@/components/watchlist/SectionNav';
+import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { EntryCard } from '@/components/watchlist/EntryCard';
 import { EntryRow } from '@/components/watchlist/EntryRow';
 import { EntryDrawer } from '@/components/watchlist/EntryDrawer';
 import { AddModal } from '@/components/watchlist/AddModal';
 import { ProfilePage } from '@/components/profile/ProfilePage';
 import { DiscoverPage } from '@/components/discover/DiscoverPage';
+import { UpcomingPage } from '@/components/upcoming/UpcomingPage';
 import { BulkActionBar } from '@/components/ui/bulk-action-bar';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { ImportDialog } from '@/components/ui/import-dialog';
+import { ExternalImportDialog } from '@/components/import/ExternalImportDialog';
 import { ToastContainer } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { SECTION_COLORS, SECTION_EMOJIS, cn } from '@/lib/utils';
+import { defaultRegion } from '@/lib/titleData';
+import { sharedTextFrom } from '@/lib/links';
 import type { FilterState, MovieEntry, WatchMeta, ThemeMode, WatchStatus, ViewMode, WatchlistState } from '@/types';
 
+type Tab = 'watchlist' | 'discover' | 'upcoming';
+
 const EMPTY_FILTERS: FilterState = { query: '', section: '', type: '', status: '', platform: '', sort: '' };
-const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
+const MAX_IMPORT_BYTES = 5 * 1024 * 1024;          // CineTrack JSON backups
+const MAX_EXTERNAL_IMPORT_BYTES = 25 * 1024 * 1024; // Letterboxd .zip / IMDb .csv exports
 
 const num = (v: string, fallback: number) => { const n = parseFloat(v); return Number.isFinite(n) ? n : fallback; };
+// '' (default) is "Recently added": newest first, handled separately because it needs insertion order.
 const SORTERS: Record<string, (a: MovieEntry, b: MovieEntry) => number> = {
   title_asc:  (a, b) => a.title.localeCompare(b.title),
   title_desc: (a, b) => b.title.localeCompare(a.title),
@@ -45,7 +54,7 @@ export default function App() {
   const {
     state, initialised, cloudError, retrySync,
     addEntry, updateEntry, deleteEntries,
-    setStatus, setStatuses, setMeta, reorderSections, updatePoster,
+    setStatus, setStatuses, setMeta, setProgress, reorderSections, updatePoster,
     exportJSON, parseImport, applyImport, forceSync,
     flush, lastSync, syncStatus,
   } = useWatchlist(uid);
@@ -54,16 +63,22 @@ export default function App() {
   const { glowRef, pulse } = useCursorGlow();
   const [theme, setTheme] = useLocalStorage<ThemeMode>('cinetrack_theme', 'dark');
   const [view, setView] = useLocalStorage<ViewMode>('cinetrack_view', 'grid');
+  const { prefs, setPref } = usePreferences();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
+  const [discoverQuery, setDiscoverQuery] = useState('');
+  const [shareIntent, setShareIntent] = useState(false);
+  const region = prefs.region || defaultRegion();
   const [modalOpen, setModalOpen] = useState(false);
   const [editEntry, setEditEntry] = useState<MovieEntry | null>(null);
   const [editMeta, setEditMeta] = useState<WatchMeta | null>(null);
   const [drawerId, setDrawerId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
   const [pendingImport, setPendingImport] = useState<WatchlistState | null>(null);
+  const [externalFile, setExternalFile] = useState<File | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'watchlist' | 'discover'>('watchlist');
+  const [activeTab, setActiveTab] = useState<Tab>('watchlist');
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const importRef = useRef<HTMLInputElement>(null);
@@ -76,11 +91,25 @@ export default function App() {
     if (user) saveUserProfile(user).catch(() => {});
   }, [user]);
 
+  // Android "Share → CineTrack" (Web Share Target) and plain ?url= links open Discover with the
+  // shared title; an IMDb/TMDB link opens its add dialog straight away.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shared = sharedTextFrom(params);
+    if (!shared) return;
+    window.history.replaceState(null, '', window.location.pathname);
+    setActiveTab('discover');
+    setDiscoverQuery(shared);
+    setShareIntent(true);
+  }, []);
+
   useEffect(() => {
     const handler = () => setShowScrollTop(window.scrollY > 300);
     window.addEventListener('scroll', handler, { passive: true });
     return () => window.removeEventListener('scroll', handler);
   }, []);
+
+  const changeTheme = (next: ThemeMode) => { if (next === theme) return; setTheme(next); track('theme_toggled', { theme: next }); };
 
   // ── Auth ────────────────────────────────────────────────────────────────
   const handleSignIn = async () => {
@@ -152,6 +181,12 @@ export default function App() {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+    // Letterboxd / IMDb exports go through matching + review; JSON is a CineTrack backup.
+    if (/\.(csv|zip)$/i.test(file.name)) {
+      if (file.size > MAX_EXTERNAL_IMPORT_BYTES) { addToast('File is too large (max 25 MB)', 'error'); return; }
+      setExternalFile(file);
+      return;
+    }
     if (file.size > MAX_IMPORT_BYTES) { addToast('File is too large (max 5 MB)', 'error'); return; }
     const reader = new FileReader();
     reader.onload = () => {
@@ -228,26 +263,26 @@ export default function App() {
   }, [filtered]);
 
   const activeSection = navSections.includes(filters.section) ? filters.section : '';
-  const setSection = (s: string) => { setFilters((f) => ({ ...f, section: s })); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const grouped = prefs.groupBySection && !activeSection;
 
   const groups = useMemo(() => {
     let list = activeSection ? filtered.filter((e) => e.section === activeSection) : filtered;
-    if (sort && SORTERS[sort]) list = [...list].sort(SORTERS[sort]);
-    // "All" without a sort keeps the user's section grouping; any sort shows one flat, globally sorted list.
-    if (activeSection || sort) return [{ section: null as string | null, entries: list }];
+    list = sort && SORTERS[sort] ? [...list].sort(SORTERS[sort]) : [...list].reverse();   // default: recently added
+    // Default view is one flat list; section headers only when the user turns grouping on.
+    if (!grouped) return [{ section: null as string | null, entries: list }];
     return navSections
       .map((section) => ({ section: section as string | null, entries: list.filter((e) => e.section === section) }))
       .filter((g) => g.entries.length > 0);
-  }, [filtered, activeSection, sort, navSections]);
+  }, [filtered, activeSection, sort, navSections, grouped]);
 
   const handleReorder = (order: string[]) => {
+    // Fires on every drag frame, so no analytics event here.
     reorderSections([...order, ...state.sectionOrder.filter((s) => !order.includes(s))]);
-    track('section_reordered');
   };
 
   const drawerEntry = drawerId ? state.entries.find((e) => e.id === drawerId) ?? null : null;
   const drawerMeta = drawerEntry ? state.meta[drawerEntry.id] ?? { id: drawerEntry.id, status: 'plan' as WatchStatus } : null;
-  const hasFilters = !!(query || tFilter || stFilter || pFilter);
+  const hasFilters = !!(query || tFilter || stFilter || pFilter || activeSection);
 
   if (loading || !initialised) {
     return (
@@ -263,7 +298,7 @@ export default function App() {
   const renderItems = (entries: MovieEntry[]) => {
     const Item = view === 'grid' ? EntryCard : EntryRow;
     return (
-      <div className={view === 'grid' ? 'grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5' : 'flex flex-col gap-0.5'}>
+      <div className={view === 'grid' ? 'grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6' : 'flex flex-col gap-0.5'}>
         <AnimatePresence initial={false}>
           {entries.map((entry) => (
             <Item
@@ -276,6 +311,8 @@ export default function App() {
               onToggleSelect={() => toggleSelect(entry.id)}
               onStatusChange={(s) => handleStatus(entry.id, s)}
               onPosterLoaded={(url) => updatePoster(entry.id, url)}
+              showSection={prefs.showSectionTag && !grouped && !activeSection}
+              showDetails={prefs.showCardDetails}
             />
           ))}
         </AnimatePresence>
@@ -283,9 +320,12 @@ export default function App() {
     );
   };
 
-  const tabBtn = (tab: 'watchlist' | 'discover', icon: React.ReactNode, label: string) => (
+  const tabBtn = (tab: Tab, icon: React.ReactNode, label: string) => (
     <button
       onClick={() => { setActiveTab(tab); exitSelect(); }}
+      title={label}
+      aria-label={label}
+      aria-pressed={activeTab === tab}
       className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all"
       style={{
         background: activeTab === tab ? 'var(--bg-surface)' : 'transparent',
@@ -293,13 +333,14 @@ export default function App() {
         boxShadow: activeTab === tab ? '0 1px 4px rgba(0,0,0,0.3)' : 'none',
       }}
     >
-      {icon} {label}
+      {icon} <span className={activeTab === tab ? '' : 'hidden min-[480px]:inline'}>{label}</span>
     </button>
   );
 
   return (
     <div className="relative min-h-screen" style={{ background: 'var(--bg-base)' }}>
-      <div ref={glowRef} className="pointer-events-none fixed inset-0 z-0" />
+      {/* Always mounted (the glow hook binds to it once); hidden when the effect is off. */}
+      <div ref={glowRef} className={cn('pointer-events-none fixed inset-0 z-0', !prefs.cursorGlow && 'hidden')} />
 
       <div className="relative z-10">
         <Header
@@ -309,11 +350,10 @@ export default function App() {
           lastSync={lastSync}
           syncStatus={syncStatus}
           cloudError={cloudError}
-          onToggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); track('theme_toggled', { theme: next }); }}
+          onToggleTheme={() => changeTheme(theme === 'dark' ? 'light' : 'dark')}
           onSignIn={handleSignIn}
           onSignOut={handleSignOut}
-          onExport={handleExport}
-          onImport={() => importRef.current?.click()}
+          onSettings={() => setSettingsOpen(true)}
           onProfile={() => setProfileOpen(true)}
           onForceSync={handleForceSync}
           onRetrySync={retrySync}
@@ -322,26 +362,55 @@ export default function App() {
         <main className="mx-auto max-w-7xl px-4 py-6">
           {!user && <AuthBanner onSignIn={handleSignIn} />}
 
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex gap-1 rounded-xl p-1" style={{ background: 'var(--bg-elevated)' }}>
+          {/* Row 1: tabs · search (applies to the active tab) · actions */}
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <div className="flex flex-shrink-0 gap-1 rounded-xl p-1" style={{ background: 'var(--bg-elevated)' }}>
               {tabBtn('watchlist', <List className="h-3.5 w-3.5" />, 'Watchlist')}
               {tabBtn('discover', <Compass className="h-3.5 w-3.5" />, 'Discover')}
+              {tabBtn('upcoming', <CalendarClock className="h-3.5 w-3.5" />, 'Upcoming')}
             </div>
 
+            {activeTab !== 'upcoming' && <div className="relative order-last w-full sm:order-none sm:w-auto sm:flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
+              <input
+                type="search"
+                value={activeTab === 'watchlist' ? query : discoverQuery}
+                onChange={(e) => activeTab === 'watchlist'
+                  ? setFilters((f) => ({ ...f, query: e.target.value }))
+                  : setDiscoverQuery(e.target.value)}
+                placeholder={activeTab === 'watchlist' ? 'Search your list — title, genre, country, notes…' : 'Search any movie or TV show…'}
+                aria-label={activeTab === 'watchlist' ? 'Search your watchlist' : 'Search movies and TV shows'}
+                className="h-10 w-full rounded-xl border pl-9 pr-9 text-sm outline-none focus:ring-2 focus:ring-indigo-500/40 [&::-webkit-search-cancel-button]:hidden"
+                style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}
+              />
+              {(activeTab === 'watchlist' ? query : discoverQuery) && (
+                <button
+                  onClick={() => activeTab === 'watchlist' ? setFilters((f) => ({ ...f, query: '' })) : setDiscoverQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors hover:text-[var(--text-primary)]"
+                  style={{ color: 'var(--text-muted)' }}
+                  aria-label="Clear search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>}
+
             {activeTab === 'watchlist' && (
-              <div className="flex items-center gap-2">
+              <div className="ml-auto flex items-center gap-2 sm:ml-0">
                 <button
                   onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
-                  className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors"
+                  aria-label={selectMode ? 'Done selecting' : 'Select entries'}
+                  title={selectMode ? 'Done selecting' : 'Select entries'}
+                  className="flex h-9 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition-colors"
                   style={{
                     color: selectMode ? 'var(--accent-purple)' : 'var(--text-muted)',
                     borderColor: selectMode ? 'var(--accent-purple)' : 'var(--border-subtle)',
                     background: selectMode ? 'color-mix(in srgb, var(--accent-purple) 10%, transparent)' : 'transparent',
                   }}
                 >
-                  <CheckSquare className="h-3.5 w-3.5" /> {selectMode ? 'Done' : 'Select'}
+                  <CheckSquare className="h-3.5 w-3.5" /> <span className={selectMode ? '' : 'hidden min-[420px]:inline'}>{selectMode ? 'Done' : 'Select'}</span>
                 </button>
-                <Button onClick={openAdd} size="sm" className="gap-1.5">
+                <Button onClick={openAdd} size="sm" className="h-9 gap-1.5">
                   <Plus className="h-4 w-4" /> Add
                 </Button>
               </div>
@@ -351,74 +420,81 @@ export default function App() {
           {activeTab === 'discover' && (
             <DiscoverPage
               existingEntries={state.entries}
+              meta={state.meta}
+              sections={navSections}
+              search={discoverQuery}
+              region={region}
+              myServices={prefs.myServices}
+              openFirstResult={shareIntent}
+              onOpenedFirstResult={() => setShareIntent(false)}
               onAdd={(entryData, metaData) => {
                 addEntry(entryData, metaData);
-                addToast('Added to watchlist!', 'success');
-                track('watchlist_entry_added', { source: 'discover', type: entryData.type });
+                addToast(`Added to watchlist${metaData.status && metaData.status !== 'plan' ? ` as ${metaData.status}` : ''}`, 'success');
+                track('watchlist_entry_added', { source: 'discover', type: entryData.type, status: metaData.status ?? 'plan' });
                 pulse();
               }}
             />
           )}
 
+          {activeTab === 'upcoming' && (
+            <UpcomingPage
+              entries={state.entries}
+              meta={state.meta}
+              onOpen={(id) => setDrawerId(id)}
+              onResolved={(id, tmdbId) => updateEntry(id, { tmdbId })}
+              onExported={(n) => addToast(`Calendar file with ${n} date${n === 1 ? '' : 's'} downloaded`, 'success')}
+            />
+          )}
+
           {activeTab === 'watchlist' && (
-            <div className="flex gap-6">
-              <SectionSidebar
-                sections={navSections}
-                counts={sectionCounts}
-                total={filtered.length}
-                active={activeSection}
-                onSelect={setSection}
-                onReorder={handleReorder}
-              />
-
-              <div className="min-w-0 flex-1 pb-24">
-                <SectionChips sections={navSections} counts={sectionCounts} total={filtered.length} active={activeSection} onSelect={setSection} />
-
-                <div className="mb-4">
-                  <FilterBar filters={filters} onChange={setFilters}>
-                    <div className="ml-auto flex rounded-lg border p-0.5" style={{ borderColor: 'var(--border-subtle)' }} role="group" aria-label="View">
-                      {([['grid', LayoutGrid, 'Grid view'], ['list', Rows3, 'List view']] as const).map(([mode, Icon, label]) => (
-                        <button
-                          key={mode}
-                          onClick={() => setView(mode)}
-                          aria-pressed={view === mode}
-                          title={label}
-                          className={cn('rounded-md p-1.5 transition-colors', view === mode ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]')}
-                        >
-                          <Icon className="h-3.5 w-3.5" />
-                        </button>
-                      ))}
-                    </div>
-                  </FilterBar>
-                </div>
-
-                {groups.length === 0 || groups.every((g) => g.entries.length === 0) ? (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-20 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
-                    {hasFilters
-                      ? 'No entries match your filters.'
-                      : 'No entries yet. Click "+ Add" or explore the Discover tab.'}
-                  </motion.div>
-                ) : (
-                  <div className="space-y-8">
-                    {groups.map(({ section, entries }) => (
-                      <section key={section ?? '_flat'}>
-                        {section && (
-                          <button
-                            onClick={() => setSection(section)}
-                            className="mb-3 flex w-full items-center gap-2 text-left"
-                          >
-                            <span className="text-base">{SECTION_EMOJIS[section] ?? '🎬'}</span>
-                            <h2 className="text-sm font-semibold tracking-wide" style={{ color: SECTION_COLORS[section] ?? '#818cf8' }}>{section}</h2>
-                            <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{entries.length}</span>
-                            <span className="h-px flex-1" style={{ background: 'var(--border-subtle)' }} />
-                          </button>
-                        )}
-                        {renderItems(entries)}
-                      </section>
+            <div className="pb-24">
+              {/* Row 2: filters + sort + layout */}
+              <div className="mb-5">
+                <FilterBar filters={filters} onChange={setFilters} sections={navSections} sectionCounts={sectionCounts} total={filtered.length}>
+                  <div className="ml-auto flex flex-shrink-0 rounded-lg border p-0.5" style={{ borderColor: 'var(--border-subtle)' }} role="group" aria-label="Layout">
+                    {([['grid', LayoutGrid, 'Grid view'], ['list', Rows3, 'List view']] as const).map(([mode, Icon, label]) => (
+                      <button
+                        key={mode}
+                        onClick={() => setView(mode)}
+                        aria-pressed={view === mode}
+                        title={label}
+                        aria-label={label}
+                        className={cn('rounded-md p-1.5 transition-colors', view === mode ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]')}
+                      >
+                        <Icon className="h-3.5 w-3.5" />
+                      </button>
                     ))}
                   </div>
-                )}
+                </FilterBar>
               </div>
+
+              {groups.every((g) => g.entries.length === 0) ? (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-20 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
+                  {hasFilters
+                    ? 'No entries match your search or filters.'
+                    : 'No entries yet. Click "+ Add" or explore the Discover tab.'}
+                </motion.div>
+              ) : (
+                <div className="space-y-8">
+                  {groups.map(({ section, entries }) => (
+                    <section key={section ?? '_flat'}>
+                      {section && (
+                        <button
+                          onClick={() => setFilters((f) => ({ ...f, section }))}
+                          className="mb-3 flex w-full items-center gap-2 text-left"
+                          title={`Show only ${section}`}
+                        >
+                          <span className="text-base">{SECTION_EMOJIS[section] ?? '🎬'}</span>
+                          <h2 className="text-sm font-semibold tracking-wide" style={{ color: SECTION_COLORS[section] ?? '#818cf8' }}>{section}</h2>
+                          <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{entries.length}</span>
+                          <span className="h-px flex-1" style={{ background: 'var(--border-subtle)' }} />
+                        </button>
+                      )}
+                      {renderItems(entries)}
+                    </section>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </main>
@@ -432,6 +508,16 @@ export default function App() {
         onRatingChange={(r) => { if (!drawerEntry) return; setMeta(drawerEntry.id, { personalRating: r }); if (r != null) track('personal_rating_set', { rating: r }); }}
         onEdit={() => drawerEntry && openEdit(drawerEntry)}
         onDelete={() => { if (drawerEntry) { setDrawerId(null); setPendingDelete([drawerEntry.id]); } }}
+        region={region}
+        myServices={prefs.myServices}
+        onEnrich={(patch) => { if (drawerEntry) updateEntry(drawerEntry.id, patch); }}
+        onProgress={(pos, status) => {
+          if (!drawerEntry) return;
+          const before = state.meta[drawerEntry.id]?.status ?? 'plan';
+          setProgress(drawerEntry.id, pos, status);
+          if (status !== before) { addToast(status === 'watched' ? 'Finished — marked as watched' : `Marked as ${status}`, 'success'); pulse(); }
+        }}
+        onSetPlatform={(p) => { if (drawerEntry) { setMeta(drawerEntry.id, { watchPlatform: p }); track('platform_set', { platform: p }); } }}
       />
 
       <AddModal
@@ -456,6 +542,41 @@ export default function App() {
         onCancel={() => setPendingDelete(null)}
       />
 
+      <SettingsPanel
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        prefs={prefs}
+        onPrefChange={setPref}
+        theme={theme}
+        onThemeChange={changeTheme}
+        view={view}
+        onViewChange={setView}
+        sections={navSections}
+        onReorderSections={handleReorder}
+        entryCount={state.entries.length}
+        region={region}
+        onExport={handleExport}
+        onImport={() => { setSettingsOpen(false); importRef.current?.click(); }}
+      />
+
+      <ExternalImportDialog
+        file={externalFile}
+        onCancel={() => setExternalFile(null)}
+        onImport={(items) => {
+          setExternalFile(null);
+          const imported: WatchlistState = {
+            entries: items.map((i) => i.entry),
+            meta: Object.fromEntries(items.map((i) => [i.entry.id, i.meta])),
+            sectionOrder: [],
+            lastModified: new Date().toISOString(),
+          };
+          const res = applyImport(imported, 'merge');
+          track('import_json', { mode: 'external', added: res.added });
+          addToast(res.added ? `Imported ${res.added} titles${res.skipped ? `, skipped ${res.skipped} already in your list` : ''}` : 'Nothing new — all titles already in your list', res.added ? 'success' : 'info');
+          if (res.added) pulse();
+        }}
+      />
+
       <ImportDialog
         pending={pendingImport}
         currentCount={state.entries.length}
@@ -469,7 +590,7 @@ export default function App() {
         {profileOpen && <ProfilePage key="profile" state={state} user={user} onClose={() => setProfileOpen(false)} />}
       </AnimatePresence>
 
-      <input ref={importRef} type="file" accept=".json,application/json" className="hidden" onChange={handleImportFile} />
+      <input ref={importRef} type="file" accept=".json,.csv,.zip,application/json,text/csv,application/zip" className="hidden" onChange={handleImportFile} />
 
       <BulkActionBar
         count={selectedIds.size}

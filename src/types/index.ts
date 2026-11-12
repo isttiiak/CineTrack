@@ -50,6 +50,8 @@ export interface WatchMeta {
   watchPlatform?: WatchPlatform;
   watchLink?: string;
   duration?: string;
+  progressSeason?: number;      // series: last watched episode (season, episode)
+  progressEpisode?: number;
 }
 
 export interface WatchlistState {

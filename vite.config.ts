@@ -6,21 +6,26 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { handleTmdbRequest } from './api/_tmdb.ts';
+import { handleRatingsRequest } from './api/_ratings.ts';
 
-/** Serves /api/tmdb locally (dev + preview) with the same code the Vercel function runs. */
-function tmdbProxy(credential: string | undefined): Plugin {
+/** Serves the /api functions locally (dev + preview) with the same code Vercel runs. */
+function apiRoutes(env: Record<string, string>): Plugin {
+  const tmdbKey = env.TMDB_API_KEY || env.VITE_TMDB_API_KEY;
+  const routes: Record<string, (r: Request) => Promise<Response>> = {
+    '/api/tmdb': (r) => handleTmdbRequest(r, tmdbKey),
+    '/api/ratings': (r) => handleRatingsRequest(r, { mdblist: env.MDBLIST_API_KEY, omdb: env.OMDB_API_KEY, tmdb: tmdbKey }),
+  };
   const middleware = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
-    if (!req.url?.startsWith('/api/tmdb')) return next();
-    const response = await handleTmdbRequest(
-      new Request(new URL(req.url, 'http://localhost'), { method: req.method }),
-      credential,
-    );
+    const pathname = req.url?.split('?')[0] ?? '';
+    const handler = routes[pathname];
+    if (!handler) return next();
+    const response = await handler(new Request(new URL(req.url!, 'http://localhost'), { method: req.method }));
     res.statusCode = response.status;
     response.headers.forEach((value, key) => res.setHeader(key, value));
     res.end(await response.text());
   };
   return {
-    name: 'cinetrack-tmdb-proxy',
+    name: 'cinetrack-api-routes',
     configureServer: (server) => { server.middlewares.use(middleware); },
     configurePreviewServer: (server) => { server.middlewares.use(middleware); },
   };
@@ -45,7 +50,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
-      tmdbProxy(env.TMDB_API_KEY || env.VITE_TMDB_API_KEY),
+      apiRoutes(env),
       VitePWA({
         registerType: 'autoUpdate',
         manifest: false,

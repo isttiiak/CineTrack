@@ -1,20 +1,17 @@
-import { LogOut, Moon, Sun, Download, Upload } from 'lucide-react';
+import { LogOut, Settings } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
-import type { UserProfile as UserProfileType, ThemeMode } from '@/types';
+import type { UserProfile as UserProfileType } from '@/types';
 
 interface Props {
   user: UserProfileType;
-  theme: ThemeMode;
-  onToggleTheme: () => void;
-  onExport: () => void;
-  onImport: () => void;
+  onSettings: () => void;
   onSignOut: () => void;
 }
 
-export function UserProfile({ user, theme, onToggleTheme, onExport, onImport, onSignOut }: Props) {
+export function UserProfile({ user, onSettings, onSignOut }: Props) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -32,17 +29,9 @@ export function UserProfile({ user, theme, onToggleTheme, onExport, onImport, on
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>{user.email}</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onToggleTheme}>
-          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={onExport}>
-          <Download className="h-4 w-4" />
-          Export JSON
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={onImport}>
-          <Upload className="h-4 w-4" />
-          Import JSON
+        <DropdownMenuItem onClick={onSettings}>
+          <Settings className="h-4 w-4" />
+          Settings & backup
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={onSignOut} className="text-red-400 focus:text-red-400 focus:bg-red-500/10">

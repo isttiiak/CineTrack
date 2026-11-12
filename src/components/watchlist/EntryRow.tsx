@@ -2,11 +2,11 @@ import { motion } from 'framer-motion';
 import { ChevronRight, Clock, StickyNote } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { PosterThumb } from './PosterThumb';
-import { SelectCheck, type EntryItemProps } from './EntryCard';
+import { SelectCheck, SectionTag, type EntryItemProps } from './EntryCard';
 import { getImdbColor, ratingSourceOf, cn } from '@/lib/utils';
 
 /** Compact single-line row for the list view. Details live in the drawer, not in the row. */
-export function EntryRow({ entry, meta, selectMode, selected, onOpen, onToggleSelect, onStatusChange, onPosterLoaded }: EntryItemProps) {
+export function EntryRow({ entry, meta, selectMode, selected, onOpen, onToggleSelect, onStatusChange, onPosterLoaded, showSection, showDetails }: EntryItemProps) {
   const hasImdb = entry.imdbRating && entry.imdbRating !== 'N/A';
   return (
     <motion.div
@@ -42,8 +42,12 @@ export function EntryRow({ entry, meta, selectMode, selected, onOpen, onToggleSe
         </div>
         <div className="flex items-center gap-2 truncate text-xs" style={{ color: 'var(--text-muted)' }}>
           <span className="truncate">{[entry.type, entry.genre].filter(Boolean).join(' · ')}</span>
-          {meta.duration && <span className="hidden flex-shrink-0 items-center gap-0.5 sm:inline-flex"><Clock className="h-3 w-3" />{meta.duration}</span>}
-          {meta.notes && <StickyNote className="h-3 w-3 flex-shrink-0" aria-label="Has notes" />}
+          {showSection && <SectionTag section={entry.section} className="hidden flex-shrink-0 sm:inline-flex" />}
+          {showDetails && meta.duration && <span className="hidden flex-shrink-0 items-center gap-0.5 sm:inline-flex"><Clock className="h-3 w-3" />{meta.duration}</span>}
+          {showDetails && meta.notes && <StickyNote className="h-3 w-3 flex-shrink-0" aria-label="Has notes" />}
+          {meta.progressSeason != null && meta.progressEpisode != null && (
+            <span className="flex-shrink-0 font-mono font-semibold" style={{ color: 'var(--status-watching-text)' }}>S{meta.progressSeason}·E{meta.progressEpisode}</span>
+          )}
         </div>
       </div>
       <div className="hidden w-14 flex-shrink-0 text-right sm:block">

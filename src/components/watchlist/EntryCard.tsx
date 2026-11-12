@@ -3,7 +3,7 @@ import { Check, Clock, StickyNote } from 'lucide-react';
 import type { MovieEntry, WatchMeta, WatchStatus } from '@/types';
 import { StatusBadge } from './StatusBadge';
 import { PosterThumb } from './PosterThumb';
-import { getImdbColor, ratingSourceOf, cn } from '@/lib/utils';
+import { getImdbColor, ratingSourceOf, cn, SECTION_COLORS, SECTION_EMOJIS } from '@/lib/utils';
 
 export interface EntryItemProps {
   entry: MovieEntry;
@@ -14,6 +14,22 @@ export interface EntryItemProps {
   onToggleSelect: () => void;
   onStatusChange: (status: WatchStatus) => void;
   onPosterLoaded: (url: string) => void;
+  showSection: boolean;     // small section tag (hidden when the list is grouped by section)
+  showDetails: boolean;     // runtime + notes indicators
+}
+
+export function SectionTag({ section, className }: { section: string; className?: string }) {
+  const color = SECTION_COLORS[section] ?? 'var(--accent-purple)';
+  return (
+    <span
+      className={cn('inline-flex max-w-full items-center gap-1 truncate rounded-md px-1.5 py-px text-[10px] font-medium', className)}
+      style={{ color, background: `color-mix(in srgb, ${color} 12%, transparent)` }}
+      title={`Section: ${section}`}
+    >
+      <span aria-hidden>{SECTION_EMOJIS[section] ?? '🎬'}</span>
+      <span className="truncate">{section}</span>
+    </span>
+  );
 }
 
 export function SelectCheck({ selected }: { selected: boolean }) {
@@ -31,7 +47,7 @@ export function SelectCheck({ selected }: { selected: boolean }) {
 }
 
 /** Poster-first card for the grid view. Click opens the detail drawer (or toggles selection). */
-export function EntryCard({ entry, meta, selectMode, selected, onOpen, onToggleSelect, onStatusChange, onPosterLoaded }: EntryItemProps) {
+export function EntryCard({ entry, meta, selectMode, selected, onOpen, onToggleSelect, onStatusChange, onPosterLoaded, showSection, showDetails }: EntryItemProps) {
   const hasImdb = entry.imdbRating && entry.imdbRating !== 'N/A';
   return (
     <motion.div
@@ -86,10 +102,14 @@ export function EntryCard({ entry, meta, selectMode, selected, onOpen, onToggleS
             <span className="ml-auto font-mono font-semibold" style={{ color: 'var(--accent-cyan)' }}>{meta.personalRating}/10</span>
           )}
         </div>
-        {(meta.duration || meta.notes) && (
+        {showSection && <SectionTag section={entry.section} className="mt-1 self-start" />}
+        {showDetails && (meta.duration || meta.notes || meta.progressEpisode != null) && (
           <div className="mt-0.5 flex items-center gap-2 text-[10px]" style={{ color: 'var(--text-disabled)' }}>
             {meta.duration && <span className="inline-flex items-center gap-0.5"><Clock className="h-2.5 w-2.5" />{meta.duration}</span>}
             {meta.notes && <span className="inline-flex items-center gap-0.5"><StickyNote className="h-2.5 w-2.5" />Notes</span>}
+            {meta.progressSeason != null && meta.progressEpisode != null && (
+              <span className="font-mono font-semibold" style={{ color: 'var(--status-watching-text)' }}>S{meta.progressSeason}·E{meta.progressEpisode}</span>
+            )}
           </div>
         )}
       </div>

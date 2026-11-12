@@ -76,6 +76,11 @@ function normalizeMeta(id: string, raw: unknown): WatchMeta {
   if (watchLink) meta.watchLink = watchLink;
   const duration = str(r.duration, 30);
   if (duration) meta.duration = duration;
+  const season = Number(r.progressSeason), episode = Number(r.progressEpisode);
+  if (Number.isInteger(season) && Number.isInteger(episode) && season >= 0 && season <= 500 && episode >= 1 && episode <= 5000) {
+    meta.progressSeason = season;
+    meta.progressEpisode = episode;
+  }
   return meta;
 }
 

@@ -11,7 +11,11 @@ const ALLOWED_PATHS: RegExp[] = [
   /^trending\/all\/week$/,
   /^(movie|tv)\/popular$/,
   /^(movie|tv)\/\d{1,10}$/,
+  /^(movie|tv)\/\d{1,10}\/(recommendations|watch\/providers|external_ids)$/,
+  /^find\/tt\d{5,10}$/,
 ];
+
+const APPENDABLE = '(external_ids|watch/providers|recommendations)';
 
 const ALLOWED_PARAMS: Record<string, RegExp> = {
   query: /^.{1,200}$/s,
@@ -19,7 +23,8 @@ const ALLOWED_PARAMS: Record<string, RegExp> = {
   first_air_date_year: /^\d{4}$/,
   language: /^[a-z]{2}(-[A-Z]{2})?$/,
   page: /^\d{1,3}$/,
-  append_to_response: /^external_ids$/,
+  append_to_response: new RegExp(`^${APPENDABLE}(,${APPENDABLE}){0,2}$`),
+  external_source: /^imdb_id$/,
 };
 
 /** Builds the upstream TMDB URL, or returns null when the request isn't allowed. */

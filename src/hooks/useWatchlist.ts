@@ -31,7 +31,11 @@ function readLocal(): WatchlistState | null {
   return normalizeState(getLocalStorage<unknown>(LS_KEY));
 }
 
-/** Records today's date the first time an entry becomes "watched", so stats and the heatmap fill themselves. */
+/**
+ * Records today's date when an existing entry is switched to "watched" with one tap (status badge,
+ * drawer, bulk action), so stats and the heatmap fill themselves. Not used when adding or editing
+ * through a form: there the date field is visible, and an empty date means "don't know".
+ */
 function stampWatched(prev: WatchMeta | undefined, next: WatchMeta): WatchMeta {
   if (next.status === 'watched' && prev?.status !== 'watched' && !next.watchedOn) {
     return { ...next, watchedOn: todayKey() };
@@ -202,7 +206,7 @@ export function useWatchlist(uid: string | null) {
       return {
         ...s,
         entries,
-        meta: { ...s.meta, [id]: stampWatched(undefined, { status: 'plan', ...meta, id }) },
+        meta: { ...s.meta, [id]: { status: 'plan', ...meta, id } },
         sectionOrder: withAllSections(s.sectionOrder, entries),
       };
     });
@@ -216,7 +220,7 @@ export function useWatchlist(uid: string | null) {
       return {
         ...s,
         entries,
-        meta: { ...s.meta, [id]: stampWatched(existing, { ...existing, ...metaPatch, id }) },
+        meta: { ...s.meta, [id]: { ...existing, ...metaPatch, id } },
         sectionOrder: withAllSections(s.sectionOrder, entries),
       };
     });
@@ -246,8 +250,19 @@ export function useWatchlist(uid: string | null) {
   const setMeta = useCallback((id: string, patch: Partial<WatchMeta>) => {
     mutate((s) => ({
       ...s,
-      meta: { ...s.meta, [id]: stampWatched(s.meta[id], { ...(s.meta[id] ?? { status: 'plan' as WatchStatus }), ...patch, id }) },
+      meta: { ...s.meta, [id]: { ...(s.meta[id] ?? { status: 'plan' as WatchStatus }), ...patch, id } },
     }));
+  }, [mutate]);
+
+  /** Series progress: last watched episode (or null to reset), with the status that follows from it. */
+  const setProgress = useCallback((id: string, pos: { season: number; episode: number } | null, status: WatchStatus) => {
+    mutate((s) => {
+      const prev = s.meta[id];
+      const next: WatchMeta = { ...(prev ?? { id, status: 'plan' as WatchStatus }), id, status };
+      delete next.progressSeason; delete next.progressEpisode;
+      if (pos) { next.progressSeason = pos.season; next.progressEpisode = pos.episode; }
+      return { ...s, meta: { ...s.meta, [id]: stampWatched(prev, next) } };
+    });
   }, [mutate]);
 
   const reorderSections = useCallback((newOrder: Section[]) => {
@@ -303,7 +318,7 @@ export function useWatchlist(uid: string | null) {
   return {
     state, initialised, cloudError, retrySync,
     addEntry, updateEntry, deleteEntry, deleteEntries,
-    setStatus, setStatuses, setMeta, reorderSections,
+    setStatus, setStatuses, setMeta, setProgress, reorderSections,
     updatePoster, exportJSON, parseImport, applyImport,
     forceSync,
     flush: cloud.flush, lastSync: cloud.lastSync, syncStatus: cloud.status,

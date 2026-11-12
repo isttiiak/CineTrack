@@ -12,40 +12,36 @@ A personal movie and TV series watchlist tracker. Works instantly as a guest, or
 ## Features
 
 ### Watchlist
-- Track movies and series across custom sections (General, K-Drama, Crime, etc.)
-- Three status states — **Plan to Watch → Watching → Watched** — click the badge to cycle
-- Personal rating (1–10) separate from IMDb rating
-- Notes / review per entry (up to 500 characters)
-- Watch platform tagging (Netflix, Prime Video, Disney+, etc.)
-- Private watch link (personal URL — only visible to you)
-- Watched date tracking
-- TMDB poster auto-fetch by title — no manual uploads needed
+- **Plan to Watch → Watching → Watched**: tap the badge to cycle. Marking something watched records today's date.
+- Personal rating (1–10), notes, platform, private watch link and watched date per title
+- **Episode progress** for series (S2 · E5, +1 episode). The status follows automatically: started → Watching, finished an ended show → Watched.
+- Flat poster grid (or compact list) with a small section tag; optional grouping by section
+- Search, filter by section / type / status / platform, and sort
+- Bulk select, duplicate detection, stats (hours watched, heatmap, genres, platforms)
 
-### Auth & Sync
-- **Guest mode** — works immediately, no sign-in required (localStorage)
-- **Google Sign-In** — one click, syncs to Firestore in real-time
-- Debounced auto-save (1.5s after any change)
-- Export / Import JSON backup at any time
-- "Last synced" timestamp in header
+### Ratings & where to watch
+- **Ratings from IMDb, Rotten Tomatoes (critics + audience), Metacritic, Letterboxd and TMDB** on Discover cards and in each title's details (needs a free MDBList or OMDb key, see below)
+- **Where to watch** in your country: streaming, rent and buy options (data by JustWatch), with the services you have highlighted and used to pre-fill Platform
+- Posters, genres, runtime and IMDb links filled in automatically from TMDB
 
-### UI
-- Dark / Light theme toggle (dark is default)
-- Cursor glow spotlight effect
-- Staggered list entrance animations (Framer Motion)
-- Smooth card hover with border highlight
-- Animated status badge transitions
-- Interactive delete confirmation dialog
-- Toast notifications (success / error / info)
-- Collapsible sections with entry counts
-- Scroll-to-top FAB button
-- Fully responsive — mobile and desktop
-- Installable as a PWA (Add to Home Screen on iOS/Android)
+### Discover
+- Trending, popular movies, popular TV, and **For you**: recommendations based on what you rated highly
+- Search any title, or **paste an IMDb / TMDB link** to jump to that exact title
+- Adding asks for status, watch date (optional), rating, platform and section, so already-watched titles can be logged properly
 
-### Filtering
-- Search by title, genre, or country
-- Filter by section, type (Film/Series), status, or platform
-- One-click clear all filters
-- Sort alphabetically and imdb rating
+### Upcoming
+- New episodes, season premieres and film releases for titles in your list, plus "just aired" and "returning, date TBA"
+- **Add to calendar**: download an `.ics` file for Google / Apple / Outlook Calendar
+
+### Import & sync
+- **Import from Letterboxd** (the export `.zip`, or `diary.csv` / `ratings.csv` / `watched.csv` / `watchlist.csv`) and **IMDb** (ratings or watchlist CSV). Titles are matched on TMDB and uncertain matches are shown for review first.
+- JSON backup export / import (merge or replace)
+- Guest mode (no sign-in) or Google sign-in with Firestore sync. Edits from several devices are merged field by field.
+
+### App
+- Installable PWA. On Android, **Share → CineTrack** from the IMDb app (or any link) opens that title ready to add.
+- Settings: theme, layout, cursor glow, grouping, card details, section order, country, your services, backup
+- Dark / light theme, fully responsive
 
 ---
 
@@ -54,7 +50,7 @@ A personal movie and TV series watchlist tracker. Works instantly as a guest, or
 | Layer | Tool |
 |---|---|
 | Framework | React 18 + TypeScript |
-| Build | Vite 5 |
+| Build | Vite 8 |
 | Styling | Tailwind CSS v3 |
 | Animations | Framer Motion |
 | Icons | Lucide React |
@@ -99,12 +95,21 @@ VITE_FIREBASE_APP_ID=
 VITE_FIREBASE_MEASUREMENT_ID=          # optional — enables Firebase Analytics
 VITE_RECAPTCHA_ENTERPRISE_SITE_KEY=    # optional — enables Firebase App Check
 TMDB_API_KEY=                          # optional — posters & Discover need it (server-side only)
+MDBLIST_API_KEY=                       # optional — IMDb / Rotten Tomatoes / Metacritic / Letterboxd ratings
+OMDB_API_KEY=                          # optional — fallback ratings source (IMDb / RT / Metacritic)
 ```
 
 `VITE_*` values are compiled into the browser bundle and are public by design (Firebase web
 config is meant to be public; the security rules protect the data). **`TMDB_API_KEY` must not
 have the `VITE_` prefix**: it's only read by the `/api/tmdb` proxy (`api/tmdb.ts` on Vercel, a
-Vite middleware locally), so it never reaches the browser.
+Vite middleware locally), so it never reaches the browser. The same goes for the ratings keys,
+used by `/api/ratings`.
+
+**Ratings keys.** [MDBList](https://mdblist.com/preferences/) (free account → Preferences → API)
+gives the most sources; [OMDb](https://www.omdbapi.com/apikey.aspx) is a fallback. Both free tiers
+allow about 1,000 requests a day *per account, shared by every visitor*. Responses are cached on
+the CDN for a day and on each device for a week, so popular titles cost one request a day in total.
+Without a key the app simply hides those ratings.
 
 ### 3. Firebase setup
 
@@ -171,7 +176,8 @@ src/
 ├── lib/                firebase, firestore, merge (sync), schema, tmdb, analytics, utils
 └── types/              index.ts (all TypeScript interfaces)
 api/
-└── tmdb.ts             Vercel Function: TMDB proxy that keeps the API key server-side
+├── tmdb.ts             Vercel Function: TMDB proxy that keeps the API key server-side
+└── ratings.ts          Vercel Function: IMDb / RT / Metacritic / Letterboxd ratings (MDBList or OMDb)
 ```
 
 ---

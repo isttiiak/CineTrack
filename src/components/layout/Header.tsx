@@ -1,4 +1,4 @@
-import { Moon, Sun, LogIn, Download, Upload, BarChart2, RefreshCw, CloudOff, Cloud, Loader2 } from 'lucide-react';
+import { Moon, Sun, LogIn, Settings, BarChart2, RefreshCw, CloudOff, Cloud, Loader2 } from 'lucide-react';
 import { UserProfile } from './UserProfile';
 import { Button } from '@/components/ui/button';
 import type { WatchlistState, UserProfile as UserProfileType, ThemeMode, SyncStatus } from '@/types';
@@ -14,8 +14,7 @@ interface Props {
   onToggleTheme: () => void;
   onSignIn: () => void;
   onSignOut: () => void;
-  onExport: () => void;
-  onImport: () => void;
+  onSettings: () => void;
   onProfile: () => void;
   onForceSync: () => void;
   onRetrySync: () => void;
@@ -48,7 +47,7 @@ function SyncIndicator({ status, cloudError, lastSync, onForceSync, onRetrySync 
   );
 }
 
-export function Header({ state, user, theme, lastSync, syncStatus, cloudError, onToggleTheme, onSignIn, onSignOut, onExport, onImport, onProfile, onForceSync, onRetrySync }: Props) {
+export function Header({ state, user, theme, lastSync, syncStatus, cloudError, onToggleTheme, onSignIn, onSignOut, onSettings, onProfile, onForceSync, onRetrySync }: Props) {
   // Count from entries (not meta values) so orphaned meta can't skew stats past 100%.
   const total = state.entries.length;
   const counts = { plan: 0, watching: 0, watched: 0 };
@@ -82,25 +81,18 @@ export function Header({ state, user, theme, lastSync, syncStatus, cloudError, o
             <button onClick={onProfile} className={iconBtn} title="Stats & Profile" aria-label="Stats and profile">
               <BarChart2 className="h-4 w-4" />
             </button>
+            <button onClick={onToggleTheme} className={iconBtn} title="Toggle theme" aria-label="Toggle theme">
+              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+            <button onClick={onSettings} className={iconBtn} title="Settings" aria-label="Settings">
+              <Settings className="h-4 w-4" />
+            </button>
             {!user && (
-              <>
-                <button onClick={onToggleTheme} className={iconBtn} title="Toggle theme" aria-label="Toggle theme">
-                  {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                </button>
-                <button onClick={onImport} className={iconBtn} title="Import JSON" aria-label="Import JSON">
-                  <Upload className="h-4 w-4" />
-                </button>
-                <button onClick={onExport} className={iconBtn} title="Export JSON" aria-label="Export JSON">
-                  <Download className="h-4 w-4" />
-                </button>
-                <Button variant="outline" size="sm" onClick={onSignIn} className="whitespace-nowrap">
-                  <LogIn className="h-3.5 w-3.5" /> Sign in
-                </Button>
-              </>
+              <Button variant="outline" size="sm" onClick={onSignIn} className="whitespace-nowrap">
+                <LogIn className="h-3.5 w-3.5" /> Sign in
+              </Button>
             )}
-            {user && (
-              <UserProfile user={user} theme={theme} onToggleTheme={onToggleTheme} onExport={onExport} onImport={onImport} onSignOut={onSignOut} />
-            )}
+            {user && <UserProfile user={user} onSettings={onSettings} onSignOut={onSignOut} />}
           </div>
         </div>
 
