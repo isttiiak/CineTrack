@@ -15,6 +15,36 @@ export function formatRelativeTime(isoString: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+/** Local calendar date as YYYY-MM-DD (not UTC, so late-evening watches land on the right day). */
+export function localDateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export const todayKey = () => localDateKey(new Date());
+
+/**
+ * Total runtime in minutes from a duration label: "2h 28m", "95m", "45 min/ep · 24 eps".
+ * A per-episode length without an episode count can't be totalled, so it returns null
+ * (callers must not count it as one episode). Returns 0 for empty or unparseable labels.
+ */
+export function parseMins(d?: string): number | null {
+  if (!d) return 0;
+  const perEp = d.match(/(\d+)\s*min\s*\/\s*ep\b/i);
+  if (perEp) {
+    const eps = d.match(/(\d+)\s*eps?\b/i);
+    return eps ? parseInt(perEp[1]) * parseInt(eps[1]) : null;
+  }
+  let t = 0;
+  const h = d.match(/(\d+)\s*h/i);           if (h) t += parseInt(h[1]) * 60;
+  const m = d.match(/(\d+)\s*m(?:in)?\b/i);  if (m) t += parseInt(m[1]);
+  return t;
+}
+
+/** Where an entry's star rating came from. Older entries added from Discover predate the field and hold TMDB scores. */
+export function ratingSourceOf(entry: { ratingSource?: 'imdb' | 'tmdb'; tmdbId?: number }): 'imdb' | 'tmdb' {
+  return entry.ratingSource ?? (entry.tmdbId ? 'tmdb' : 'imdb');
+}
+
 export function getImdbColor(rating: string): string {
   const n = parseFloat(rating);
   if (isNaN(n)) return 'text-gray-500';

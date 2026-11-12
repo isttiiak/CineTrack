@@ -3,7 +3,7 @@ import { Check, Clock, StickyNote } from 'lucide-react';
 import type { MovieEntry, WatchMeta, WatchStatus } from '@/types';
 import { StatusBadge } from './StatusBadge';
 import { PosterThumb } from './PosterThumb';
-import { getImdbColor, cn } from '@/lib/utils';
+import { getImdbColor, ratingSourceOf, cn } from '@/lib/utils';
 
 export interface EntryItemProps {
   entry: MovieEntry;
@@ -57,7 +57,7 @@ export function EntryCard({ entry, meta, selectMode, selected, onOpen, onToggleS
     >
       <div className="relative">
         <PosterThumb
-          title={entry.title} year={entry.year} type={entry.type}
+          title={entry.title} year={entry.year} type={entry.type} tmdbId={entry.tmdbId}
           posterUrl={entry.posterUrl} onPosterLoaded={onPosterLoaded}
           size="w342"
           className="aspect-[2/3] w-full rounded-none transition-transform duration-300 group-hover:scale-[1.03]"
@@ -65,7 +65,10 @@ export function EntryCard({ entry, meta, selectMode, selected, onOpen, onToggleS
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/70 to-transparent" />
         {selectMode && <div className="absolute left-2 top-2"><SelectCheck selected={selected} /></div>}
         {hasImdb && (
-          <span className={cn('absolute right-2 top-2 rounded-md bg-black/75 px-1.5 py-0.5 font-mono text-[11px] font-bold', getImdbColor(entry.imdbRating))}>
+          <span
+            className={cn('absolute right-2 top-2 rounded-md bg-black/75 px-1.5 py-0.5 font-mono text-[11px] font-bold', getImdbColor(entry.imdbRating))}
+            title={`${ratingSourceOf(entry) === 'tmdb' ? 'TMDB' : 'IMDb'} rating`}
+          >
             ★ {entry.imdbRating}
           </span>
         )}

@@ -2,7 +2,8 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Plus, ArrowUp, Compass, List, CheckSquare, LayoutGrid, Rows3 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { useFirestore } from '@/hooks/useFirestore';
+import { saveUserProfile } from '@/lib/firestore';
+import { track } from '@/lib/analytics';
 import { useWatchlist, type ImportMode } from '@/hooks/useWatchlist';
 import { useToast } from '@/hooks/useToast';
 import { useCursorGlow } from '@/hooks/useCursorGlow';
@@ -41,13 +42,13 @@ const SORTERS: Record<string, (a: MovieEntry, b: MovieEntry) => number> = {
 export default function App() {
   const { user, loading, signIn, signOut } = useAuth();
   const uid = user?.uid ?? null;
-  const { load, save, saveImmediate, saveProfile, flush, lastSync, status: syncStatus } = useFirestore(uid);
   const {
     state, initialised, cloudError, retrySync,
     addEntry, updateEntry, deleteEntries,
     setStatus, setStatuses, setMeta, reorderSections, updatePoster,
     exportJSON, parseImport, applyImport, forceSync,
-  } = useWatchlist(uid, load, save);
+    flush, lastSync, syncStatus,
+  } = useWatchlist(uid);
 
   const { toasts, addToast, removeToast } = useToast();
   const { glowRef, pulse } = useCursorGlow();
@@ -72,8 +73,8 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
-    if (user) saveProfile(user).catch(() => {});
-  }, [user, saveProfile]);
+    if (user) saveUserProfile(user).catch(() => {});
+  }, [user]);
 
   useEffect(() => {
     const handler = () => setShowScrollTop(window.scrollY > 300);
@@ -84,7 +85,7 @@ export default function App() {
   // ── Auth ────────────────────────────────────────────────────────────────
   const handleSignIn = async () => {
     try {
-      if (await signIn()) addToast('Signed in — syncing your list', 'success');
+      if (await signIn()) { addToast('Signed in — syncing your list', 'success'); track('sign_in'); }
     } catch {
       addToast('Sign-in failed. Check pop-up blockers and try again.', 'error');
     }
@@ -94,6 +95,7 @@ export default function App() {
     // Push queued edits while we are still authenticated; afterwards the rules reject the write.
     await flush();
     try {
+      track('sign_out');
       await signOut();
       setDrawerId(null);
       addToast('Signed out', 'info');
@@ -112,17 +114,24 @@ export default function App() {
   }, [state.meta]);
 
   const handleSave = (entryData: Omit<MovieEntry, 'id' | 'isCustom'>, metaData: Partial<WatchMeta>) => {
+    const before = editMeta ?? undefined;
     if (editEntry) {
       updateEntry(editEntry.id, entryData, metaData);
       addToast('Entry updated', 'success');
+      track('watchlist_entry_edited');
     } else {
       addEntry(entryData, metaData);
       addToast('Entry added', 'success');
+      track('watchlist_entry_added', { source: 'manual', type: entryData.type });
     }
+    if (metaData.personalRating != null && metaData.personalRating !== before?.personalRating) track('personal_rating_set', { rating: metaData.personalRating });
+    if (metaData.notes && metaData.notes !== before?.notes) track('notes_saved');
+    if (metaData.watchPlatform && metaData.watchPlatform !== before?.watchPlatform) track('platform_set', { platform: metaData.watchPlatform });
     pulse();
   };
 
   const handleStatus = (id: string, s: WatchStatus) => {
+    track('status_changed', { from: state.meta[id]?.status ?? 'plan', to: s });
     setStatus(id, s);
     pulse();
   };
@@ -130,6 +139,7 @@ export default function App() {
   const confirmDelete = () => {
     if (!pendingDelete) return;
     deleteEntries(pendingDelete);
+    track('watchlist_entry_deleted', { count: pendingDelete.length });
     addToast(pendingDelete.length === 1 ? 'Entry deleted' : `${pendingDelete.length} entries deleted`, 'info');
     if (drawerId && pendingDelete.includes(drawerId)) setDrawerId(null);
     setSelectedIds(new Set());
@@ -157,16 +167,17 @@ export default function App() {
     if (!pendingImport) return;
     const res = applyImport(pendingImport, mode);
     setPendingImport(null);
+    track('import_json', { mode, added: res.added });
     if (mode === 'replace') addToast(`Replaced list with ${res.added} titles`, 'success');
     else addToast(res.added ? `Imported ${res.added} new${res.skipped ? `, skipped ${res.skipped} duplicates` : ''}` : 'Nothing new — all titles already in your list', res.added ? 'success' : 'info');
     if (res.added) pulse();
   };
 
-  const handleExport = () => { exportJSON(); addToast('Exported!', 'success'); };
+  const handleExport = () => { exportJSON(); addToast('Exported!', 'success'); track('export_json'); };
 
   const handleForceSync = async () => {
     try {
-      await forceSync(saveImmediate);
+      await forceSync();
       addToast('Synced to cloud!', 'success');
     } catch {
       addToast('Sync failed — check connection', 'error');
@@ -185,6 +196,7 @@ export default function App() {
 
   const handleBulkStatus = (status: WatchStatus) => {
     setStatuses([...selectedIds], status);
+    track('status_changed', { to: status, count: selectedIds.size });
     addToast(`${selectedIds.size} entries → ${status}`, 'success');
     setSelectedIds(new Set());
     pulse();
@@ -230,6 +242,7 @@ export default function App() {
 
   const handleReorder = (order: string[]) => {
     reorderSections([...order, ...state.sectionOrder.filter((s) => !order.includes(s))]);
+    track('section_reordered');
   };
 
   const drawerEntry = drawerId ? state.entries.find((e) => e.id === drawerId) ?? null : null;
@@ -296,7 +309,7 @@ export default function App() {
           lastSync={lastSync}
           syncStatus={syncStatus}
           cloudError={cloudError}
-          onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+          onToggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); track('theme_toggled', { theme: next }); }}
           onSignIn={handleSignIn}
           onSignOut={handleSignOut}
           onExport={handleExport}
@@ -341,6 +354,7 @@ export default function App() {
               onAdd={(entryData, metaData) => {
                 addEntry(entryData, metaData);
                 addToast('Added to watchlist!', 'success');
+                track('watchlist_entry_added', { source: 'discover', type: entryData.type });
                 pulse();
               }}
             />
@@ -415,7 +429,7 @@ export default function App() {
         meta={drawerMeta}
         onClose={() => setDrawerId(null)}
         onStatusChange={(s) => drawerEntry && handleStatus(drawerEntry.id, s)}
-        onRatingChange={(r) => drawerEntry && setMeta(drawerEntry.id, { personalRating: r })}
+        onRatingChange={(r) => { if (!drawerEntry) return; setMeta(drawerEntry.id, { personalRating: r }); if (r != null) track('personal_rating_set', { rating: r }); }}
         onEdit={() => drawerEntry && openEdit(drawerEntry)}
         onDelete={() => { if (drawerEntry) { setDrawerId(null); setPendingDelete([drawerEntry.id]); } }}
       />

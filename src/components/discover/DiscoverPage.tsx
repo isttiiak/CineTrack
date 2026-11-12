@@ -72,6 +72,7 @@ export function DiscoverPage({ existingEntries, onAdd }: Props) {
         imdbUrl: details.imdbUrl,
         section, type, posterUrl,
         tmdbId: item.id,
+        ratingSource: 'tmdb',   // vote_average is TMDB's score, not IMDb's
       },
       { status: 'plan', duration: details.duration }
     );
@@ -138,7 +139,7 @@ export function DiscoverPage({ existingEntries, onAdd }: Props) {
       {/* Error */}
       {error && (
         <div className="py-12 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
-          Could not load data. Check your TMDB API key.
+          Could not load titles. Check your connection, or set TMDB_API_KEY on the server.
         </div>
       )}
 

@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { X, Film, Calendar, MonitorPlay, Activity, Star } from 'lucide-react';
-import type { WatchlistState, UserProfile as UserProfileType } from '@/types';
+import type { WatchlistState, WatchMeta, UserProfile as UserProfileType } from '@/types';
+import { localDateKey, parseMins } from '@/lib/utils';
 
 interface Props {
   state: WatchlistState;
@@ -9,12 +10,14 @@ interface Props {
   onClose: () => void;
 }
 
-function parseMins(d?: string): number {
-  if (!d) return 0;
-  let t = 0;
-  const h = d.match(/(\d+)\s*h/i);   if (h) t += parseInt(h[1]) * 60;
-  const m = d.match(/(\d+)\s*m(?:in)?/i); if (m) t += parseInt(m[1]);
-  return t;
+/** Sums known runtimes; `unknown` counts series whose total length can't be worked out. */
+function totalMins(list: WatchMeta[]): { mins: number; unknown: number } {
+  let mins = 0, unknown = 0;
+  for (const m of list) {
+    const v = parseMins(m.duration);
+    if (v === null) unknown++; else mins += v;
+  }
+  return { mins, unknown };
 }
 
 function fmtHours(mins: number): string {
@@ -23,10 +26,8 @@ function fmtHours(mins: number): string {
   return h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
 }
 
-/** YYYY-MM-DD in the user's local timezone (toISOString() is UTC and shifts dates east of GMT). */
-function localDateKey(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+
+const unknownNote = (n: number) => (n > 0 ? ` (+${n} series, length unknown)` : '');
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -103,8 +104,8 @@ export function ProfilePage({ state, user, onClose }: Props) {
     const watching = metaList.filter(m => m.status === 'watching');
     const plan     = metaList.filter(m => m.status === 'plan');
 
-    const watchedMins = watched.reduce((s, m) => s + parseMins(m.duration), 0);
-    const planMins    = plan.reduce((s, m)    => s + parseMins(m.duration), 0);
+    const { mins: watchedMins, unknown: watchedUnknown } = totalMins(watched);
+    const { mins: planMins, unknown: planUnknown } = totalMins(plan);
 
     // Monthly watched counts (last 12 months)
     const monthMap: Record<string, number> = {};
@@ -166,7 +167,7 @@ export function ProfilePage({ state, user, onClose }: Props) {
     return {
       total: entries.length,
       watched: watched.length, watching: watching.length, plan: plan.length,
-      watchedMins, planMins,
+      watchedMins, planMins, watchedUnknown, planUnknown,
       last12, topMonth,
       platforms: Object.entries(platforms).sort((a,b)=>b[1]-a[1]).slice(0,6),
       topGenres, films, series,
@@ -233,7 +234,7 @@ export function ProfilePage({ state, user, onClose }: Props) {
             },
             {
               label: 'Watched', value: S.watched, color: 'var(--accent-green)',
-              sub: S.watchedMins > 0 ? fmtHours(S.watchedMins) + ' watched' : null,
+              sub: S.watchedMins > 0 ? fmtHours(S.watchedMins) + ' watched' + unknownNote(S.watchedUnknown) : null,
             },
             {
               label: 'Watching', value: S.watching, color: 'var(--accent-yellow)',
@@ -241,7 +242,7 @@ export function ProfilePage({ state, user, onClose }: Props) {
             },
             {
               label: 'Plan to Watch', value: S.plan, color: 'var(--status-plan-text)',
-              sub: S.planMins > 0 ? fmtHours(S.planMins) + ' queued' : null,
+              sub: S.planMins > 0 ? fmtHours(S.planMins) + ' queued' + unknownNote(S.planUnknown) : null,
             },
             {
               label: 'Avg Rating', value: S.avgRating ? `${S.avgRating}/10` : '—', color: 'var(--accent-yellow)',

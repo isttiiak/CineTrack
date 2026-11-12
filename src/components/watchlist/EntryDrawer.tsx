@@ -5,7 +5,7 @@ import type { MovieEntry, WatchMeta, WatchStatus } from '@/types';
 import { PosterThumb } from './PosterThumb';
 import { STATUS_CONFIG } from './StatusBadge';
 import { safeUrl } from '@/lib/schema';
-import { getImdbColor, cn, SECTION_COLORS, SECTION_EMOJIS } from '@/lib/utils';
+import { getImdbColor, ratingSourceOf, cn, SECTION_COLORS, SECTION_EMOJIS } from '@/lib/utils';
 
 interface Props {
   entry: MovieEntry | null;
@@ -76,6 +76,11 @@ function DrawerBody({ entry, meta, onStatusChange, onRatingChange, onEdit, onDel
   const imdbUrl = safeUrl(entry.imdbUrl);
   const watchLink = safeUrl(meta.watchLink);
   const hasImdb = entry.imdbRating && entry.imdbRating !== 'N/A';
+  // Scores from Discover are TMDB's, so link and label them as TMDB, not IMDb.
+  const fromTmdb = ratingSourceOf(entry) === 'tmdb';
+  const ratingUrl = fromTmdb
+    ? (entry.tmdbId ? `https://www.themoviedb.org/${entry.type === 'Series' ? 'tv' : 'movie'}/${entry.tmdbId}` : '')
+    : imdbUrl;
   const color = SECTION_COLORS[entry.section] ?? '#818cf8';
 
   return (
@@ -95,7 +100,7 @@ function DrawerBody({ entry, meta, onStatusChange, onRatingChange, onEdit, onDel
       <div className="flex-1 overflow-y-auto px-5 py-5">
         <div className="flex gap-4">
           <PosterThumb
-            title={entry.title} year={entry.year} type={entry.type} posterUrl={entry.posterUrl}
+            title={entry.title} year={entry.year} type={entry.type} tmdbId={entry.tmdbId} posterUrl={entry.posterUrl}
             size="w342" className="aspect-[2/3] w-28 rounded-lg shadow-lg"
           />
           <div className="min-w-0 flex-1">
@@ -113,14 +118,14 @@ function DrawerBody({ entry, meta, onStatusChange, onRatingChange, onEdit, onDel
               </div>
             )}
             {hasImdb && (
-              imdbUrl ? (
-                <a href={imdbUrl} target="_blank" rel="noopener noreferrer"
+              ratingUrl ? (
+                <a href={ratingUrl} target="_blank" rel="noopener noreferrer"
                    className={cn('mt-3 inline-flex items-center gap-1 font-mono text-sm font-bold hover:underline', getImdbColor(entry.imdbRating))}>
-                  ★ {entry.imdbRating} <span className="text-[10px] font-sans tracking-widest opacity-70">IMDb</span>
+                  ★ {entry.imdbRating} <span className="text-[10px] font-sans tracking-widest opacity-70">{fromTmdb ? 'TMDB' : 'IMDb'}</span>
                   <ExternalLink className="h-3 w-3 opacity-60" />
                 </a>
               ) : (
-                <span className={cn('mt-3 inline-block font-mono text-sm font-bold', getImdbColor(entry.imdbRating))}>★ {entry.imdbRating}</span>
+                <span className={cn('mt-3 inline-block font-mono text-sm font-bold', getImdbColor(entry.imdbRating))}>★ {entry.imdbRating} <span className="text-[10px] font-sans tracking-widest opacity-70">{fromTmdb ? 'TMDB' : 'IMDb'}</span></span>
               )
             )}
           </div>

@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
-import { v4 as uuid } from 'uuid';
 import type { ToastMessage } from '../types';
+
+const uuid = () => crypto.randomUUID();
 
 export function useToast() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);

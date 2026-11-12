@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { GenreSelector } from '@/components/ui/genre-selector';
 import type { MovieEntry, WatchMeta, WatchStatus, MediaType, WatchPlatform, Section } from '@/types';
-import { SECTIONS, PLATFORMS } from '@/lib/utils';
+import { SECTIONS, PLATFORMS, ratingSourceOf } from '@/lib/utils';
 import { findDuplicate } from '@/lib/duplicates';
 import { safeUrl, clampRating } from '@/lib/schema';
 
@@ -177,8 +177,9 @@ export function AddModal({ open, onClose, onSave, onOpenExisting, editEntry, edi
 
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label htmlFor="ct-imdb-rating">IMDb Rating</Label>
-                <Input id="ct-imdb-rating" name="imdbRating" value={entry.imdbRating} onChange={(e) => setE('imdbRating', e.target.value)} placeholder="8.3" />
+                <Label htmlFor="ct-imdb-rating">{ratingSourceOf(entry) === 'tmdb' ? 'Rating (from TMDB)' : 'IMDb Rating'}</Label>
+                {/* Typing a score yourself marks it as an IMDb score from then on. */}
+                <Input id="ct-imdb-rating" name="imdbRating" value={entry.imdbRating} onChange={(e) => setEntry((p) => ({ ...p, imdbRating: e.target.value, ratingSource: 'imdb' }))} placeholder="8.3" />
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="ct-imdb-url">IMDb URL</Label>

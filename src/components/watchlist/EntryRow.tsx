@@ -3,7 +3,7 @@ import { ChevronRight, Clock, StickyNote } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { PosterThumb } from './PosterThumb';
 import { SelectCheck, type EntryItemProps } from './EntryCard';
-import { getImdbColor, cn } from '@/lib/utils';
+import { getImdbColor, ratingSourceOf, cn } from '@/lib/utils';
 
 /** Compact single-line row for the list view. Details live in the drawer, not in the row. */
 export function EntryRow({ entry, meta, selectMode, selected, onOpen, onToggleSelect, onStatusChange, onPosterLoaded }: EntryItemProps) {
@@ -31,7 +31,7 @@ export function EntryRow({ entry, meta, selectMode, selected, onOpen, onToggleSe
     >
       {selectMode && <SelectCheck selected={selected} />}
       <PosterThumb
-        title={entry.title} year={entry.year} type={entry.type}
+        title={entry.title} year={entry.year} type={entry.type} tmdbId={entry.tmdbId}
         posterUrl={entry.posterUrl} onPosterLoaded={onPosterLoaded}
         size="w92" className="h-[60px] w-[40px]"
       />
@@ -47,7 +47,7 @@ export function EntryRow({ entry, meta, selectMode, selected, onOpen, onToggleSe
         </div>
       </div>
       <div className="hidden w-14 flex-shrink-0 text-right sm:block">
-        {hasImdb && <span className={cn('font-mono text-xs font-bold', getImdbColor(entry.imdbRating))}>★ {entry.imdbRating}</span>}
+        {hasImdb && <span className={cn('font-mono text-xs font-bold', getImdbColor(entry.imdbRating))} title={`${ratingSourceOf(entry) === 'tmdb' ? 'TMDB' : 'IMDb'} rating`}>★ {entry.imdbRating}</span>}
       </div>
       <div className="hidden w-12 flex-shrink-0 text-right sm:block">
         {meta.personalRating != null && (

@@ -1,15 +1,18 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { v4 as uuid } from 'uuid';
 import type { MovieEntry, WatchMeta, WatchlistState, WatchStatus, Section } from '../types';
 import { seedMovies } from '../data/seedMovies';
 import { getLocalStorage, setLocalStorage } from './useLocalStorage';
-import { SECTIONS } from '../lib/utils';
+import { useFirestore } from './useFirestore';
+import { SECTIONS, todayKey } from '../lib/utils';
 import { normalizeState, withAllSections } from '../lib/schema';
 import { findDuplicate } from '../lib/duplicates';
+import { mergeWatchlist, sameContent } from '../lib/merge';
 import { subscribeUserWatchlist } from '../lib/firestore';
 
 const LS_KEY = 'cinetrack_state_v1';
+const LS_BASE_KEY = 'cinetrack_base_v1';   // last cloud version this device saw (merge ancestor)
 const LS_UID_KEY = 'cinetrack_last_uid';
+const uuid = () => crypto.randomUUID();
 const EXPORT_VERSION = 1;
 
 export type ImportMode = 'merge' | 'replace';
@@ -26,6 +29,14 @@ function buildInitialState(): WatchlistState {
 
 function readLocal(): WatchlistState | null {
   return normalizeState(getLocalStorage<unknown>(LS_KEY));
+}
+
+/** Records today's date the first time an entry becomes "watched", so stats and the heatmap fill themselves. */
+function stampWatched(prev: WatchMeta | undefined, next: WatchMeta): WatchMeta {
+  if (next.status === 'watched' && prev?.status !== 'watched' && !next.watchedOn) {
+    return { ...next, watchedOn: todayKey() };
+  }
+  return next;
 }
 
 /**
@@ -52,15 +63,13 @@ function mergeStates(base: WatchlistState, incoming: WatchlistState, onlyCustom:
   return { state: { ...base, entries, meta, sectionOrder }, added, skipped };
 }
 
-export function useWatchlist(
-  uid: string | null,
-  firestoreLoad: () => Promise<WatchlistState | null>,
-  firestoreSave: (s: WatchlistState) => void
-) {
+export function useWatchlist(uid: string | null) {
   const [state, setState] = useState<WatchlistState>(() => readLocal() ?? buildInitialState());
   // stateRef is the source of truth for mutations: several mutations in one tick (bulk actions)
   // each build on the previous result instead of the same stale render-time `state`.
   const stateRef = useRef(state);
+  const baseRef = useRef<WatchlistState | null>(null);
+  const uidRef = useRef(uid);
   const [initialised, setInitialised] = useState(false);
   // Cloud writes are allowed only after a successful load + reconcile. If the load fails we stay
   // local-only, so a stale local copy can never overwrite the real cloud document.
@@ -75,16 +84,41 @@ export function useWatchlist(
     setLocalStorage(LS_KEY, next);
   }, []);
 
+  // The base is persisted so edits made offline (or in a tab closed before its save finished)
+  // can be merged with the cloud copy on the next visit instead of one side overwriting the other.
+  const setBase = useCallback((next: WatchlistState | null) => {
+    baseRef.current = next;
+    if (next) setLocalStorage(LS_BASE_KEY, next);
+    else localStorage.removeItem(LS_BASE_KEY);
+  }, []);
+
+  const cloud = useFirestore(uid, {
+    getLocal: () => stateRef.current,
+    getBase: () => baseRef.current,
+    onSynced: (syncedUid, sent, saved) => {
+      if (syncedUid !== uidRef.current) return;     // account switched while the save was in flight
+      setBase(saved);
+      const current = stateRef.current;
+      // Keep edits made while the save was running; take everything else from the cloud copy.
+      const next = current === sent ? saved : mergeWatchlist(sent, current, saved);
+      if (!sameContent(next, current)) replaceState(next);
+    },
+  });
+  const { load: firestoreLoad, requestSave } = cloud;
+
   useEffect(() => {
     const prevUid = prevUidRef.current;
     prevUidRef.current = uid;
+    uidRef.current = uid;
     cloudReadyRef.current = false;
     setCloudError(false);
+    baseRef.current = null;
 
     if (!uid) {
       // Signed out: don't leave the previous account's private list (notes, watch links) on screen.
       if (prevUid) {
         localStorage.removeItem(LS_UID_KEY);
+        setBase(null);
         replaceState(buildInitialState());
       }
       setInitialised(true);
@@ -107,8 +141,14 @@ export function useWatchlist(
       let push = false;
 
       if (remote) {
-        if (sameUser && local && local.lastModified > remote.lastModified) {
-          use = local; push = true;           // unsynced edits from a closed tab / offline session
+        if (sameUser && local) {
+          // Pick up edits this device made offline or in a tab closed mid-save. Data saved by
+          // older versions has no stored base; then fall back to whichever copy is newer.
+          const storedBase = normalizeState(getLocalStorage<unknown>(LS_BASE_KEY));
+          use = storedBase
+            ? mergeWatchlist(storedBase, local, remote)
+            : local.lastModified > remote.lastModified ? local : remote;
+          push = !sameContent(use, remote);
         } else if (guestData && local) {
           const merged = mergeStates(remote, local, true);
           use = merged.state; push = merged.added > 0;
@@ -121,14 +161,19 @@ export function useWatchlist(
       }
 
       if (push) use = { ...use, lastModified: new Date().toISOString() };
+      setBase(remote);
       replaceState(use);
-      if (push) firestoreSave(use);
       setLocalStorage(LS_UID_KEY, uid);
       cloudReadyRef.current = true;
       setInitialised(true);
+      if (push) requestSave();
 
+      // Changes from other tabs/devices are merged in, never compared by (device) clock.
       unsubscribe = subscribeUserWatchlist(uid, (incoming) => {
-        if (incoming.lastModified > stateRef.current.lastModified) replaceState(incoming);
+        const current = stateRef.current;
+        const merged = mergeWatchlist(baseRef.current, current, incoming);
+        setBase(incoming);
+        if (!sameContent(merged, current)) replaceState(merged);
       });
     }).catch((err) => {
       if (cancelled) return;
@@ -147,8 +192,8 @@ export function useWatchlist(
   const mutate = useCallback((fn: (s: WatchlistState) => WatchlistState) => {
     const next = { ...fn(stateRef.current), lastModified: new Date().toISOString() };
     replaceState(next);
-    if (uid && cloudReadyRef.current) firestoreSave(next);
-  }, [uid, firestoreSave, replaceState]);
+    if (uid && cloudReadyRef.current) requestSave();
+  }, [uid, requestSave, replaceState]);
 
   const addEntry = useCallback((entry: Omit<MovieEntry, 'id' | 'isCustom'>, meta: Partial<WatchMeta> = {}) => {
     const id = uuid();
@@ -157,7 +202,7 @@ export function useWatchlist(
       return {
         ...s,
         entries,
-        meta: { ...s.meta, [id]: { status: 'plan', ...meta, id } },
+        meta: { ...s.meta, [id]: stampWatched(undefined, { status: 'plan', ...meta, id }) },
         sectionOrder: withAllSections(s.sectionOrder, entries),
       };
     });
@@ -171,7 +216,7 @@ export function useWatchlist(
       return {
         ...s,
         entries,
-        meta: { ...s.meta, [id]: { ...existing, ...metaPatch, id } },
+        meta: { ...s.meta, [id]: stampWatched(existing, { ...existing, ...metaPatch, id }) },
         sectionOrder: withAllSections(s.sectionOrder, entries),
       };
     });
@@ -191,7 +236,7 @@ export function useWatchlist(
   const setStatuses = useCallback((ids: string[], status: WatchStatus) => {
     mutate((s) => {
       const meta = { ...s.meta };
-      for (const id of ids) meta[id] = { ...(meta[id] ?? { id }), id, status };
+      for (const id of ids) meta[id] = stampWatched(meta[id], { ...(meta[id] ?? { id }), id, status });
       return { ...s, meta };
     });
   }, [mutate]);
@@ -201,7 +246,7 @@ export function useWatchlist(
   const setMeta = useCallback((id: string, patch: Partial<WatchMeta>) => {
     mutate((s) => ({
       ...s,
-      meta: { ...s.meta, [id]: { ...(s.meta[id] ?? { status: 'plan' as WatchStatus }), ...patch, id } },
+      meta: { ...s.meta, [id]: stampWatched(s.meta[id], { ...(s.meta[id] ?? { status: 'plan' as WatchStatus }), ...patch, id }) },
     }));
   }, [mutate]);
 
@@ -249,12 +294,11 @@ export function useWatchlist(
     return { ok: true, added: merged.added, skipped: merged.skipped };
   }, [mutate]);
 
-  const forceSync = useCallback(async (saveImmediate: (s: WatchlistState) => Promise<void>) => {
+  const { saveNow } = cloud;
+  const forceSync = useCallback(async () => {
     if (!uid || !cloudReadyRef.current) throw new Error('Cloud data not loaded yet');
-    const next = { ...stateRef.current, lastModified: new Date().toISOString() };
-    replaceState(next);
-    await saveImmediate(next);
-  }, [uid, replaceState]);
+    await saveNow();
+  }, [uid, saveNow]);
 
   return {
     state, initialised, cloudError, retrySync,
@@ -262,5 +306,6 @@ export function useWatchlist(
     setStatus, setStatuses, setMeta, reorderSections,
     updatePoster, exportJSON, parseImport, applyImport,
     forceSync,
+    flush: cloud.flush, lastSync: cloud.lastSync, syncStatus: cloud.status,
   };
 }

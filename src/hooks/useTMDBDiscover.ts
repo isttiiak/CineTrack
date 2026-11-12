@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+import { tmdb, TMDB_IMG } from '../lib/tmdb';
 
-const TMDB_KEY = import.meta.env.VITE_TMDB_API_KEY;
-const BASE = 'https://api.themoviedb.org/3';
-export const TMDB_IMG = 'https://image.tmdb.org/t/p/w185';
+export { TMDB_IMG };
 
 export interface TMDBItem {
   id: number;
@@ -36,12 +35,10 @@ const COUNTRY_CODES: Record<string, string> = {
 };
 
 export async function fetchTMDBDetails(id: number, mediaType: 'movie' | 'tv'): Promise<TMDBDetails> {
-  if (!TMDB_KEY) return { country: '', imdbUrl: '', duration: '' };
   try {
-    const [details, extIds] = await Promise.all([
-      fetch(`${BASE}/${mediaType}/${id}?api_key=${TMDB_KEY}&language=en-US`).then(r => r.json()),
-      fetch(`${BASE}/${mediaType}/${id}/external_ids?api_key=${TMDB_KEY}`).then(r => r.json()),
-    ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const details = await tmdb<any>(`${mediaType}/${id}`, { language: 'en-US', append_to_response: 'external_ids' });
+    const extIds = details.external_ids ?? {};
 
     let country = '';
     if (mediaType === 'movie') {
@@ -62,9 +59,11 @@ export async function fetchTMDBDetails(id: number, mediaType: 'movie' | 'tv'): P
         duration = h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
       }
     } else {
-      // TMDB deprecated episode_run_time; fall back chain: runtime → episode_run_time[0]
-      const rt = details.runtime ?? details.episode_run_time?.[0] ?? 0;
-      if (rt > 0) duration = `${rt} min/ep`;
+      // TMDB deprecated episode_run_time; fall back chain: runtime → episode_run_time[0] → latest episode.
+      const rt = details.runtime ?? details.episode_run_time?.[0] ?? details.last_episode_to_air?.runtime ?? 0;
+      // The episode count lets stats total a whole series instead of counting a single episode.
+      const eps = details.number_of_episodes ?? 0;
+      if (rt > 0) duration = eps > 0 ? `${rt} min/ep · ${eps} eps` : `${rt} min/ep`;
     }
 
     return { country, imdbUrl, duration };
@@ -80,8 +79,6 @@ export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!TMDB_KEY) { setLoading(false); setError(true); return; }
-
     // Ignore responses from superseded queries so a slow older search can't overwrite newer results.
     const controller = new AbortController();
 
@@ -90,16 +87,14 @@ export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string) {
       setError(false);
 
       const trimmed = searchQuery.trim();
-      const url = trimmed.length > 1
-        ? `${BASE}/search/multi?api_key=${TMDB_KEY}&language=en-US&query=${encodeURIComponent(trimmed)}`
-        : ({
-            trending: `${BASE}/trending/all/week?api_key=${TMDB_KEY}&language=en-US`,
-            movies:   `${BASE}/movie/popular?api_key=${TMDB_KEY}&language=en-US`,
-            tv:       `${BASE}/tv/popular?api_key=${TMDB_KEY}&language=en-US`,
-          } as Record<DiscoverTab, string>)[tab];
+      const path = trimmed.length > 1
+        ? 'search/multi'
+        : ({ trending: 'trending/all/week', movies: 'movie/popular', tv: 'tv/popular' } as Record<DiscoverTab, string>)[tab];
+      const params: Record<string, string> = { language: 'en-US' };
+      if (trimmed.length > 1) params.query = trimmed;
 
-      fetch(url, { signal: controller.signal })
-        .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      tmdb<any>(path, params, controller.signal)
         .then(data => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const results: TMDBItem[] = (data.results || [] as any[])

@@ -60,7 +60,7 @@ A personal movie and TV series watchlist tracker. Works instantly as a guest, or
 | Icons | Lucide React |
 | Auth | Firebase Auth (Google) |
 | Database | Firestore (per-user document) |
-| Posters | TMDB API (free) |
+| Posters | TMDB API (free), via a server-side proxy |
 | Hosting | Vercel |
 | PWA | vite-plugin-pwa |
 
@@ -69,9 +69,9 @@ A personal movie and TV series watchlist tracker. Works instantly as a guest, or
 ## Getting Started Locally
 
 ### Prerequisites
-- Node.js 18+
+- Node.js 20.19+ (or 22.12+)
 - A Firebase project ([console.firebase.google.com](https://console.firebase.google.com))
-- A TMDB API key ([themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)) — optional
+- A TMDB API key or read access token ([themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)) — optional
 
 ### 1. Clone and install
 
@@ -96,25 +96,30 @@ VITE_FIREBASE_PROJECT_ID=
 VITE_FIREBASE_STORAGE_BUCKET=
 VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
-VITE_FIREBASE_MEASUREMENT_ID=
-VITE_TMDB_API_KEY=          # optional — posters won't load without it
+VITE_FIREBASE_MEASUREMENT_ID=          # optional — enables Firebase Analytics
+VITE_RECAPTCHA_ENTERPRISE_SITE_KEY=    # optional — enables Firebase App Check
+TMDB_API_KEY=                          # optional — posters & Discover need it (server-side only)
 ```
+
+`VITE_*` values are compiled into the browser bundle and are public by design (Firebase web
+config is meant to be public; the security rules protect the data). **`TMDB_API_KEY` must not
+have the `VITE_` prefix**: it's only read by the `/api/tmdb` proxy (`api/tmdb.ts` on Vercel, a
+Vite middleware locally), so it never reaches the browser.
 
 ### 3. Firebase setup
 
 1. **Authentication** → Sign-in method → Google → Enable
-2. **Firestore** → Create database → Production mode → apply rules below:
-
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-  }
-}
-```
+2. **Firestore** → Create database → Production mode → paste the contents of
+   [`firestore.rules`](firestore.rules) into the Rules tab (or `firebase deploy --only firestore:rules`).
+   Each user can only read and write their own documents, with size limits.
+3. **Lock down the public config** (recommended for any public deployment):
+   - Authentication → Settings → **Authorized domains**: keep only `localhost` and your real domains.
+   - Google Cloud Console → APIs & Services → Credentials → your browser API key →
+     **Application restrictions: Websites**, listing your domains.
+   - **App Check** (blocks scripts that reuse your config): create a reCAPTCHA Enterprise key, register it
+     under Firebase Console → App Check, set `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY`, deploy, and once the
+     metrics show verified traffic, click **Enforce** for Firestore and Authentication. In `npm run dev`,
+     a debug token is printed to the console; register it under App Check → Manage debug tokens.
 
 ### 4. Run
 
@@ -123,6 +128,9 @@ npm run dev
 # Open http://localhost:5173
 ```
 
+Other scripts: `npm test` (unit tests), `npm run lint`, `npm run build`, and `npm run preview`
+(serves the production build with the same security headers as Vercel, useful for checking the CSP).
+
 ---
 
 ## Deployment (Vercel)
@@ -130,7 +138,11 @@ npm run dev
 1. Push to GitHub
 2. Import project at [vercel.com](https://vercel.com)
 3. Add all env vars from `.env.local` to Vercel → Project Settings → Environment Variables
+   (`TMDB_API_KEY` without the `VITE_` prefix)
 4. Every `git push` to `main` auto-deploys
+
+`vercel.json` sets the security headers (Content-Security-Policy, frame blocking, etc.). If you add a
+new third-party script, image host or API, add its origin to the CSP there.
 
 ---
 
@@ -156,8 +168,10 @@ src/
 │   └── watchlist/      WatchlistSection, MovieRow, StatusBadge, RatingBadge, PosterThumb, AddModal
 ├── data/               seedMovies.ts (7 default entries)
 ├── hooks/              useAuth, useFirestore, useWatchlist, useTMDB, useCursorGlow, useToast
-├── lib/                firebase.ts, firestore.ts, utils.ts
+├── lib/                firebase, firestore, merge (sync), schema, tmdb, analytics, utils
 └── types/              index.ts (all TypeScript interfaces)
+api/
+└── tmdb.ts             Vercel Function: TMDB proxy that keeps the API key server-side
 ```
 
 ---
@@ -168,10 +182,18 @@ Each signed-in user gets one Firestore document:
 
 ```
 users/{uid}/data/watchlist   → { entries[], meta{}, sectionOrder[], lastModified }
-users/{uid}/data/profile     → { name, email, avatar, updatedAt }
+users/{uid}/data/profile     → { uid, name, avatar, updatedAt }
 ```
 
 Guest users store the same shape in `localStorage` under `cinetrack_state_v1`.
+
+**Sync.** Saves run in a Firestore transaction that three-way merges the cloud copy with the local
+one, using the last cloud version the device saw as the common ancestor (`src/lib/merge.ts`). Edits
+from several devices are combined field by field, so a phone and a laptop editing at the same time
+don't overwrite each other, and the result never depends on device clocks.
+
+**Analytics.** Only sent when `VITE_FIREBASE_MEASUREMENT_ID` is set, and never when the browser
+signals Do Not Track or Global Privacy Control. Events carry no titles, notes or links.
 
 ---
 

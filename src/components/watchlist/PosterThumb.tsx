@@ -9,13 +9,14 @@ interface Props {
   title: string;
   year: string;
   type: MediaType;
+  tmdbId?: number;
   posterUrl?: string;
   onPosterLoaded?: (url: string) => void;
   size?: 'w92' | 'w185' | 'w342' | 'w500';
   className?: string;
 }
 
-export function PosterThumb({ title, year, type, posterUrl, onPosterLoaded, size = 'w185', className }: Props) {
+export function PosterThumb({ title, year, type, tmdbId, posterUrl, onPosterLoaded, size = 'w185', className }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const [fetched, setFetched] = useState('');
@@ -25,14 +26,14 @@ export function PosterThumb({ title, year, type, posterUrl, onPosterLoaded, size
     setFailed(false);
     if (posterUrl) return;
     let active = true;
-    fetchPoster(title, year, type).then((url) => {
+    fetchPoster(title, year, type, tmdbId).then((url) => {
       if (!active || !url) return;
       setFetched(url);
       onPosterLoaded?.(url);
     });
     return () => { active = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, year, type, posterUrl]);
+  }, [title, year, type, tmdbId, posterUrl]);
 
   const src = failed ? '' : safeUrl(posterAt(posterUrl || fetched, size));
 

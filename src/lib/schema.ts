@@ -56,6 +56,7 @@ function normalizeEntry(raw: unknown): MovieEntry | null {
   const posterUrl = safeUrl(r.posterUrl);
   if (posterUrl) entry.posterUrl = posterUrl;
   if (typeof r.tmdbId === 'number' && Number.isFinite(r.tmdbId)) entry.tmdbId = r.tmdbId;
+  if (r.ratingSource === 'imdb' || r.ratingSource === 'tmdb') entry.ratingSource = r.ratingSource;
   return entry;
 }
 

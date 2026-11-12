@@ -1,25 +1,37 @@
 import { useCallback } from 'react';
 import type { MediaType } from '../types';
+import { tmdb } from '../lib/tmdb';
+import { normalizeTitle } from '../lib/duplicates';
 
-const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
-const BASE_URL = 'https://api.themoviedb.org/3';
 const IMG_BASE = 'https://image.tmdb.org/t/p/w185';
+
+interface SearchResult { poster_path?: string | null; title?: string; name?: string; original_title?: string; original_name?: string }
 
 // One lookup per title per session, shared across every row/card that renders it — including
 // misses, so titles TMDB doesn't know aren't re-queried on every re-mount.
 const cache = new Map<string, Promise<string | null>>();
 
-async function lookup(title: string, year: string, type: MediaType): Promise<string | null> {
-  if (!API_KEY) return null;
-  const endpoint = type === 'Series' ? 'search/tv' : 'search/movie';
-  const params = new URLSearchParams({ query: title, api_key: API_KEY });
+const toUrl = (path: unknown) => (typeof path === 'string' && path ? `${IMG_BASE}${path}` : null);
+
+async function lookup(title: string, year: string, type: MediaType, tmdbId?: number): Promise<string | null> {
+  const kind = type === 'Series' ? 'tv' : 'movie';
+
+  // A known TMDB id identifies the exact title; no guessing from search results.
+  if (tmdbId) {
+    const details = await tmdb<SearchResult>(`${kind}/${tmdbId}`);
+    return toUrl(details.poster_path);
+  }
+
+  const params: Record<string, string> = { query: title };
   const y = year.slice(0, 4);
-  if (/^\d{4}$/.test(y)) params.set(type === 'Series' ? 'first_air_date_year' : 'year', y);
-  const res = await fetch(`${BASE_URL}/${endpoint}?${params}`);
-  if (!res.ok) throw new Error(`TMDB ${res.status}`);
-  const data = await res.json();
-  const posterPath = data.results?.[0]?.poster_path;
-  return typeof posterPath === 'string' ? `${IMG_BASE}${posterPath}` : null;
+  if (/^\d{4}$/.test(y)) params[kind === 'tv' ? 'first_air_date_year' : 'year'] = y;
+  const data = await tmdb<{ results?: SearchResult[] }>(`search/${kind}`, params);
+  const results = (data.results ?? []).filter((r) => r.poster_path);
+  // Prefer an exact title match over TMDB's popularity ranking ("Dune" shouldn't get "Dune: Part Two").
+  const wanted = normalizeTitle(title);
+  const exact = results.find((r) =>
+    [r.title, r.name, r.original_title, r.original_name].some((t) => t && normalizeTitle(t) === wanted));
+  return toUrl((exact ?? results[0])?.poster_path);
 }
 
 /** Re-sizes a TMDB poster URL (e.g. w92 → w342) for larger renders. Non-TMDB URLs pass through. */
@@ -28,11 +40,11 @@ export function posterAt(url: string | undefined, size: 'w92' | 'w185' | 'w342' 
 }
 
 export function useTMDB() {
-  const fetchPoster = useCallback((title: string, year: string, type: MediaType): Promise<string | null> => {
-    const key = `${type}|${title.toLowerCase()}|${year}`;
+  const fetchPoster = useCallback((title: string, year: string, type: MediaType, tmdbId?: number): Promise<string | null> => {
+    const key = tmdbId ? `${type}|#${tmdbId}` : `${type}|${title.toLowerCase()}|${year}`;
     let pending = cache.get(key);
     if (!pending) {
-      pending = lookup(title, year, type).catch(() => { cache.delete(key); return null; });
+      pending = lookup(title, year, type, tmdbId).catch(() => { cache.delete(key); return null; });
       cache.set(key, pending);
     }
     return pending;

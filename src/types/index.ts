@@ -37,6 +37,7 @@ export interface MovieEntry {
   imdbUrl: string;
   posterUrl?: string;
   tmdbId?: number;              // set when added from Discover; strongest duplicate key
+  ratingSource?: 'imdb' | 'tmdb'; // which site `imdbRating` came from; see ratingSourceOf()
   isCustom: boolean;
 }
 
