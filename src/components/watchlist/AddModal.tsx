@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Film, Loader2, Check } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { GenreSelector } from '@/components/ui/genre-selector';
 import type { MovieEntry, WatchMeta, WatchStatus, MediaType, WatchPlatform, Section } from '@/types';
 import { SECTIONS, PLATFORMS, ratingSourceOf, todayKey } from '@/lib/utils';
-import { findDuplicate } from '@/lib/duplicates';
+import { findDuplicate, findSimilar } from '@/lib/duplicates';
+import { useTitleSuggestions } from '@/hooks/useTitleSuggestions';
+import { fetchTMDBDetails, TMDB_IMG, type TMDBItem } from '@/hooks/useTMDBDiscover';
+import { getRatings, TMDB_GENRES } from '@/lib/titleData';
 import { safeUrl, clampRating } from '@/lib/schema';
 
 interface Props {
@@ -36,6 +39,43 @@ export function AddModal({ open, onClose, onSave, onOpenExisting, editEntry, edi
   const [entry, setEntry] = useState<Omit<MovieEntry, 'id' | 'isCustom'>>(DEFAULT_ENTRY);
   const [meta, setMeta] = useState<Partial<WatchMeta>>(DEFAULT_META);
   const [customSection, setCustomSection] = useState('');
+  const [titleFocused, setTitleFocused] = useState(false);
+  const [pickedTitle, setPickedTitle] = useState<string | null>(null);
+  const [filling, setFilling] = useState(false);
+
+  // Adding a new title: suggest matches from TMDB while typing; picking one fills in everything.
+  const suggestOpen = !editEntry && titleFocused && entry.title.trim().length >= 2 && entry.title !== pickedTitle;
+  const { items: suggestions, loading: suggestLoading } = useTitleSuggestions(entry.title, !editEntry && entry.title !== pickedTitle);
+
+  const pick = async (item: TMDBItem) => {
+    const kind = item.media_type;
+    const type: MediaType = kind === 'tv' ? 'Series' : 'Film';
+    const title = item.title ?? item.name ?? '';
+    setPickedTitle(title);
+    setTitleFocused(false);
+    setEntry((p) => ({
+      ...p,
+      title,
+      year: (item.release_date ?? item.first_air_date ?? '').slice(0, 4),
+      type,
+      genre: item.genre_ids.map((g) => TMDB_GENRES[g]).filter(Boolean).join(', '),
+      posterUrl: item.poster_path ? `${TMDB_IMG}${item.poster_path}` : undefined,
+      tmdbId: item.id,
+      imdbRating: item.vote_average > 0 ? item.vote_average.toFixed(1) : '',
+      ratingSource: 'tmdb',
+      section: p.section === 'General' && type === 'Series' ? 'TV Series' : p.section === 'TV Series' && type === 'Film' ? 'General' : p.section,
+    }));
+    setFilling(true);
+    const [details, ratings] = await Promise.all([fetchTMDBDetails(item.id, kind), getRatings(kind, item.id)]);
+    setFilling(false);
+    setEntry((p) => p.tmdbId !== item.id ? p : {
+      ...p,
+      country: p.country || details.country,
+      imdbUrl: p.imdbUrl || details.imdbUrl,
+      ...(ratings?.imdb ? { imdbRating: ratings.imdb.toFixed(1), ratingSource: 'imdb' as const } : {}),
+    });
+    setMeta((p) => ({ ...p, duration: p.duration || details.duration }));
+  };
 
   useEffect(() => {
     if (editEntry) {
@@ -47,6 +87,7 @@ export function AddModal({ open, onClose, onSave, onOpenExisting, editEntry, edi
     }
     setMeta(editMeta ? { ...editMeta } : DEFAULT_META);
     setCustomSection('');
+    setPickedTitle(editEntry ? editEntry.title : null);
   }, [editEntry, editMeta, open]);
 
   // Predefined sections plus any custom ones the user already has, so they can be re-picked.
@@ -56,10 +97,16 @@ export function AddModal({ open, onClose, onSave, onOpenExisting, editEntry, edi
     return all;
   }, [sections, entry.section]);
 
-  const duplicate = useMemo(
-    () => entry.title.trim() ? findDuplicate(existingEntries, entry, editEntry?.id) : null,
+  // "same" = definitely already listed; "similar" = probably (other type, spacing, a typo away).
+  const match = useMemo(
+    () => entry.title.trim() ? findSimilar(existingEntries, entry, editEntry?.id) : null,
     [existingEntries, entry, editEntry],
   );
+  const duplicate = match?.entry ?? null;
+  const inList = (item: TMDBItem) => !!findDuplicate(existingEntries, {
+    title: item.title ?? item.name ?? '', year: (item.release_date ?? item.first_air_date ?? '').slice(0, 4),
+    type: item.media_type === 'tv' ? 'Series' : 'Film', imdbUrl: '', tmdbId: item.id,
+  }, editEntry?.id);
 
   const imdbUrlInvalid = !!entry.imdbUrl.trim() && !safeUrl(entry.imdbUrl);
   const watchLinkInvalid = !!meta.watchLink?.trim() && !safeUrl(meta.watchLink);
@@ -96,11 +143,63 @@ export function AddModal({ open, onClose, onSave, onOpenExisting, editEntry, edi
               <Input
                 id="ct-title" name="title"
                 value={entry.title}
-                onChange={(e) => setE('title', e.target.value)}
-                placeholder="Movie or series title"
+                onChange={(e) => {
+                  const title = e.target.value;
+                  // Editing the title after picking a suggestion unlinks that TMDB title.
+                  setEntry((p) => p.tmdbId && !editEntry && title !== pickedTitle
+                    ? { ...p, title, tmdbId: undefined, posterUrl: undefined }
+                    : { ...p, title });
+                }}
+                onFocus={() => setTitleFocused(true)}
+                onBlur={() => setTitleFocused(false)}
+                placeholder={editEntry ? 'Movie or series title' : 'Start typing — pick a match to fill everything in'}
+                autoComplete="off"
                 autoFocus
+                aria-autocomplete="list"
+                aria-expanded={suggestOpen}
               />
-              {duplicate && (
+              {suggestOpen && (suggestLoading || suggestions.length > 0) && (
+                <div
+                  className="overflow-hidden rounded-lg border"
+                  style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-elevated)' }}
+                  role="listbox"
+                  onMouseDown={(e) => e.preventDefault()}   // keep the title input focused
+                >
+                  {suggestLoading && suggestions.length === 0 && (
+                    <p className="flex items-center gap-2 px-3 py-2 text-xs" style={{ color: 'var(--text-muted)' }}><Loader2 className="h-3 w-3 animate-spin" /> Searching TMDB…</p>
+                  )}
+                  {suggestions.map((item) => {
+                    const listed = inList(item);
+                    return (
+                      <button
+                        key={`${item.media_type}-${item.id}`}
+                        type="button"
+                        role="option"
+                        aria-selected={false}
+                        onClick={() => void pick(item)}
+                        className="flex w-full items-center gap-2.5 px-2.5 py-1.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
+                      >
+                        <span className="h-10 w-7 flex-shrink-0 overflow-hidden rounded" style={{ background: 'var(--bg-surface)' }}>
+                          {item.poster_path
+                            ? <img src={`https://image.tmdb.org/t/p/w92${item.poster_path}`} alt="" loading="lazy" className="h-full w-full object-cover" />
+                            : <Film className="m-1.5 h-4 w-4 opacity-30" />}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{item.title ?? item.name}</span>
+                          <span className="block text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                            {[(item.release_date ?? item.first_air_date ?? '').slice(0, 4), item.media_type === 'tv' ? 'Series' : 'Film'].filter(Boolean).join(' · ')}
+                          </span>
+                        </span>
+                        {listed && <span className="flex flex-shrink-0 items-center gap-1 text-[10px] font-semibold text-amber-400"><Check className="h-3 w-3" /> In your list</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {filling && (
+                <p className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--text-muted)' }}><Loader2 className="h-3 w-3 animate-spin" /> Filling in details…</p>
+              )}
+              {duplicate && match && (
                 <div
                   className="mt-1 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs"
                   style={{ borderColor: 'rgba(245,158,11,0.35)', background: 'rgba(245,158,11,0.08)', color: 'var(--text-secondary)' }}
@@ -111,8 +210,11 @@ export function AddModal({ open, onClose, onSave, onOpenExisting, editEntry, edi
                     <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
                       {duplicate.title}{duplicate.year ? ` (${duplicate.year})` : ''}
                     </span>{' '}
-                    is already in <span className="font-medium">{duplicate.section}</span>.
-                    {' '}Change the year if this is a different release.
+                    {match.kind === 'same' ? (
+                      <>is already in <span className="font-medium">{duplicate.section}</span>. Change the year if this is a different release.</>
+                    ) : (
+                      <>({duplicate.type}) in <span className="font-medium">{duplicate.section}</span> looks like the same title. Is this a duplicate?</>
+                    )}
                   </span>
                   {onOpenExisting && (
                     <button
@@ -289,7 +391,7 @@ export function AddModal({ open, onClose, onSave, onOpenExisting, editEntry, edi
           <DialogFooter>
             <Button variant="ghost" onClick={onClose}>Cancel</Button>
             <Button onClick={handleSave} disabled={!canSave}>
-              {editEntry ? 'Save Changes' : duplicate ? 'Add Anyway' : 'Add Entry'}
+              {editEntry ? 'Save Changes' : match?.kind === 'same' ? 'Add Anyway' : 'Add Entry'}
             </Button>
           </DialogFooter>
         </DialogContent>

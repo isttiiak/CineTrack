@@ -3,10 +3,11 @@ import { ChevronRight, Clock, StickyNote } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { PosterThumb } from './PosterThumb';
 import { SelectCheck, SectionTag, type EntryItemProps } from './EntryCard';
+import { HighlightText } from '@/components/ui/highlight-text';
 import { getImdbColor, ratingSourceOf, cn } from '@/lib/utils';
 
 /** Compact single-line row for the list view. Details live in the drawer, not in the row. */
-export function EntryRow({ entry, meta, selectMode, selected, onOpen, onToggleSelect, onStatusChange, onPosterLoaded, showSection, showDetails }: EntryItemProps) {
+export function EntryRow({ entry, meta, selectMode, selected, onOpen, onToggleSelect, onStatusChange, onPosterLoaded, showSection, showDetails, highlight }: EntryItemProps) {
   const hasImdb = entry.imdbRating && entry.imdbRating !== 'N/A';
   return (
     <motion.div
@@ -37,7 +38,7 @@ export function EntryRow({ entry, meta, selectMode, selected, onOpen, onToggleSe
       />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-1.5">
-          <span className="truncate text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{entry.title}</span>
+          <span className="truncate text-sm font-semibold" style={{ color: 'var(--text-primary)' }}><HighlightText text={entry.title} query={highlight ?? null} /></span>
           {entry.year && <span className="flex-shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>{entry.year}</span>}
         </div>
         <div className="flex items-center gap-2 truncate text-xs" style={{ color: 'var(--text-muted)' }}>

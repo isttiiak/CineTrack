@@ -1,5 +1,7 @@
 import { motion } from 'framer-motion';
-import { Film, Plus, Star, ExternalLink, Loader2 } from 'lucide-react';
+import { Film, Plus, Star, ExternalLink, Loader2, Pencil } from 'lucide-react';
+import { STATUS_CONFIG } from '@/components/watchlist/StatusBadge';
+import type { WatchStatus } from '@/types';
 import { TMDB_IMG, type TMDBItem } from '@/hooks/useTMDBDiscover';
 import { useRatings, useSeen } from '@/hooks/useRatings';
 import { RatingsRow } from '@/components/ratings/RatingsRow';
@@ -9,11 +11,13 @@ interface Props {
   inList: boolean;
   adding: boolean;
   reason?: string;            // e.g. "Because you liked Dune" on the For-you tab
+  listStatus?: WatchStatus;   // status of the matching entry when it's already in the list
   onAdd: () => void;
+  onEdit?: () => void;        // edit the matching list entry
 }
 
 /** One Discover result. Ratings from IMDb / Rotten Tomatoes / Metacritic load when it scrolls into view. */
-export function DiscoverCard({ item, inList, adding, reason, onAdd }: Props) {
+export function DiscoverCard({ item, inList, adding, reason, listStatus, onAdd, onEdit }: Props) {
   const title = item.title ?? item.name ?? '';
   const year = (item.release_date ?? item.first_air_date ?? '').slice(0, 4);
   const rating = item.vote_average;
@@ -58,9 +62,28 @@ export function DiscoverCard({ item, inList, adding, reason, onAdd }: Props) {
           {item.media_type === 'movie' ? 'Film' : 'Series'}
         </div>
 
+        {/* Already in the list: its status + a quick edit button, always visible */}
+        {inList && onEdit && (
+          <div className="absolute bottom-2 left-2 right-2 z-10 flex items-center justify-between gap-1">
+            {listStatus && (
+              <span className="truncate rounded-md px-1.5 py-0.5 text-[10px] font-semibold" style={STATUS_CONFIG[listStatus].style}>
+                {STATUS_CONFIG[listStatus].label}
+              </span>
+            )}
+            <button
+              onClick={onEdit}
+              className="ml-auto flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-black/70 text-white transition-colors hover:bg-indigo-500"
+              aria-label={`Edit ${title} in your list`}
+              title="Edit in your list"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Add overlay on hover (desktop) */}
         <div
-          className="absolute inset-0 flex items-end justify-center pb-3 opacity-0 transition-opacity group-hover:opacity-100"
+          className={`absolute inset-0 items-end justify-center pb-3 opacity-0 transition-opacity group-hover:opacity-100 ${inList && onEdit ? 'hidden' : 'flex'}`}
           style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 60%)' }}
         >
           <button
@@ -91,8 +114,8 @@ export function DiscoverCard({ item, inList, adding, reason, onAdd }: Props) {
 
         {/* Phones: always-visible add button (no hover) */}
         <button
-          onClick={onAdd}
-          disabled={inList || adding}
+          onClick={inList && onEdit ? onEdit : onAdd}
+          disabled={(inList && !onEdit) || adding}
           className="mt-1.5 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-semibold transition-colors sm:hidden"
           style={{
             background: inList ? 'color-mix(in srgb, var(--accent-green) 15%, transparent)' : 'color-mix(in srgb, var(--accent-purple) 20%, transparent)',
@@ -100,7 +123,7 @@ export function DiscoverCard({ item, inList, adding, reason, onAdd }: Props) {
             border: `1px solid ${inList ? 'color-mix(in srgb, var(--accent-green) 40%, transparent)' : 'color-mix(in srgb, var(--accent-purple) 40%, transparent)'}`,
           }}
         >
-          {label}
+          {inList && onEdit ? <><Pencil className="h-3 w-3" /> Edit</> : label}
         </button>
       </div>
 

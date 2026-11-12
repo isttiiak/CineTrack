@@ -16,7 +16,9 @@ A personal movie and TV series watchlist tracker. Works instantly as a guest, or
 - Personal rating (1–10), notes, platform, private watch link and watched date per title
 - **Episode progress** for series (S2 · E5, +1 episode). The status follows automatically: started → Watching, finished an ended show → Watched.
 - Flat poster grid (or compact list) with a small section tag; optional grouping by section
-- Search, filter by section / type / status / platform, and sort
+- **Smart search**: typo-tolerant ("oppenhiemer"), ignores accents, ranks best matches first, highlights them, and understands filters like `year:2020-2024 is:watched rating>8 genre:thriller`. Press `/` or ⌘K to search.
+- Filter by section / type / status / platform, and sort
+- **Duplicate protection**: the Add form suggests TMDB matches as you type and warns about titles you already have (even with typos, a different type, or "Part 2" vs "Part Two"). Discover cards show titles already in your list, with an Edit button.
 - Bulk select, duplicate detection, stats (hours watched, heatmap, genres, platforms)
 
 ### Ratings & where to watch
@@ -200,6 +202,14 @@ don't overwrite each other, and the result never depends on device clocks.
 
 **Analytics.** Only sent when `VITE_FIREBASE_MEASUREMENT_ID` is set, and never when the browser
 signals Do Not Track or Global Privacy Control. Events carry no titles, notes or links.
+
+---
+
+## Contributing
+
+- [`CLAUDE.md`](CLAUDE.md): architecture, data model, sync algorithm and conventions (read this first).
+- [`TODO.md`](TODO.md): setup steps that need account access (keys, Firebase rules, App Check).
+- Run `npm test`, `npm run lint` and `npm run build` before opening a PR.
 
 ---
 

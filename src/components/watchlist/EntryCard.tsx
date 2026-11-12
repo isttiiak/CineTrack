@@ -4,6 +4,8 @@ import type { MovieEntry, WatchMeta, WatchStatus } from '@/types';
 import { StatusBadge } from './StatusBadge';
 import { PosterThumb } from './PosterThumb';
 import { getImdbColor, ratingSourceOf, cn, SECTION_COLORS, SECTION_EMOJIS } from '@/lib/utils';
+import { HighlightText } from '@/components/ui/highlight-text';
+import type { ParsedQuery } from '@/lib/search';
 
 export interface EntryItemProps {
   entry: MovieEntry;
@@ -16,6 +18,7 @@ export interface EntryItemProps {
   onPosterLoaded: (url: string) => void;
   showSection: boolean;     // small section tag (hidden when the list is grouped by section)
   showDetails: boolean;     // runtime + notes indicators
+  highlight?: ParsedQuery | null;   // search words to mark in the title
 }
 
 export function SectionTag({ section, className }: { section: string; className?: string }) {
@@ -47,7 +50,7 @@ export function SelectCheck({ selected }: { selected: boolean }) {
 }
 
 /** Poster-first card for the grid view. Click opens the detail drawer (or toggles selection). */
-export function EntryCard({ entry, meta, selectMode, selected, onOpen, onToggleSelect, onStatusChange, onPosterLoaded, showSection, showDetails }: EntryItemProps) {
+export function EntryCard({ entry, meta, selectMode, selected, onOpen, onToggleSelect, onStatusChange, onPosterLoaded, showSection, showDetails, highlight }: EntryItemProps) {
   const hasImdb = entry.imdbRating && entry.imdbRating !== 'N/A';
   return (
     <motion.div
@@ -94,7 +97,7 @@ export function EntryCard({ entry, meta, selectMode, selected, onOpen, onToggleS
       </div>
       <div className="flex flex-1 flex-col gap-0.5 p-2.5">
         <p className="line-clamp-2 text-sm font-semibold leading-tight" style={{ color: 'var(--text-primary)' }}>
-          {entry.title}
+          <HighlightText text={entry.title} query={highlight ?? null} />
         </p>
         <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--text-muted)' }}>
           <span>{[entry.year, entry.type].filter(Boolean).join(' · ')}</span>

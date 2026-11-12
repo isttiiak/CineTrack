@@ -19,6 +19,7 @@ interface Props {
   openFirstResult: boolean;  // a shared link arrived: open the add dialog for it once loaded
   onOpenedFirstResult: () => void;
   onAdd: (entry: Omit<MovieEntry, 'id' | 'isCustom'>, meta: Partial<WatchMeta>) => void;
+  onEdit: (entry: MovieEntry) => void;
 }
 
 type Tab = DiscoverTab | 'foryou';
@@ -32,7 +33,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
 
 const GRID = 'grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6';
 
-export function DiscoverPage({ existingEntries, meta, sections, search, region, myServices, openFirstResult, onOpenedFirstResult, onAdd }: Props) {
+export function DiscoverPage({ existingEntries, meta, sections, search, region, myServices, openFirstResult, onOpenedFirstResult, onAdd, onEdit }: Props) {
   const [tab, setTab] = useState<Tab>('trending');
   const listTab: DiscoverTab = tab === 'foryou' ? 'trending' : tab;
   const isSearching = search.trim().length > 1;
@@ -110,16 +111,21 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
     setAddState(prev => ({ ...prev, [item.id]: 'done' }));
   }
 
-  const card = (item: TMDBItem, reason?: string) => (
-    <DiscoverCard
-      key={item.id}
-      item={item}
-      inList={!!findExisting(item) || addState[item.id] === 'done'}
-      adding={addState[item.id] === 'loading'}
-      reason={reason}
-      onAdd={() => requestAdd(item)}
-    />
-  );
+  const card = (item: TMDBItem, reason?: string) => {
+    const existing = findExisting(item);
+    return (
+      <DiscoverCard
+        key={item.id}
+        item={item}
+        inList={!!existing || addState[item.id] === 'done'}
+        adding={addState[item.id] === 'loading'}
+        reason={reason}
+        listStatus={existing ? meta[existing.id]?.status ?? 'plan' : undefined}
+        onAdd={() => requestAdd(item)}
+        onEdit={existing ? () => onEdit(existing) : undefined}
+      />
+    );
+  };
 
   const skeleton = (n: number) => (
     <div className={GRID}>

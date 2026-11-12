@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Plus, ArrowUp, Compass, List, CheckSquare, LayoutGrid, Rows3, Search, X, CalendarClock } from 'lucide-react';
+import { Plus, ArrowUp, Compass, List, CheckSquare, LayoutGrid, Rows3, CalendarClock } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { saveUserProfile } from '@/lib/firestore';
 import { track } from '@/lib/analytics';
@@ -12,6 +12,8 @@ import { usePreferences } from '@/hooks/usePreferences';
 import { Header } from '@/components/layout/Header';
 import { AuthBanner } from '@/components/auth/AuthBanner';
 import { FilterBar } from '@/components/filters/FilterBar';
+import { SearchBox } from '@/components/filters/SearchBox';
+import { parseQuery, searchEntries, freeText } from '@/lib/search';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { EntryCard } from '@/components/watchlist/EntryCard';
 import { EntryRow } from '@/components/watchlist/EntryRow';
@@ -82,6 +84,7 @@ export default function App() {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const importRef = useRef<HTMLInputElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     document.documentElement.classList.toggle('light', theme === 'light');
@@ -102,6 +105,21 @@ export default function App() {
     setDiscoverQuery(shared);
     setShareIntent(true);
   }, []);
+
+  // "/" or ⌘K / Ctrl+K focuses the search box (unless the user is typing somewhere else).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const typing = e.target instanceof HTMLElement && (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName));
+      const cmdK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k';
+      if (cmdK || (e.key === '/' && !typing && !e.metaKey && !e.ctrlKey && !e.altKey)) {
+        e.preventDefault();
+        if (activeTab === 'upcoming') setActiveTab('watchlist');
+        requestAnimationFrame(() => { searchRef.current?.focus(); searchRef.current?.select(); });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [activeTab]);
 
   useEffect(() => {
     const handler = () => setShowScrollTop(window.scrollY > 300);
@@ -240,17 +258,25 @@ export default function App() {
   // ── Derived view data ──────────────────────────────────────────────────
   const { query, type: tFilter, status: stFilter, platform: pFilter, sort } = filters;
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return state.entries.filter((e) => {
+  // Search: typo-tolerant, accent-insensitive, ranked, with filters like year:2024 (src/lib/search.ts).
+  const parsedQuery = useMemo(() => parseQuery(query), [query]);
+  const { filtered, scoreOf } = useMemo(() => {
+    const ranked = parsedQuery.hasCriteria
+      ? searchEntries(state.entries, state.meta, parsedQuery)
+      : state.entries.map((entry) => ({ entry, score: 0 }));
+    const scores = new Map<string, number>();
+    const list: MovieEntry[] = [];
+    for (const { entry: e, score } of ranked) {
       const m = state.meta[e.id];
-      if (q && ![e.title, e.genre, e.country, e.year, m?.notes].some((f) => f?.toLowerCase().includes(q))) return false;
-      if (tFilter && e.type !== tFilter) return false;
-      if (stFilter && (m?.status ?? 'plan') !== stFilter) return false;
-      if (pFilter && m?.watchPlatform !== pFilter) return false;
-      return true;
-    });
-  }, [state.entries, state.meta, query, tFilter, stFilter, pFilter]);
+      if (tFilter && e.type !== tFilter) continue;
+      if (stFilter && (m?.status ?? 'plan') !== stFilter) continue;
+      if (pFilter && m?.watchPlatform !== pFilter) continue;
+      scores.set(e.id, score);
+      list.push(e);
+    }
+    return { filtered: list, scoreOf: scores };
+  }, [state.entries, state.meta, parsedQuery, tFilter, stFilter, pFilter]);
+  const rankByRelevance = !sort && (parsedQuery.terms.length > 0 || parsedQuery.phrases.length > 0);
 
   const navSections = useMemo(
     () => state.sectionOrder.filter((s) => state.entries.some((e) => e.section === s)),
@@ -267,13 +293,16 @@ export default function App() {
 
   const groups = useMemo(() => {
     let list = activeSection ? filtered.filter((e) => e.section === activeSection) : filtered;
-    list = sort && SORTERS[sort] ? [...list].sort(SORTERS[sort]) : [...list].reverse();   // default: recently added
+    if (sort && SORTERS[sort]) list = [...list].sort(SORTERS[sort]);
+    // While searching (with the default sort), best matches first; ties keep "recently added".
+    else if (rankByRelevance) list = [...list].reverse().sort((a, b) => (scoreOf.get(b.id) ?? 0) - (scoreOf.get(a.id) ?? 0));
+    else list = [...list].reverse();   // default: recently added
     // Default view is one flat list; section headers only when the user turns grouping on.
     if (!grouped) return [{ section: null as string | null, entries: list }];
     return navSections
       .map((section) => ({ section: section as string | null, entries: list.filter((e) => e.section === section) }))
       .filter((g) => g.entries.length > 0);
-  }, [filtered, activeSection, sort, navSections, grouped]);
+  }, [filtered, activeSection, sort, navSections, grouped, rankByRelevance, scoreOf]);
 
   const handleReorder = (order: string[]) => {
     // Fires on every drag frame, so no analytics event here.
@@ -282,7 +311,8 @@ export default function App() {
 
   const drawerEntry = drawerId ? state.entries.find((e) => e.id === drawerId) ?? null : null;
   const drawerMeta = drawerEntry ? state.meta[drawerEntry.id] ?? { id: drawerEntry.id, status: 'plan' as WatchStatus } : null;
-  const hasFilters = !!(query || tFilter || stFilter || pFilter || activeSection);
+  const hasFilters = !!(parsedQuery.hasCriteria || tFilter || stFilter || pFilter || activeSection);
+  const highlight = parsedQuery.terms.length || parsedQuery.phrases.length ? parsedQuery : null;
 
   if (loading || !initialised) {
     return (
@@ -313,6 +343,7 @@ export default function App() {
               onPosterLoaded={(url) => updatePoster(entry.id, url)}
               showSection={prefs.showSectionTag && !grouped && !activeSection}
               showDetails={prefs.showCardDetails}
+              highlight={highlight}
             />
           ))}
         </AnimatePresence>
@@ -370,30 +401,16 @@ export default function App() {
               {tabBtn('upcoming', <CalendarClock className="h-3.5 w-3.5" />, 'Upcoming')}
             </div>
 
-            {activeTab !== 'upcoming' && <div className="relative order-last w-full sm:order-none sm:w-auto sm:flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-              <input
-                type="search"
+            {activeTab !== 'upcoming' && (
+              <SearchBox
+                ref={searchRef}
+                mode={activeTab}
                 value={activeTab === 'watchlist' ? query : discoverQuery}
-                onChange={(e) => activeTab === 'watchlist'
-                  ? setFilters((f) => ({ ...f, query: e.target.value }))
-                  : setDiscoverQuery(e.target.value)}
-                placeholder={activeTab === 'watchlist' ? 'Search your list — title, genre, country, notes…' : 'Search any movie or TV show…'}
-                aria-label={activeTab === 'watchlist' ? 'Search your watchlist' : 'Search movies and TV shows'}
-                className="h-10 w-full rounded-xl border pl-9 pr-9 text-sm outline-none focus:ring-2 focus:ring-indigo-500/40 [&::-webkit-search-cancel-button]:hidden"
-                style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}
+                onChange={(v) => activeTab === 'watchlist' ? setFilters((f) => ({ ...f, query: v })) : setDiscoverQuery(v)}
+                matchCount={activeTab === 'watchlist' && parsedQuery.hasCriteria ? groups.reduce((n, g) => n + g.entries.length, 0) : null}
+                className="order-last w-full sm:order-none sm:w-auto sm:flex-1"
               />
-              {(activeTab === 'watchlist' ? query : discoverQuery) && (
-                <button
-                  onClick={() => activeTab === 'watchlist' ? setFilters((f) => ({ ...f, query: '' })) : setDiscoverQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors hover:text-[var(--text-primary)]"
-                  style={{ color: 'var(--text-muted)' }}
-                  aria-label="Clear search"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>}
+            )}
 
             {activeTab === 'watchlist' && (
               <div className="ml-auto flex items-center gap-2 sm:ml-0">
@@ -427,6 +444,7 @@ export default function App() {
               myServices={prefs.myServices}
               openFirstResult={shareIntent}
               onOpenedFirstResult={() => setShareIntent(false)}
+              onEdit={openEdit}
               onAdd={(entryData, metaData) => {
                 addEntry(entryData, metaData);
                 addToast(`Added to watchlist${metaData.status && metaData.status !== 'plan' ? ` as ${metaData.status}` : ''}`, 'success');
@@ -470,9 +488,20 @@ export default function App() {
 
               {groups.every((g) => g.entries.length === 0) ? (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-20 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
-                  {hasFilters
-                    ? 'No entries match your search or filters.'
-                    : 'No entries yet. Click "+ Add" or explore the Discover tab.'}
+                  {hasFilters ? (
+                    <div className="flex flex-col items-center gap-3">
+                      <span>No titles in your list match{query ? <> “<b style={{ color: 'var(--text-primary)' }}>{query.trim()}</b>”</> : ' these filters'}.</span>
+                      {freeText(parsedQuery) && (
+                        <button
+                          onClick={() => { setActiveTab('discover'); setDiscoverQuery(freeText(parsedQuery)); }}
+                          className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white"
+                          style={{ background: 'var(--accent-purple)' }}
+                        >
+                          <Compass className="h-3.5 w-3.5" /> Search “{freeText(parsedQuery)}” on Discover
+                        </button>
+                      )}
+                    </div>
+                  ) : 'No entries yet. Click "+ Add" or explore the Discover tab.'}
                 </motion.div>
               ) : (
                 <div className="space-y-8">
