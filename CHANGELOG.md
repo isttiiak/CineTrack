@@ -4,6 +4,18 @@ All notable changes to CineTrack. Dates are `YYYY-MM-DD`. Versions follow
 [Semantic Versioning](https://semver.org/). Earlier history: see the
 [v1.0.0 release](https://github.com/isttiiak/CineTrack/releases/tag/v1.0.0).
 
+## [1.2.2] - 2026-11-13
+
+Dependency updates only; no change to how the app works.
+
+### Changed
+
+- `lucide-react` 0.400 → 1.71 (icons checked: all render).
+- `eslint-plugin-react-refresh` 0.4 → 0.5.
+- CI actions `actions/checkout` and `actions/setup-node` 4 → 7.
+- Dependabot no longer proposes major bumps of `@types/node` (must match the Node 22 runtime) or
+  `lucide-react` (upgrade those by hand).
+
 ## [1.2.1] - 2026-11-13
 
 A new pink look, a clearer working area in the details drawer, and a long-term maintenance pass.
