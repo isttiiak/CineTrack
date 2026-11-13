@@ -63,6 +63,20 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: { '@': path.resolve(import.meta.dirname, './src') },
     },
+    build: {
+      // Firebase is large by nature. Vendor chunks change rarely, so returning visitors re-download only app code.
+      chunkSizeWarningLimit: 700,
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              { name: 'firebase', test: /node_modules[\\/](@firebase|firebase)[\\/]/, priority: 20 },
+              { name: 'motion', test: /node_modules[\\/]framer-motion[\\/]/, priority: 10 },
+            ],
+          },
+        },
+      },
+    },
     preview: {
       headers: vercelHeaders(),
     },

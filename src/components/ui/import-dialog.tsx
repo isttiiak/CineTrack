@@ -31,7 +31,7 @@ export function ImportDialog({ pending, currentCount, onChoose, onCancel }: Prop
           >
             <div className="mb-4 flex justify-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-full border border-brand/20 bg-brand/10">
-                <Upload className="h-6 w-6 text-brand" />
+                <Upload className="h-6 w-6 text-[var(--accent-text)]" />
               </div>
             </div>
             <h3 id="import-title" className="mb-1 text-center text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
@@ -46,7 +46,7 @@ export function ImportDialog({ pending, currentCount, onChoose, onCancel }: Prop
                 className="flex items-start gap-3 rounded-xl border p-3 text-left transition-colors hover:bg-[var(--bg-hover)]"
                 style={{ borderColor: 'var(--accent)' }}
               >
-                <GitMerge className="mt-0.5 h-4 w-4 flex-shrink-0" style={{ color: 'var(--accent)' }} />
+                <GitMerge className="mt-0.5 h-4 w-4 flex-shrink-0" style={{ color: 'var(--accent-text)' }} />
                 <span>
                   <span className="block text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Merge (recommended)</span>
                   <span className="block text-xs" style={{ color: 'var(--text-muted)' }}>Add new titles, skip ones already in your list.</span>

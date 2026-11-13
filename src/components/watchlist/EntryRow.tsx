@@ -7,7 +7,7 @@ import { HighlightText } from '@/components/ui/highlight-text';
 import { getImdbColor, ratingSourceOf, cn } from '@/lib/utils';
 
 /** Compact single-line row for the list view. Details live in the drawer, not in the row. */
-export function EntryRow({ entry, meta, selectMode, selected, onOpen, onToggleSelect, onStatusChange, onPosterLoaded, showSection, showDetails, highlight }: EntryItemProps) {
+export function EntryRow({ entry, meta, selectMode, selected, onOpen, onToggleSelect, onStatusChange, onPosterLoaded, showSection, showDetails, highlight, active }: EntryItemProps) {
   const hasImdb = entry.imdbRating && entry.imdbRating !== 'N/A';
   return (
     <motion.div
@@ -19,6 +19,7 @@ export function EntryRow({ entry, meta, selectMode, selected, onOpen, onToggleSe
       role="button"
       tabIndex={0}
       aria-pressed={selectMode ? selected : undefined}
+      aria-current={active ? 'true' : undefined}
       onClick={selectMode ? onToggleSelect : onOpen}
       onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); (selectMode ? onToggleSelect : onOpen)(); } }}
       className={cn(
@@ -26,8 +27,9 @@ export function EntryRow({ entry, meta, selectMode, selected, onOpen, onToggleSe
         'hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/60',
       )}
       style={{
-        borderColor: selected ? 'var(--accent)' : 'transparent',
-        background: selected ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : undefined,
+        borderColor: selected || active ? 'var(--accent)' : 'transparent',
+        background: selected || active ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : undefined,
+        boxShadow: active ? '0 0 0 1px var(--accent), 0 0 26px -4px rgb(var(--accent-rgb) / 0.6)' : undefined,
       }}
     >
       {selectMode && <SelectCheck selected={selected} />}

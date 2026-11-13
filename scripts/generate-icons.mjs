@@ -105,57 +105,57 @@ function generateIcon(size) {
   // 1. Background dark rounded square
   fillRR(pixels, size, s, 0,0,99,99, 22, 8,10,14);
 
-  // Top-left gold tint
+  // Top-left pink tint
   for (let y=0;y<size;y++) for (let x=0;x<size;x++) {
     const i=(y*size+x)*4;
     if (!pixels[i+3]) continue;
     const d=Math.sqrt((x/size)**2+(y/size)**2);
     if (d<0.65) {
       const t=Math.max(0,(0.65-d)/0.65)*0.45;
-      pixels[i]  =Math.min(255,pixels[i]  +Math.round(t*58));
-      pixels[i+1]=Math.min(255,pixels[i+1]+Math.round(t*38));
-      pixels[i+2]=Math.min(255,pixels[i+2]+Math.round(t*6));
+      pixels[i]  =Math.min(255,pixels[i]  +Math.round(t*52));
+      pixels[i+1]=Math.min(255,pixels[i+1]+Math.round(t*10));
+      pixels[i+2]=Math.min(255,pixels[i+2]+Math.round(t*34));
     }
   }
 
   // 2. Clapperboard body (#0f172a)
   fillRR(pixels,size,s, 14,44, 86,86, 5, 16,20,27);
 
-  // Body border lines (gold, low opacity)
+  // Body border lines (pink, low opacity)
   const [bx1,by1,bx2,by2]=[14,44,86,86].map(v=>Math.round(v*s));
-  for (let x=bx1;x<=bx2;x++) { sp(pixels,x,by1,size,247,201,105,50); sp(pixels,x,by2,size,247,201,105,50); }
-  for (let y=by1;y<=by2;y++) { sp(pixels,bx1,y,size,247,201,105,50); sp(pixels,bx2,y,size,247,201,105,50); }
+  for (let x=bx1;x<=bx2;x++) { sp(pixels,x,by1,size,238,95,174,50); sp(pixels,x,by2,size,238,95,174,50); }
+  for (let y=by1;y<=by2;y++) { sp(pixels,bx1,y,size,238,95,174,50); sp(pixels,bx2,y,size,238,95,174,50); }
 
-  // 3. Clapper top bar with horizontal gradient (#f7c969 → #e8803a)
-  fillRR(pixels,size,s, 14,17, 86,43, 5, 247,201,105);
+  // 3. Clapper top bar with horizontal gradient (#ee5fae → #c42d88)
+  fillRR(pixels,size,s, 14,17, 86,43, 5, 238,95,174);
   const [cy1,cy2,cx1,cx2]=[17,43,14,86].map(v=>Math.round(v*s));
   for (let y=cy1;y<=cy2;y++) for (let x=cx1;x<=cx2;x++) {
     const i=(y*size+x)*4;
     if (!pixels[i+3]) continue;
     const t=(x-cx1)/(cx2-cx1);
-    pixels[i]  =Math.round(247+(232-247)*t);
-    pixels[i+1]=Math.round(201+(128-201)*t);
-    pixels[i+2]=Math.round(105+(58-105)*t);
+    pixels[i]  =Math.round(238+(196-238)*t);
+    pixels[i+1]=Math.round(95+(45-95)*t);
+    pixels[i+2]=Math.round(174+(136-174)*t);
     pixels[i+3]=255;
   }
 
   // 4. Diagonal stripes on clapper bar
   const sw=Math.round(12*s);
   for (let y=cy1;y<=cy2;y++) for (let x=cx1;x<=cx2;x++)
-    if (Math.floor((x+y)/sw)%2===0) sp(pixels,x,y,size,42,29,8,75);
+    if (Math.floor((x+y)/sw)%2===0) sp(pixels,x,y,size,42,15,32,75);
 
   // 5. Hinge pins
   fillCircle(pixels,size,s, 23,44, 5,   8,10,14);
-  fillCircle(pixels,size,s, 23,44, 2.4, 247,201,105,145);
+  fillCircle(pixels,size,s, 23,44, 2.4, 238,95,174,145);
   fillCircle(pixels,size,s, 77,44, 5,   8,10,14);
-  fillCircle(pixels,size,s, 77,44, 2.4, 247,201,105,145);
+  fillCircle(pixels,size,s, 77,44, 2.4, 238,95,174,145);
 
   // 6. Sprocket holes in body corners
   for (const [hx,hy] of [[17,49],[17,72],[77,49],[77,72]])
-    fillRR(pixels,size,s, hx,hy, hx+6,hy+6, 1.5, 247,201,105,42);
+    fillRR(pixels,size,s, hx,hy, hx+6,hy+6, 1.5, 238,95,174,42);
 
-  // 7. Play triangle (gold)
-  fillTri(pixels,size,s, 37,52, 37,74, 63,63, 247,201,105,250);
+  // 7. Play triangle (pink)
+  fillTri(pixels,size,s, 37,52, 37,74, 63,63, 238,95,174,250);
 
   return pixels;
 }

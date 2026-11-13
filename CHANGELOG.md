@@ -4,6 +4,30 @@ All notable changes to CineTrack. Dates are `YYYY-MM-DD`. Versions follow
 [Semantic Versioning](https://semver.org/). Earlier history: see the
 [v1.0.0 release](https://github.com/isttiiak/CineTrack/releases/tag/v1.0.0).
 
+## [1.2.1] - 2026-11-13
+
+A new pink look, a clearer working area in the details drawer, and a long-term maintenance pass.
+
+### Changed
+
+- **New accent**: a pink-to-rose gradient (`#d43795`) replaces the gold, with brighter small text for
+  contrast. Favicon and app icons updated to match.
+- Details drawer: public ratings now sit directly under the poster, above Status. The open title is
+  highlighted (card or row, and the drawer itself) so it is clear where you are working. "Done" on the
+  watch date shows a check icon, and the date card has a bordered hover state.
+- Faster first load: Discover, Upcoming, Settings, Analytics and import load on demand, and Firebase and
+  animation code are separate cacheable chunks.
+- A list is now capped at 1200 titles (was 2000) so it can never exceed Firestore's 1 MB document limit.
+
+### Added
+
+- Error screen instead of a blank page if something unexpected breaks (your list stays safe).
+- Dependabot (monthly, grouped), `.nvmrc` and `engines` for a low-maintenance upgrade path.
+
+### Removed
+
+- Unused starter files (`App.css`, template assets, an unused cursor-glow component).
+
 ## [1.2.0] - 2026-11-13
 
 A daily-use details drawer, watch dates you can record as precisely as you remember them, a Coming

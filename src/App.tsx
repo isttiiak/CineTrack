@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { lazy, Suspense, useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Plus, ArrowUp, Compass, List, CheckSquare, LayoutGrid, Rows3, CalendarClock } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,18 +14,14 @@ import { AuthBanner } from '@/components/auth/AuthBanner';
 import { FilterBar } from '@/components/filters/FilterBar';
 import { SearchBox } from '@/components/filters/SearchBox';
 import { parseQuery, searchEntries, freeText } from '@/lib/search';
-import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { EntryCard } from '@/components/watchlist/EntryCard';
 import { EntryRow } from '@/components/watchlist/EntryRow';
 import { EntryDrawer } from '@/components/watchlist/EntryDrawer';
 import { AddModal } from '@/components/watchlist/AddModal';
-import { ProfilePage } from '@/components/profile/ProfilePage';
-import { DiscoverPage } from '@/components/discover/DiscoverPage';
-import { UpcomingPage } from '@/components/upcoming/UpcomingPage';
 import { BulkActionBar } from '@/components/ui/bulk-action-bar';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { ImportDialog } from '@/components/ui/import-dialog';
-import { ExternalImportDialog, type ImportSource } from '@/components/import/ExternalImportDialog';
+import type { ImportSource } from '@/components/import/ExternalImportDialog';
 import { ToastContainer } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { SECTION_COLORS, SECTION_EMOJIS, cn } from '@/lib/utils';
@@ -33,6 +29,17 @@ import { defaultRegion } from '@/lib/titleData';
 import { parseTitleLink, sharedTextFrom } from '@/lib/links';
 import { countryOptions, hasCountry } from '@/lib/countries';
 import type { FilterState, MovieEntry, WatchMeta, WatchStatus, ViewMode, WatchlistState } from '@/types';
+
+// Code-split: these load when first needed, which keeps the first paint small.
+const SettingsPanel = lazy(() => import('@/components/settings/SettingsPanel').then((m) => ({ default: m.SettingsPanel })));
+const ProfilePage = lazy(() => import('@/components/profile/ProfilePage').then((m) => ({ default: m.ProfilePage })));
+const DiscoverPage = lazy(() => import('@/components/discover/DiscoverPage').then((m) => ({ default: m.DiscoverPage })));
+const UpcomingPage = lazy(() => import('@/components/upcoming/UpcomingPage').then((m) => ({ default: m.UpcomingPage })));
+const ExternalImportDialog = lazy(() => import('@/components/import/ExternalImportDialog').then((m) => ({ default: m.ExternalImportDialog })));
+
+function PageLoading() {
+  return <div className="py-20 text-center text-sm" style={{ color: 'var(--text-muted)' }} role="status">Loading…</div>;
+}
 
 type Tab = 'watchlist' | 'discover' | 'upcoming';
 
@@ -86,6 +93,9 @@ export default function App() {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const importRef = useRef<HTMLInputElement>(null);
+  // Heavy panels load on first use. These two stay mounted afterwards so their close animation still plays.
+  const settingsSeen = useRef(false);
+  const importSeen = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -370,6 +380,7 @@ export default function App() {
               showSection={prefs.showSectionTag && !grouped && !activeSection}
               showDetails={prefs.showCardDetails}
               highlight={highlight}
+              active={entry.id === drawerId}
             />
           ))}
         </AnimatePresence>
@@ -444,7 +455,7 @@ export default function App() {
                   title={selectMode ? 'Done selecting' : 'Select entries'}
                   className="flex h-9 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition-colors"
                   style={{
-                    color: selectMode ? 'var(--accent)' : 'var(--text-muted)',
+                    color: selectMode ? 'var(--accent-text)' : 'var(--text-muted)',
                     borderColor: selectMode ? 'var(--accent)' : 'var(--border-subtle)',
                     background: selectMode ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'transparent',
                   }}
@@ -459,6 +470,7 @@ export default function App() {
           </div>
 
           {activeTab === 'discover' && (
+            <Suspense fallback={<PageLoading />}>
             <DiscoverPage
               existingEntries={state.entries}
               meta={state.meta}
@@ -477,9 +489,11 @@ export default function App() {
                 pulse();
               }}
             />
+            </Suspense>
           )}
 
           {activeTab === 'upcoming' && (
+            <Suspense fallback={<PageLoading />}>
             <UpcomingPage
               entries={state.entries}
               meta={state.meta}
@@ -492,6 +506,7 @@ export default function App() {
               onBrowseComingSoon={() => { setDiscoverStart('soon'); setActiveTab('discover'); exitSelect(); }}
               onExported={(n) => addToast(`Calendar file with ${n} date${n === 1 ? '' : 's'} downloaded`, 'success')}
             />
+            </Suspense>
           )}
 
           {activeTab === 'watchlist' && (
@@ -529,7 +544,7 @@ export default function App() {
                           <button
                             onClick={() => { setActiveTab('discover'); setDiscoverQuery(freeText(parsedQuery)); }}
                             className="font-semibold underline-offset-2 hover:underline"
-                            style={{ color: 'var(--accent)' }}
+                            style={{ color: 'var(--accent-text)' }}
                           >
                             Find it on Discover →
                           </button>
@@ -549,7 +564,7 @@ export default function App() {
                           title={`Show only ${section}`}
                         >
                           <span className="text-base">{SECTION_EMOJIS[section] ?? '🎬'}</span>
-                          <h2 className="text-sm font-semibold tracking-wide" style={{ color: SECTION_COLORS[section] ?? '#f2b24a' }}>{section}</h2>
+                          <h2 className="text-sm font-semibold tracking-wide" style={{ color: SECTION_COLORS[section] ?? '#ea5fae' }}>{section}</h2>
                           <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{entries.length}</span>
                           <span className="h-px flex-1" style={{ background: 'var(--border-subtle)' }} />
                         </button>
@@ -613,6 +628,8 @@ export default function App() {
         onCancel={() => setPendingDelete(null)}
       />
 
+      {(settingsSeen.current ||= settingsOpen) && (
+      <Suspense fallback={null}>
       <SettingsPanel
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
@@ -628,7 +645,11 @@ export default function App() {
         onImport={() => { setSettingsOpen(false); importRef.current?.click(); }}
         onPasteList={() => openPasteList()}
       />
+      </Suspense>
+      )}
 
+      {(importSeen.current ||= importSource !== null) && (
+      <Suspense fallback={null}>
       <ExternalImportDialog
         source={importSource}
         onCancel={() => setImportSource(null)}
@@ -647,6 +668,8 @@ export default function App() {
           if (res.added) pulse();
         }}
       />
+      </Suspense>
+      )}
 
       <ImportDialog
         pending={pendingImport}
@@ -658,7 +681,11 @@ export default function App() {
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
       <AnimatePresence>
-        {profileOpen && <ProfilePage key="profile" state={state} user={user} onClose={() => setProfileOpen(false)} />}
+        {profileOpen && (
+          <Suspense fallback={null}>
+            <ProfilePage key="profile" state={state} user={user} onClose={() => setProfileOpen(false)} />
+          </Suspense>
+        )}
       </AnimatePresence>
 
       <input ref={importRef} type="file" accept=".json,.csv,.zip,application/json,text/csv,application/zip" className="hidden" onChange={handleImportFile} />

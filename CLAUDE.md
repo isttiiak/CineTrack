@@ -182,9 +182,9 @@ prefix server keys with `VITE_`, which would ship them in the bundle). `.env.loc
   empty date (= unknown).
 - Analytics: `track(event, params)` from `lib/analytics.ts`; no titles, notes or links in params.
 - New third-party origins must be added to the CSP in `vercel.json`.
-- Dark only: there is no light theme. Colours come from tokens in `index.css` (`--accent` gold,
-  `--accent-gradient`, `--accent-fg` for text on it, `--status-*`, `--viz-*`); use Tailwind `brand`
-  (`text-brand`, `bg-brand/10`) or the CSS variables, never hard-coded purple/indigo.
+- Dark only: there is no light theme. Colours come from tokens in `index.css` (`--accent` pink #d43795,
+  `--accent-text` for small text on dark, `--accent-gradient`, `--accent-fg` for text on it, `--status-*`, `--viz-*`); use Tailwind `brand`
+  (`text-brand`, `bg-brand/10`) or the CSS variables, never hard-coded colours. The open title is highlighted twice: its card/row gets `active` (accent border + glow, `aria-current`) and the drawer has an accent border.
 - Hover-only UI must use the `mouse:` variant (and touch alternatives `touch:` / `mouse:hidden`),
   not `sm:` — phones "hover" on tap (custom screens in `tailwind.config.ts`).
 - Charts use the `--viz-*` tokens in `index.css` (validated for colour-blind separation and
@@ -196,6 +196,11 @@ prefix server keys with `VITE_`, which would ship them in the bundle). `.env.loc
 - Privacy: `PRIVACY.md` must match what the code collects/sends; update it with any new analytics
   event, third-party origin or stored field. Analytics honours the Settings opt-out and DNT/GPC.
 - Releases: update `CHANGELOG.md`, bump `package.json`, tag `vX.Y.Z` on `main`, publish a GitHub release with that section.
+- Heavy panels (Discover, Upcoming, Settings, Analytics, external import) are `lazy()` in `App.tsx`;
+  `main.tsx` wraps the app in `ErrorBoundary`. A list is capped at `MAX_ENTRIES` (1200, `schema.ts`):
+  that is what fits in the single Firestore document (1 MB); going beyond needs sharding the list.
+- Maintenance: Dependabot opens one grouped monthly PR (majors for React, Tailwind, ESLint and
+  TypeScript are held back on purpose); Node is pinned in `.nvmrc` / `engines`.
 - Tests live next to the code (`*.test.ts`); pure logic goes in `lib/` so it can be tested.
 - Keep CLAUDE.md, README.md and TODO.md in sync with the code.
 

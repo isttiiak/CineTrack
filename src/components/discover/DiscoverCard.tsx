@@ -113,14 +113,14 @@ export function DiscoverCard({ item, inList, adding, reason, listStatus, onAdd, 
       <div className="flex flex-1 flex-col gap-0.5 p-2.5">
         <p className="line-clamp-2 text-xs font-semibold leading-tight" style={{ color: 'var(--text-primary)' }}>{title}</p>
         {isUnreleased(item) ? (
-          <p className="text-[10px] font-semibold" style={{ color: 'var(--accent)' }}>
+          <p className="text-[10px] font-semibold" style={{ color: 'var(--accent-text)' }}>
             Releases {formatRelease(releaseDate(item))}
           </p>
         ) : (
           <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{year || '—'}</p>
         )}
         <RatingsRow ratings={ratings} loading={loading} compact className="mt-1" />
-        {reason && <p className="mt-0.5 line-clamp-1 text-[10px] italic" style={{ color: 'var(--accent)' }}>{reason}</p>}
+        {reason && <p className="mt-0.5 line-clamp-1 text-[10px] italic" style={{ color: 'var(--accent-text)' }}>{reason}</p>}
         {item.overview && (
           <p className="mt-0.5 hidden text-[10px] leading-relaxed line-clamp-2 sm:block" style={{ color: 'var(--text-disabled)' }}>{item.overview}</p>
         )}
@@ -132,7 +132,7 @@ export function DiscoverCard({ item, inList, adding, reason, listStatus, onAdd, 
           className="mt-1.5 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-semibold transition-colors mouse:hidden"
           style={{
             background: inList ? 'color-mix(in srgb, var(--accent-green) 15%, transparent)' : 'color-mix(in srgb, var(--accent) 20%, transparent)',
-            color: inList ? 'var(--accent-green)' : 'var(--accent)',
+            color: inList ? 'var(--accent-green)' : 'var(--accent-text)',
             border: `1px solid ${inList ? 'color-mix(in srgb, var(--accent-green) 40%, transparent)' : 'color-mix(in srgb, var(--accent) 40%, transparent)'}`,
           }}
         >

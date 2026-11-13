@@ -63,7 +63,7 @@ A personal movie and TV series watchlist tracker. Works instantly as a guest, or
 ### App
 - Installable PWA. On Android, **Share → CineTrack** from the IMDb app (or any link) opens that title ready to add.
 - Settings: theme, layout, cursor glow, grouping, card details, section order, country, your services, backup
-- One dark, cinematic theme (near-black with a gold accent), fully responsive
+- One dark, cinematic theme (near-black with a pink accent), fully responsive
 
 ---
 

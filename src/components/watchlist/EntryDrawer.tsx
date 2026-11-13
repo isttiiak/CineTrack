@@ -59,7 +59,7 @@ export function EntryDrawer({ entry, meta, onClose, ...rest }: Props) {
           <DialogPrimitive.Portal forceMount>
             <DialogPrimitive.Overlay asChild forceMount>
               <motion.div
-                className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+                className="fixed inset-0 z-50 bg-black/45"
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               />
             </DialogPrimitive.Overlay>
@@ -69,11 +69,12 @@ export function EntryDrawer({ entry, meta, onClose, ...rest }: Props) {
             >
               <motion.div
                 className={cn(
-                  'fixed z-50 flex flex-col overflow-hidden border shadow-2xl focus:outline-none',
+                  'fixed z-50 flex flex-col overflow-hidden border-2 focus:outline-none',
+                  'shadow-[0_-14px_48px_-14px_rgb(var(--accent-rgb)/0.5)] sm:shadow-[-14px_0_48px_-14px_rgb(var(--accent-rgb)/0.5)]',
                   'inset-x-0 bottom-0 max-h-[92vh] rounded-t-2xl',
                   'sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-[460px] sm:rounded-none sm:rounded-l-2xl',
                 )}
-                style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)' }}
+                style={{ background: 'var(--bg-surface)', borderColor: 'rgb(var(--accent-rgb) / 0.75)' }}
                 initial={{ opacity: 0, y: 40 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 40 }}
@@ -122,7 +123,7 @@ function NotesEditor({ value, onSave, editingRef }: { value: string; onSave: (no
         aria-label="Edit notes"
       >
         <p className="whitespace-pre-wrap text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{value}</p>
-        <span className="mt-2 flex items-center gap-1 text-[11px] font-semibold" style={{ color: saved ? 'var(--accent-green)' : 'var(--accent)' }}>
+        <span className="mt-2 flex items-center gap-1 text-[11px] font-semibold" style={{ color: saved ? 'var(--accent-green)' : 'var(--accent-text)' }}>
           {saved ? <><Check className="h-3 w-3" /> Saved</> : <><Pencil className="h-3 w-3" /> Edit notes</>}
         </span>
       </button>
@@ -254,7 +255,7 @@ function DrawerBody({
   const ratingUrl = fromTmdb
     ? (entry.tmdbId ? `https://www.themoviedb.org/${entry.type === 'Series' ? 'tv' : 'movie'}/${entry.tmdbId}` : '')
     : imdbUrl;
-  const color = SECTION_COLORS[entry.section] ?? '#f2b24a';
+  const color = SECTION_COLORS[entry.section] ?? '#ea5fae';
 
   return (
     <>
@@ -304,6 +305,13 @@ function DrawerBody({
           </div>
         </div>
 
+        {(ratings || ratingsLoading) && (
+          <section className="mt-5">
+            <h3 className={sectionTitle} style={labelColor}><Star className="h-3 w-3" /> Ratings</h3>
+            <RatingsRow ratings={ratings} loading={ratingsLoading && !ratings} tmdbFallback={details?.vote_average || undefined} />
+          </section>
+        )}
+
         {/* ── Your log: everything you update day to day ───────────────────────── */}
         <section className="mt-6">
           <h3 className={sectionTitle} style={labelColor}>Status</h3>
@@ -328,10 +336,14 @@ function DrawerBody({
         {meta.status === 'watched' && (
           <section className="mt-5">
             <h3 className={sectionTitle} style={labelColor}><Calendar className="h-3 w-3" /> Watched on</h3>
-            <div ref={dateCard} className={cn('rounded-xl border transition-colors', flash && 'attention')} style={panel}>
+            <div
+              ref={dateCard}
+              className={cn('rounded-xl border transition-colors hover:border-[var(--accent)]', editingDate && 'border-[var(--accent)]', flash && 'attention')}
+              style={panel}
+            >
               <button
                 type="button" onClick={openDateEditor} aria-expanded={editingDate}
-                className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left"
+                className="group/head flex w-full items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
               >
                 <span className="min-w-0">
                   <span className="block text-base font-semibold" style={{ color: meta.watchedOn ? 'var(--text-primary)' : 'var(--text-muted)' }}>
@@ -341,8 +353,16 @@ function DrawerBody({
                     {precision === 'day' ? 'Exact day' : precision === 'month' ? 'Month only' : precision === 'year' ? 'Year only' : 'Add the date, or just the year'}
                   </span>
                 </span>
-                <span className="flex flex-shrink-0 items-center gap-1 text-xs font-semibold" style={{ color: 'var(--accent)' }}>
-                  <Pencil className="h-3.5 w-3.5" /> {editingDate ? 'Done' : 'Change'}
+                <span
+                  className={cn(
+                    'flex flex-shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all',
+                    'group-hover/head:border-[var(--accent)] group-hover/head:bg-brand/15 group-hover/head:shadow-[0_0_14px_-4px_rgb(var(--accent-rgb)/0.7)]',
+                    editingDate ? 'border-[var(--accent)] bg-brand/15' : 'border-[var(--border-subtle)]',
+                  )}
+                  style={{ color: 'var(--accent-text)' }}
+                >
+                  {editingDate ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                  {editingDate ? 'Done' : 'Change'}
                 </span>
               </button>
               {editingDate && (
@@ -352,7 +372,7 @@ function DrawerBody({
               )}
             </div>
             {autoHint && !editingDate && (
-              <p className="mt-1.5 text-xs" style={{ color: 'var(--accent)' }}>
+              <p className="mt-1.5 text-xs" style={{ color: 'var(--accent-text)' }}>
                 Set to today. Watched it earlier? Tap <b>Change</b> to pick the date, or just the year.
               </p>
             )}
@@ -379,7 +399,7 @@ function DrawerBody({
                   className="h-8 rounded-md font-mono text-xs font-semibold transition-colors"
                   style={{
                     background: filled ? 'color-mix(in srgb, var(--accent) 22%, transparent)' : 'var(--bg-elevated)',
-                    color: filled ? 'var(--accent)' : 'var(--text-muted)',
+                    color: filled ? 'var(--accent-text)' : 'var(--text-muted)',
                   }}
                 >
                   {n}
@@ -469,7 +489,7 @@ function DrawerBody({
                   title={here ? `${p}: streaming in your country` : p}
                   className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors"
                   style={active
-                    ? { color: 'var(--accent)', borderColor: 'var(--accent)', background: 'color-mix(in srgb, var(--accent) 12%, transparent)' }
+                    ? { color: 'var(--accent-text)', borderColor: 'var(--accent)', background: 'color-mix(in srgb, var(--accent) 12%, transparent)' }
                     : { color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}
                 >
                   {here && <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--accent-green)' }} aria-hidden />}
@@ -501,15 +521,8 @@ function DrawerBody({
 
         {/* ── About this title: public information ─────────────────────────────── */}
         <div className="mt-7 border-t pt-5" style={{ borderColor: 'var(--border-subtle)' }}>
-          {(ratings || ratingsLoading) && (
-            <section>
-              <h3 className={sectionTitle} style={labelColor}><Star className="h-3 w-3" /> Ratings</h3>
-              <RatingsRow ratings={ratings} loading={ratingsLoading && !ratings} tmdbFallback={details?.vote_average || undefined} />
-            </section>
-          )}
-
           {(tmdbId || detailsLoading) && (
-            <section className="mt-5">
+            <section>
               <h3 className={sectionTitle} style={labelColor}><MonitorPlay className="h-3 w-3" /> Where to watch</h3>
               <WhereToWatch providers={providers} region={region} myServices={myServices} loading={detailsLoading} />
             </section>

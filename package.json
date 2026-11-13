@@ -1,7 +1,7 @@
 {
   "name": "cinetrack",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.2.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -53,5 +53,8 @@
   "overrides": {
     "@grpc/grpc-js": "^1.14.7"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  }
 }

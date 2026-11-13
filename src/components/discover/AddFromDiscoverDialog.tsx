@@ -136,7 +136,7 @@ export function AddFromDiscoverDialog({ item, sections, region, myServices, onCa
                 ))}
               </div>
               {unreleased && (
-                <p className="text-xs" style={{ color: 'var(--accent)' }}>
+                <p className="text-xs" style={{ color: 'var(--accent-text)' }}>
                   Not out yet: releases {formatWatchDate(releaseDate(item))}. It will be added to Plan to Watch, and the Upcoming tab will remind you.
                 </p>
               )}

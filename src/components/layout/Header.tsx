@@ -61,7 +61,7 @@ export function Header({ state, user, lastSync, syncStatus, cloudError, onSignIn
           <div className="flex items-center gap-2.5">
             <img src="/favicon.svg" alt="" className="h-8 w-8 rounded-lg" />
             <h1 className="hidden text-lg font-bold tracking-tight text-[var(--text-primary)] min-[400px]:block">
-              Cine<span className="text-brand">Track</span>
+              Cine<span className="text-[var(--accent-text)]">Track</span>
             </h1>
           </div>
 
@@ -69,7 +69,7 @@ export function Header({ state, user, lastSync, syncStatus, cloudError, onSignIn
             <span><span className="font-mono text-base font-bold" style={{ color: 'var(--text-primary)' }}>{total}</span> total</span>
             <span><span className="font-mono text-base font-bold text-emerald-400">{counts.watched}</span> watched</span>
             <span><span className="font-mono text-base font-bold text-yellow-400">{counts.watching}</span> watching</span>
-            <span><span className="font-mono text-base font-bold" style={{ color: 'var(--accent)' }}>{counts.plan}</span> planned</span>
+            <span><span className="font-mono text-base font-bold" style={{ color: 'var(--accent-text)' }}>{counts.plan}</span> planned</span>
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -93,7 +93,7 @@ export function Header({ state, user, lastSync, syncStatus, cloudError, onSignIn
 
         <div className="mt-2.5 flex items-center gap-3">
           <div className="h-1 flex-1 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
-            <div className="h-full rounded-full bg-gradient-to-r from-[#f7c969] via-[#ee9a41] to-emerald-400 transition-all duration-700" style={{ width: `${progress}%` }} />
+            <div className="h-full rounded-full bg-[image:var(--accent-gradient)] transition-all duration-700" style={{ width: `${progress}%` }} />
           </div>
           <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{progress}% watched</span>
         </div>

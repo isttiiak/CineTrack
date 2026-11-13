@@ -310,7 +310,7 @@ function BookmarkletLink() {
       onClick={(e) => e.preventDefault()}
       draggable
       className="inline-flex cursor-grab items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold active:cursor-grabbing"
-      style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
+      style={{ borderColor: 'var(--accent)', color: 'var(--accent-text)' }}
       title="Drag me to your bookmarks bar"
     >
       <Bookmark className="h-3.5 w-3.5" /> + CineTrack

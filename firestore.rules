@@ -10,7 +10,8 @@ service cloud.firestore {
     match /users/{userId}/data/watchlist {
       allow read, delete: if isOwner(userId);
       // Shape and size limits keep one account from storing arbitrary data. The app itself caps
-      // a list at 2000 entries (src/lib/schema.ts), and Firestore caps a document at 1 MB.
+      // a list at 1200 entries (src/lib/schema.ts) so the document stays under Firestore's 1 MB cap;
+      // these rules stay at 2000 so they never need redeploying when the app cap moves.
       allow create, update: if isOwner(userId)
         && request.resource.data.keys().hasOnly(['entries', 'meta', 'sectionOrder', 'lastModified'])
         && request.resource.data.entries is list

@@ -88,7 +88,7 @@ export function UpcomingPage({ entries, meta, onOpen, onResolved, onExported, on
           {loading
             ? <span className="inline-flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" /> Checking {progress.done}/{progress.total} titles…</span>
             : <>New episodes and releases for <b>titles in your list</b>.{' '}
-                <button onClick={onBrowseComingSoon} className="font-semibold hover:underline" style={{ color: 'var(--accent)' }}>
+                <button onClick={onBrowseComingSoon} className="font-semibold hover:underline" style={{ color: 'var(--accent-text)' }}>
                   Browse upcoming releases for everyone →
                 </button>
               </>}

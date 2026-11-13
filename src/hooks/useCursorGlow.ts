@@ -8,7 +8,7 @@ export function useCursorGlow() {
     if (!el) return;
     const move = (e: MouseEvent) => {
       el.style.background = `radial-gradient(600px circle at ${e.clientX}px ${e.clientY}px,
-        rgba(242,178,74,0.075) 0%,
+        rgba(212,55,149,0.09) 0%,
         rgba(90,169,255,0.04) 30%,
         transparent 70%)`;
     };
