@@ -10,24 +10,11 @@ updates:
       minor-and-patch:
         update-types: [minor, patch]
     ignore:
-      # Held back on purpose: these are major migrations (React 19, Tailwind 4, ESLint 10, TypeScript 7).
-      - dependency-name: react
-        update-types: [version-update:semver-major]
-      - dependency-name: react-dom
-        update-types: [version-update:semver-major]
-      - dependency-name: "@types/react*"
-        update-types: [version-update:semver-major]
-      - dependency-name: tailwindcss
-        update-types: [version-update:semver-major]
-      - dependency-name: eslint
-        update-types: [version-update:semver-major]
-      - dependency-name: typescript
-        update-types: [version-update:semver-major]
-      # Node types must match the runtime (Node 22, see .nvmrc), not the newest Node.
-      - dependency-name: "@types/node"
-        update-types: [version-update:semver-major]
-      # Icon library majors can rename or remove icons: upgrade by hand and check the UI.
-      - dependency-name: lucide-react
+      # No major bumps through Dependabot. Majors (React 19, Tailwind 4, ESLint 10, TypeScript 7,
+      # lucide-react, react-day-picker, ...) are planned migrations done by hand with a visual check.
+      # Companion packages (@eslint/js, eslint-plugin-react-hooks) break if upgraded alone, so a blanket
+      # rule is safer than naming each package. Minor and patch updates keep arriving, grouped.
+      - dependency-name: "*"
         update-types: [version-update:semver-major]
   - package-ecosystem: github-actions
     directory: /
