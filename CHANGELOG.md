@@ -4,7 +4,9 @@ All notable changes to CineTrack. Dates are `YYYY-MM-DD`. Versions follow
 [Semantic Versioning](https://semver.org/). Earlier history: see the
 [v1.0.0 release](https://github.com/isttiiak/CineTrack/releases/tag/v1.0.0).
 
-## [Unreleased]
+## [1.2.1] - 2026-11-13
+
+A new pink look, a clearer working area in the details drawer, and a long-term maintenance pass.
 
 ### Changed
 
