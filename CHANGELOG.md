@@ -4,7 +4,10 @@ All notable changes to CineTrack. Dates are `YYYY-MM-DD`. Versions follow
 [Semantic Versioning](https://semver.org/). Earlier history: see the
 [v1.0.0 release](https://github.com/isttiiak/CineTrack/releases/tag/v1.0.0).
 
-## [Unreleased]
+## [1.2.0] - 2026-11-13
+
+A daily-use details drawer, watch dates you can record as precisely as you remember them, a Coming
+soon feed, smarter recommendations, and a new dark-only look.
 
 ### Added
 
@@ -17,7 +20,6 @@ All notable changes to CineTrack. Dates are `YYYY-MM-DD`. Versions follow
 - **Coming soon** tab in Discover: the most anticipated films and series of the next year, grouped
   by month. Unreleased titles show "Releases <date>" on their card and can only be added as Plan to
   Watch. The Upcoming tab links to it.
-- Country filter and the Privacy section are covered in 1.1.0.
 
 ### Changed
 
@@ -123,4 +125,5 @@ search, a real analytics page, several new ways to add titles, and a security an
 3. **Node.js 20.19+ (or 22.12+)** is required to build.
 4. Existing lists upgrade automatically. Old backup files (version 1) still import.
 
+[1.2.0]: https://github.com/isttiiak/CineTrack/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/isttiiak/CineTrack/releases/tag/v1.1.0
