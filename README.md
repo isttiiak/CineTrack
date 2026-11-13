@@ -1,5 +1,8 @@
 # <img src="public/favicon.svg" alt="CineTrack logo" width="48" style="height:auto;" /> CineTrack
 
+[![CI](https://github.com/isttiiak/CineTrack/actions/workflows/ci.yml/badge.svg)](https://github.com/isttiiak/CineTrack/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A personal movie and TV series watchlist tracker. Works instantly as a guest, or sign in with Google for permanent cloud sync across all your devices.
 
 
@@ -17,7 +20,7 @@ A personal movie and TV series watchlist tracker. Works instantly as a guest, or
 - **Episode progress** for series (S2 · E5, +1 episode). The status follows automatically: started → Watching, finished an ended show → Watched.
 - Flat poster grid (or compact list) with a small section tag; optional grouping by section
 - **Smart search**: typo-tolerant ("oppenhiemer"), ignores accents, ranks best matches first, highlights them, and understands filters like `year:2020-2024 is:watched rating>8 genre:thriller`. Press `/` or ⌘K to search. On Discover, results are ranked by match then popularity, typos are corrected ("showing results for …"), and searching a person ("nolan") shows their films.
-- Filter by section / type / status / platform, and sort
+- Filter by section / country / type / status / platform, and sort
 - **Duplicate protection**: the Add form suggests TMDB matches as you type and warns about titles you already have (even with typos, a different type, or "Part 2" vs "Part Two"). Discover cards show titles already in your list, with an Edit button.
 - Bulk select, duplicate detection, stats (hours watched, heatmap, genres, platforms)
 
@@ -230,4 +233,6 @@ signals Do Not Track or Global Privacy Control. Events carry no titles, notes or
 
 ## License
 
-MIT — use it, fork it, make it yours.
+[MIT](LICENSE): use it, fork it, make it yours. Title data, posters and streaming availability come from
+[TMDB](https://www.themoviedb.org/) and JustWatch, and ratings from MDBList / OMDb; those services have their own
+terms (TMDB's API is free for non-commercial use). See [PRIVACY.md](PRIVACY.md) for what data the app stores and sends.

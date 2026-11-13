@@ -1,110 +1,93 @@
 # Manual to-do
 
 Tasks that need your accounts, dashboards or devices, so they can't be done from the code.
-Do them roughly in this order and tick them off. Items marked *(optional)* can wait.
+Tick them off as you go. Items marked *(optional)* can wait.
+
+## Done
+
+- [x] TMDB key rotated and moved server-side (`TMDB_API_KEY`, no `VITE_` prefix)
+- [x] Ratings keys added (`MDBLIST_API_KEY`, `OMDB_API_KEY`)
+- [x] Firestore security rules published (`firestore.rules`)
+- [x] Firebase **Authorized domains** reviewed: `localhost`, the two Firebase domains and the Vercel domain: the right set
+- [x] LICENSE (MIT), CI workflow, privacy note, platform rename and data migration
 
 ---
 
-## 1. Rotate the TMDB key and move it server-side ⚠️ do first
+## 1. Restrict the browser API key to your websites
 
-Old deployments shipped the TMDB key inside the public JavaScript bundle, so treat it as leaked.
+The `VITE_FIREBASE_*` values are public by design. This setting stops other websites from using
+your Firebase API key. The key list page doesn't show the option; you have to open the key.
 
-1. Go to <https://www.themoviedb.org/settings/api>. Regenerate the **API Key**, or create a new
-   one, and copy it.
-2. Vercel → your project → **Settings → Environment Variables**:
-   - Add `TMDB_API_KEY` = the new key (Production, Preview and Development).
-   - **Delete** `VITE_TMDB_API_KEY`.
-3. Locally, in `.env.local`, rename `VITE_TMDB_API_KEY=` to `TMDB_API_KEY=` and paste the new key.
-4. Redeploy (Vercel → Deployments → ⋯ → Redeploy) and check that Discover loads.
+1. Google Cloud Console → **APIs & Services → Credentials**
+   (<https://console.cloud.google.com/apis/credentials>), with your Firebase project selected.
+2. Under **API Keys**, click the **name** of the key: *Browser key (auto created by Firebase)*.
+   (Don't click "Show key", which only reveals the value.)
+3. Find **Application restrictions** and choose **Websites**.
+4. Under **Website restrictions**, click **Add** and add each of these (replace the project id with yours):
+   - `https://cine-track-silk.vercel.app/*` (your live site; add any custom domain too)
+   - `https://<your-project-id>.firebaseapp.com/*` (the Google sign-in popup runs here)
+   - `https://<your-project-id>.web.app/*`
+   - `http://localhost:5173/*` and `http://localhost:4173/*` (local development and preview)
+5. **API restrictions** is already set (it showed "25 APIs", Firebase's default list). Leave it.
+6. Click **Save**. It can take up to 5 minutes to apply.
+7. Test: on the live site, sign in with Google and change something (the header should say
+   "Synced"). If sign-in fails with an "API key not valid / referrer blocked" message, one of the
+   referrers above is missing; add it. To undo, set Application restrictions back to **None**.
 
-## 2. Turn on ratings from IMDb / Rotten Tomatoes / Metacritic / Letterboxd
+## 2. GitHub settings *(a few minutes)*
 
-1. Create a free account at <https://mdblist.com>, then go to **Preferences → API** and copy the key.
-2. Add `MDBLIST_API_KEY` in Vercel (all environments) and in `.env.local`.
-3. *(optional fallback)* Get a free key at <https://www.omdbapi.com/apikey.aspx> (confirm the
-   email) and add it as `OMDB_API_KEY`.
-4. Redeploy, open Discover, and check that IMDb / 🍅 / MC show under the posters.
-   The free tiers allow about 1,000 requests a day for the whole app (cached), which is plenty
-   for personal use.
+- [ ] Settings → **Code security**: enable **Dependabot alerts**, **Dependabot security updates**,
+      **Secret scanning** and **Push protection**.
+- [ ] After the first CI run has finished on `main`: Settings → **Branches** → add a rule for
+      `main` → **Require a pull request before merging** and **Require status checks to pass**
+      → select **Lint, test, build**.
+- [ ] Settings → General → under **Pull Requests**, tick **Automatically delete head branches**.
 
-## 3. Deploy the Firestore security rules
+## 3. Check the live site after deploying
 
-The repo's `firestore.rules` is stricter than what's probably live (size limits, no email in the profile).
-
-- **Console:** Firebase Console → Firestore Database → **Rules** → paste the contents of
-  `firestore.rules` → **Publish**.
-- **Or CLI:** `npm i -g firebase-tools` → `firebase login` → `firebase use <your-project-id>` →
-  `firebase deploy --only firestore:rules`.
-
-Then sign in on the live site and change something to confirm saving still works (the sync
-indicator should say "Synced").
-
-## 4. Lock down the public Firebase config
-
-The `VITE_FIREBASE_*` values are public by design. These settings stop other sites and scripts from using them.
-
-1. **Authorized domains:** Firebase Console → Authentication → **Settings → Authorized domains** →
-   keep only `localhost` and your real domain(s), e.g. `cine-track-silk.vercel.app`.
-2. **Restrict the browser API key:** Google Cloud Console → APIs & Services → **Credentials** →
-   the "Browser key (auto created by Firebase)":
-   - Application restrictions → **Websites** → add `https://cine-track-silk.vercel.app/*`,
-     `http://localhost:5173/*`, `http://localhost:4173/*` and any custom domain.
-   - API restrictions → **Restrict key** → allow only Identity Toolkit API, Token Service API,
-     Cloud Firestore API, Firebase Installations API, Firebase App Check API and (if used)
-     Google Analytics / Firebase Management APIs.
-   - Save, wait a few minutes, then test sign-in and sync on the live site.
-3. **App Check** *(optional, recommended)*:
-   1. Google Cloud Console → **reCAPTCHA** → Create key → type *Website*, add your domain(s) → copy the site key.
-   2. Firebase Console → **App Check** → Apps → your web app → **reCAPTCHA Enterprise** → paste the key → Save.
-   3. Add `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY` in Vercel and `.env.local`; redeploy.
-   4. Local dev prints an App Check *debug token* in the browser console. Register it under
-      App Check → ⋯ → **Manage debug tokens** (or put it in `VITE_APPCHECK_DEBUG_TOKEN`).
-   5. After a day or two of traffic shows as **Verified** in App Check → APIs, click **Enforce**
-      for Cloud Firestore and Authentication.
-
-## 5. Merge the branch and deploy
-
-1. Open a pull request from `fix/audit-sync-import-layout` into `main` on GitHub
-   (or ask Claude to create it).
-2. Check the Vercel preview deployment (step 6 below), then merge. Vercel deploys `main` automatically.
-
-## 6. Check on the live site after deploying
-
-- [ ] **Google sign-in works** (popup). The new Content-Security-Policy is strict. If sign-in fails, open
-      DevTools → Console, look for "Refused to … because it violates the Content Security Policy",
-      and add that origin to `vercel.json` (or ask Claude). If your
-      `VITE_FIREBASE_AUTH_DOMAIN` isn't `*.firebaseapp.com`, add it to `frame-src`.
+- [ ] **Discover loads** (titles and posters appear). If it's blank, open
+      `https://cine-track-silk.vercel.app/api/tmdb?path=trending/all/week` in a tab: JSON means
+      the function is fine; a "500 FUNCTION_INVOCATION_FAILED" page means it's crashing (check
+      Vercel → project → Logs).
+- [ ] **Ratings show** (IMDb / Rotten Tomatoes / Metacritic chips on Discover cards).
+      `https://cine-track-silk.vercel.app/api/ratings?tmdb=27205&type=movie` should return JSON.
+- [ ] **Google sign-in works** (popup). The Content-Security-Policy in `vercel.json` is strict. If
+      sign-in fails, open DevTools → Console, look for "Refused to … Content Security Policy",
+      and add that origin to `vercel.json` (or ask Claude).
 - [ ] **iPhone home-screen app:** add the site to the Home Screen, open it, and sign in (it uses a redirect).
 - [ ] **Two devices:** change different titles on a phone and a laptop at the same time; after a few
       seconds both should show both changes.
-- [ ] **Functions:** `https://<your-domain>/api/tmdb?path=trending/all/week` returns JSON, and
-      `/api/ratings?tmdb=27205&type=movie` returns ratings (or a 503 if no ratings key yet).
 - [ ] **Android share:** install the app (Chrome → Install app), then in the IMDb app open a title →
       Share → CineTrack. The add dialog should open.
 - [ ] **Letterboxd import:** Letterboxd → Settings → Data → **Export your data** → in CineTrack open
-      Settings → Import → choose the `.zip`.
-- [ ] **Bookmarklet:** on a computer, open Settings → Quick add, drag **+ CineTrack** to the
-      bookmarks bar (it points at the site you dragged it from, so do this on the live site, not
-      localhost), then click it on an IMDb page.
+      Settings → Data → Import → choose the `.zip`.
+- [ ] **Bookmarklet:** on a computer, open Settings → Quick add on the live site, drag **+ CineTrack**
+      to the bookmarks bar, then click it on an IMDb page.
+- [ ] **Old platform names:** a title you had marked Torrent or FTB should now show **Other**.
 - [ ] **Phone check:** on an iPhone (or SE-sized screen) open Watchlist, Discover, a title's details,
       Settings and Analytics. Each Discover card should show exactly one Add/Edit button.
 
-## 7. Open-source housekeeping *(optional)*
+## 4. Later *(not urgent)*
 
-- [ ] **Add a LICENSE file.** The README says MIT, but there's no license file. On GitHub: Add file →
-      Create new file → name it `LICENSE` → **Choose a license template** → MIT → commit.
-- [ ] **GitHub security features:** Settings → Code security → enable **Dependabot alerts**,
-      **Dependabot security updates**, **Secret scanning** and **Push protection**.
-- [ ] **Branch protection** for `main`: Settings → Branches → require a pull request before merging.
-- [ ] **CI:** ask Claude to add a GitHub Actions workflow that runs `npm ci`, `npm run lint`,
-      `npm test` and `npm run build` on every pull request.
+### App Check (blocks scripts that reuse your Firebase config)
 
-## 8. Decisions for you *(optional)*
+Deferred on purpose. The app already supports it: it turns on as soon as the site key is set.
 
-- [ ] **Platform names:** "Torrent" and "FTB" in the platform list may look bad in a public
-      open-source app. Consider renaming them to "Other / personal link" (ask Claude; existing data
-      would need a small migration).
-- [ ] **Analytics & privacy:** if you set `VITE_FIREBASE_MEASUREMENT_ID` and have EU visitors, add a
-      short privacy note (what's collected: anonymous usage events only) and consider a consent banner.
-- [ ] **AI features (Groq):** smart add from free text, mood search, "what should I watch tonight".
-      Needs a server-side key with per-user limits; ask Claude when ready.
+1. Google Cloud Console → **reCAPTCHA** → Create key → type *Website*, add your domain(s) → copy the site key.
+2. Firebase Console → **App Check** → Apps → your web app → **reCAPTCHA Enterprise** → paste the key → Save.
+3. Add `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY` in Vercel and `.env.local`; redeploy.
+4. Local dev prints an App Check *debug token* in the browser console. Register it under
+   App Check → ⋯ → **Manage debug tokens** (or put it in `VITE_APPCHECK_DEBUG_TOKEN`).
+5. After a day or two of traffic shows as **Verified** in App Check → APIs, click **Enforce**
+   for Cloud Firestore and Authentication.
+
+### Other ideas
+
+- [ ] **Consent banner for EU/UK visitors.** Analytics is on by default with an opt-out switch
+      (Settings → Privacy) and respects Do Not Track. If you want to be strict about EU/UK
+      cookie-consent rules, ask Claude to add an opt-in prompt for those regions.
+- [ ] **Language filter.** The home page filters by *country*. Language (e.g. Bengali vs Hindi,
+      both India) needs a new field plus a lookup for existing titles; ask Claude if you want it.
+- [ ] **"Delete my account" button** in Settings (removes the cloud list and sign-in record). Today
+      deletion is by request, as described in PRIVACY.md.
+- [ ] **AI features** (Groq): needs a server-side key with per-user limits; see the discussion in chat.

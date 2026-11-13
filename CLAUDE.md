@@ -24,7 +24,8 @@ Scripts: `npm run dev` (5173) · `npm test` · `npm run lint` · `npm run build`
 ## Layout
 
 ```
-api/                    Vercel Functions (files starting with _ are shared code, not functions)
+api/                    Vercel Functions (files starting with _ are shared code, not functions).
+                        Relative imports here MUST end in .js (Vercel runs native ES modules); `npm run check:api` verifies it
   tmdb.ts  _tmdb.ts       TMDB proxy: allowlisted paths/params, adds the key server-side
   ratings.ts _ratings.ts  IMDb/RT/Metacritic/Letterboxd ratings via MDBList, OMDb fallback
 src/
@@ -55,6 +56,7 @@ src/
     tmdb.ts                    client for /api/tmdb      links.ts  IMDb/TMDB link parsing
     csvImport.ts importMatch.ts  external import + pasted lists → candidates → TMDB matching
     exporters.ts download.ts     export formats (JSON v2, spreadsheet CSV, Letterboxd CSV)
+    countries.ts                 split/fold country text for the country filter, search and analytics
     progress.ts ics.ts analytics.ts utils.ts
   types/index.ts        MovieEntry, WatchMeta, WatchlistState, …
 firestore.rules         Security rules (deploy separately, see TODO.md)
@@ -114,7 +116,9 @@ prefix server keys with `VITE_`, which would ship them in the bundle). `.env.loc
 ## Features (where they live)
 
 - Watchlist: flat grid/list, optional grouping by section (Settings), section tag on cards,
-  filters + sort (`FilterBar`), bulk select, stats (`ProfilePage`).
+  filters (section, country, type, status, platform) + sort (`FilterBar`), bulk select,
+  analytics (`ProfilePage`). Country (not language) is the filter: it's already stored for every
+  title, works for manual/imported entries, and is what search and analytics use.
 - Two searches, two jobs. **Watchlist** = find what you have: precision, ranked by match
   quality (never popularity), one-line "not in your list" + link to Discover, no suggestions.
   **Discover** = explore: `lib/discoverSearch.ts` ranks by relevance tier (exact > starts with >
@@ -168,6 +172,12 @@ prefix server keys with `VITE_`, which would ship them in the bundle). `.env.loc
 - Charts use the `--viz-*` tokens in `index.css` (validated for colour-blind separation and
   contrast in both themes); single series = `--viz-seq`, two series = `--viz-1` / `--viz-2`,
   heatmap = `--viz-heat-1..4`. Labels and values use text colours, never the series colour.
+- Stored values that get renamed or removed need a legacy map + migration in `schema.ts` (see
+  `LEGACY_PLATFORMS`): `normalizeState` converts on every read and flags the state in
+  `migratedStates` so local storage and the cloud copy are rewritten. Never just drop the value.
+- Privacy: `PRIVACY.md` must match what the code collects/sends; update it with any new analytics
+  event, third-party origin or stored field. Analytics honours the Settings opt-out and DNT/GPC.
+- Releases: update `CHANGELOG.md`, bump `package.json`, tag `vX.Y.Z` on `main`, publish a GitHub release with that section.
 - Tests live next to the code (`*.test.ts`); pure logic goes in `lib/` so it can be tested.
 - Keep CLAUDE.md, README.md and TODO.md in sync with the code.
 
