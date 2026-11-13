@@ -38,7 +38,7 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
   const listTab: DiscoverTab = tab === 'foryou' ? 'trending' : tab;
   const isSearching = search.trim().length > 1;
   const showForYou = tab === 'foryou' && !isSearching;
-  const { items, loading, error, fromLink } = useTMDBDiscover(listTab, search);
+  const { items, loading, error, fromLink, reasons, correctedTo } = useTMDBDiscover(listTab, search);
   const { recs, loading: recsLoading, hasSeeds } = useRecommendations(existingEntries, meta, showForYou);
   const [pendingItem, setPendingItem] = useState<TMDBItem | null>(null);
   const [addState, setAddState] = useState<Record<number, 'loading' | 'done'>>({});
@@ -169,10 +169,11 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
         </div>
       )}
 
-      {isSearching && (
+      {isSearching && !loading && items.length > 0 && (
         <p className="mb-4 text-xs" style={{ color: 'var(--text-muted)' }}>
-          {fromLink ? 'Title from link' : <>Results for <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>"{search.trim()}"</span></>}
-          {!fromLink && <span className="ml-2 opacity-70">· Tip: paste an IMDb or TMDB link to find an exact title</span>}
+          {fromLink ? 'Title from link'
+            : correctedTo ? <>No exact match for “{search.trim()}”, showing results for <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>“{correctedTo}”</span></>
+            : <>Best matches first, then the most popular · <span className="opacity-70">tip: year:2024, is:series, rating&gt;7 or a person's name</span></>}
         </p>
       )}
 
@@ -185,7 +186,12 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
         <>
           {error && muted('Could not load titles. Check your connection, or set TMDB_API_KEY on the server.')}
           {loading && !error && skeleton(isSearching ? 10 : 20)}
-          {!loading && !error && items.length === 0 && isSearching && muted(fromLink ? 'No title found for that link.' : `No results found for "${search.trim()}"`)}
+          {!loading && !error && items.length === 0 && isSearching && (
+            <NoResults
+              text={fromLink ? 'No title found for that link.' : `Nothing found for “${search.trim()}”.`}
+              entries={existingEntries} meta={meta} renderCard={card}
+            />
+          )}
           {!loading && !error && items.length > 0 && (
             <AnimatePresence mode="wait">
               <motion.div
@@ -194,10 +200,41 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
                 transition={{ duration: 0.18 }}
                 className={GRID}
               >
-                {items.map((item) => card(item))}
+                {items.map((item) => card(item, reasons[item.id]))}
               </motion.div>
             </AnimatePresence>
           )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Empty Discover search: one line saying so, then something worth adding instead: personal
+ * recommendations when the user has rated titles, otherwise what's trending this week.
+ */
+function NoResults({ text, entries, meta, renderCard }: {
+  text: string;
+  entries: MovieEntry[];
+  meta: Record<string, WatchMeta>;
+  renderCard: (item: TMDBItem, reason?: string) => React.ReactNode;
+}) {
+  const { recs, hasSeeds } = useRecommendations(entries, meta, true);
+  const { items: trending } = useTMDBDiscover('trending', '');
+  const listed = new Set(entries.map((e) => e.tmdbId).filter(Boolean));
+  const picks = (hasSeeds && recs.length ? recs.map((r) => ({ item: r.item, reason: `Because you liked ${r.because}` })) : trending.map((item) => ({ item, reason: undefined as string | undefined })))
+    .filter(({ item }) => !listed.has(item.id))
+    .slice(0, 12);
+  return (
+    <div className="pt-2">
+      <p className="mb-5 text-sm" style={{ color: 'var(--text-secondary)' }}>{text} Check the spelling, or try a shorter title.</p>
+      {picks.length > 0 && (
+        <>
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--text-disabled)' }}>
+            {hasSeeds && recs.length ? 'You might like' : 'Popular this week'}
+          </h2>
+          <div className={GRID}>{picks.map(({ item, reason }) => renderCard(item, reason))}</div>
         </>
       )}
     </div>

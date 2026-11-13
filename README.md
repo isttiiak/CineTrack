@@ -16,10 +16,24 @@ A personal movie and TV series watchlist tracker. Works instantly as a guest, or
 - Personal rating (1–10), notes, platform, private watch link and watched date per title
 - **Episode progress** for series (S2 · E5, +1 episode). The status follows automatically: started → Watching, finished an ended show → Watched.
 - Flat poster grid (or compact list) with a small section tag; optional grouping by section
-- **Smart search**: typo-tolerant ("oppenhiemer"), ignores accents, ranks best matches first, highlights them, and understands filters like `year:2020-2024 is:watched rating>8 genre:thriller`. Press `/` or ⌘K to search.
+- **Smart search**: typo-tolerant ("oppenhiemer"), ignores accents, ranks best matches first, highlights them, and understands filters like `year:2020-2024 is:watched rating>8 genre:thriller`. Press `/` or ⌘K to search. On Discover, results are ranked by match then popularity, typos are corrected ("showing results for …"), and searching a person ("nolan") shows their films.
 - Filter by section / type / status / platform, and sort
 - **Duplicate protection**: the Add form suggests TMDB matches as you type and warns about titles you already have (even with typos, a different type, or "Part 2" vs "Part Two"). Discover cards show titles already in your list, with an Edit button.
 - Bulk select, duplicate detection, stats (hours watched, heatmap, genres, platforms)
+
+### Adding titles
+- Search Discover (or paste an IMDb / TMDB link) and add with status, date, rating and platform
+- The Add form suggests TMDB matches as you type and fills in everything
+- **Paste a list**: one title per line from notes or chats, matched and reviewed before adding
+- Paste a link or a list **anywhere** in the app
+- **Bookmarklet** (Settings): click "+ CineTrack" on any IMDb, TMDB or Letterboxd page
+- Android: Share → CineTrack; imports from Letterboxd and IMDb
+
+### Analytics
+- Insights, time watched (films vs series), weekly streaks, backlog and time to clear it
+- Monthly and day-by-day activity, rating distribution, you vs IMDb/TMDB
+- Top genres with your average rating, decades, countries, platforms, section completion
+- All time or any single year
 
 ### Ratings & where to watch
 - **Ratings from IMDb, Rotten Tomatoes (critics + audience), Metacritic, Letterboxd and TMDB** on Discover cards and in each title's details (needs a free MDBList or OMDb key, see below)

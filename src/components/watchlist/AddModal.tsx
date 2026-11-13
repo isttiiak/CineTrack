@@ -24,6 +24,7 @@ interface Props {
   editMeta?: WatchMeta | null;
   existingEntries?: MovieEntry[];
   sections?: string[];
+  onPasteList?: (text?: string) => void;   // open "Add a list of titles"
 }
 
 const DEFAULT_ENTRY: Omit<MovieEntry, 'id' | 'isCustom'> = {
@@ -35,7 +36,7 @@ const DEFAULT_META: Partial<WatchMeta> = {
   notes: '', watchedOn: '', watchPlatform: '', watchLink: '', duration: '',
 };
 
-export function AddModal({ open, onClose, onSave, onOpenExisting, editEntry, editMeta, existingEntries = [], sections = [] }: Props) {
+export function AddModal({ open, onClose, onSave, onOpenExisting, editEntry, editMeta, existingEntries = [], sections = [], onPasteList }: Props) {
   const [entry, setEntry] = useState<Omit<MovieEntry, 'id' | 'isCustom'>>(DEFAULT_ENTRY);
   const [meta, setMeta] = useState<Partial<WatchMeta>>(DEFAULT_META);
   const [customSection, setCustomSection] = useState('');
@@ -135,6 +136,11 @@ export function AddModal({ open, onClose, onSave, onOpenExisting, editEntry, edi
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{editEntry ? 'Edit Entry' : 'Add New Entry'}</DialogTitle>
+            {!editEntry && onPasteList && (
+              <button type="button" onClick={() => onPasteList()} className="w-fit text-xs font-medium hover:underline" style={{ color: 'var(--accent-purple)' }}>
+                Adding several? Paste a list instead →
+              </button>
+            )}
           </DialogHeader>
 
           <div className="px-6 pb-2 grid gap-4">
@@ -149,6 +155,14 @@ export function AddModal({ open, onClose, onSave, onOpenExisting, editEntry, edi
                   setEntry((p) => p.tmdbId && !editEntry && title !== pickedTitle
                     ? { ...p, title, tmdbId: undefined, posterUrl: undefined }
                     : { ...p, title });
+                }}
+                onPaste={(e) => {
+                  // Several lines pasted into the title = a list: switch to adding them all at once.
+                  const text = e.clipboardData.getData('text');
+                  if (!editEntry && onPasteList && text.split(/\r?\n/).filter((l) => l.trim()).length >= 2) {
+                    e.preventDefault();
+                    onPasteList(text);
+                  }
                 }}
                 onFocus={() => setTitleFocused(true)}
                 onBlur={() => setTitleFocused(false)}

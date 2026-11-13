@@ -78,7 +78,7 @@ export function Header({ state, user, theme, lastSync, syncStatus, cloudError, o
             {user && (
               <SyncIndicator status={syncStatus} cloudError={cloudError} lastSync={lastSync} onForceSync={onForceSync} onRetrySync={onRetrySync} />
             )}
-            <button onClick={onProfile} className={iconBtn} title="Stats & Profile" aria-label="Stats and profile">
+            <button onClick={onProfile} className={iconBtn} title="Analytics" aria-label="Analytics">
               <BarChart2 className="h-4 w-4" />
             </button>
             <button onClick={onToggleTheme} className={iconBtn} title="Toggle theme" aria-label="Toggle theme">

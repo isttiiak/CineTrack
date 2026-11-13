@@ -34,7 +34,7 @@ src/
     filters/            SearchBox (tab-row search), FilterBar (dropdown filters + sort)
     import/             ExternalImportDialog (Letterboxd / IMDb CSV & ZIP)
     layout/             Header, UserProfile
-    profile/            ProfilePage (stats)
+    profile/            ProfilePage (Analytics)
     ratings/            RatingsRow, WhereToWatch
     settings/           SettingsPanel
     upcoming/           UpcomingPage
@@ -48,10 +48,12 @@ src/
     merge.ts                   three-way merge of watchlist states (the sync algorithm)
     schema.ts                  normalizeState: sanitises ALL untrusted input (import, LS, Firestore)
     search.ts                  watchlist search: parse, filters, fuzzy match, ranking, highlight
+    discoverSearch.ts          Discover search: relevance tiers + popularity, typo recovery, people
+    stats.ts                   everything on the Analytics page (pure, tested)
     duplicates.ts              findDuplicate (strict) / findSimilar (Add-form warning)
     titleData.ts               TMDB details/ratings/providers, id resolution, matching
     tmdb.ts                    client for /api/tmdb      links.ts  IMDb/TMDB link parsing
-    csvImport.ts importMatch.ts  external import parsing + TMDB matching
+    csvImport.ts importMatch.ts  external import + pasted lists → candidates → TMDB matching
     progress.ts ics.ts analytics.ts utils.ts
   types/index.ts        MovieEntry, WatchMeta, WatchlistState, …
 firestore.rules         Security rules (deploy separately, see TODO.md)
@@ -112,7 +114,14 @@ prefix server keys with `VITE_`, which would ship them in the bundle). `.env.loc
 
 - Watchlist: flat grid/list, optional grouping by section (Settings), section tag on cards,
   filters + sort (`FilterBar`), bulk select, stats (`ProfilePage`).
-- Search (`lib/search.ts`, `SearchBox`): all words must match; accent/case/punctuation-insensitive;
+- Two searches, two jobs. **Watchlist** = find what you have: precision, ranked by match
+  quality (never popularity), one-line "not in your list" + link to Discover, no suggestions.
+  **Discover** = explore: `lib/discoverSearch.ts` ranks by relevance tier (exact > starts with >
+  all words > word prefixes > typo) then popularity (log popularity + log vote count); retries
+  shortened words when TMDB finds little (TMDB has no fuzzy search) and reports "showing results
+  for …"; adds a searched person's known-for titles; supports `year:`, `is:series|film`,
+  `rating>`; empty results → one line + recommendations or trending.
+- Watchlist search (`lib/search.ts`, `SearchBox`): all words must match; accent/case/punctuation-insensitive;
   typo-tolerant (1 edit from 4 letters, 2 from 8; never for numbers); ranked (exact title > prefix
   > word > other fields > notes) unless an explicit sort is chosen; filters `year:2020-2024`,
   `year>2015`, `status:`/`is:watched`, `type:`/`is:series`, `genre:`, `country:`, `section:`,
@@ -126,7 +135,16 @@ prefix server keys with `VITE_`, which would ship them in the bundle). `.env.loc
 - Discover: trending / for-you / movies / TV, search or pasted IMDb/TMDB link, add dialog
   (status, optional date, rating, platform pre-filled from your services, section).
 - Upcoming: next episodes, premieres, releases, just aired, returning; `.ics` export.
-- Import: CineTrack JSON (merge/replace), Letterboxd ZIP/CSV, IMDb CSV (match + review).
+- Adding titles: Discover (+ dialog), Add form with TMDB suggestions, **paste a list** (one title
+  per line; `candidatesFromText`), paste an IMDb/TMDB link or a list **anywhere** in the app,
+  Android share target and the desktop **bookmarklet** (Settings) — both open `/?url=&title=`,
+  handled by `sharedTextFrom` (links, Letterboxd slugs, cleaned page titles).
+- Import: CineTrack JSON (merge/replace), Letterboxd ZIP/CSV, IMDb CSV, pasted lists — all go
+  through match + review (`ExternalImportDialog`), which flags titles already in the list.
+- Analytics (`lib/stats.ts`, `ProfilePage`): period picker (all time / year), insights, watched,
+  time watched (film vs series), weekly streaks, backlog + time to clear at your pace, monthly
+  bars, day heatmap, rating histogram, you vs the crowd (IMDb/TMDB), genres with your avg
+  rating, decades, countries, platforms, section completion.
 - PWA with Android share target (`public/manifest.json` → `?url=` → Discover).
 
 ## Conventions
@@ -137,6 +155,11 @@ prefix server keys with `VITE_`, which would ship them in the bundle). `.env.loc
   empty date (= unknown).
 - Analytics: `track(event, params)` from `lib/analytics.ts`; no titles, notes or links in params.
 - New third-party origins must be added to the CSP in `vercel.json`.
+- Hover-only UI must use the `mouse:` variant (and touch alternatives `touch:` / `mouse:hidden`),
+  not `sm:` — phones "hover" on tap (custom screens in `tailwind.config.ts`).
+- Charts use the `--viz-*` tokens in `index.css` (validated for colour-blind separation and
+  contrast in both themes); single series = `--viz-seq`, two series = `--viz-1` / `--viz-2`,
+  heatmap = `--viz-heat-1..4`. Labels and values use text colours, never the series colour.
 - Tests live next to the code (`*.test.ts`); pure logic goes in `lib/` so it can be tested.
 - Keep CLAUDE.md, README.md and TODO.md in sync with the code.
 
