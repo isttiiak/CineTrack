@@ -1,4 +1,4 @@
-import { handleRatingsRequest } from './_ratings';
+import { handleRatingsRequest } from './_ratings.js';
 
 declare const process: { env: Record<string, string | undefined> };
 

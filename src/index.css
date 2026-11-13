@@ -32,6 +32,14 @@
     --status-watched-bg: #052e16;
     --status-watched-text: #6ee7b7;
     --status-watched-border: #065f46;
+    /* Charts (validated for colour-blind separation + contrast on this surface) */
+    --viz-1: #3987e5;            /* series 1 (films) */
+    --viz-2: #d95926;            /* series 2 (series) */
+    --viz-seq: #3987e5;          /* single-series bars */
+    --viz-heat-1: #184f95;       /* sequential, low → high */
+    --viz-heat-2: #256abf;
+    --viz-heat-3: #3987e5;
+    --viz-heat-4: #86b6ef;
   }
 
   .light {
@@ -60,6 +68,13 @@
     --status-watched-bg: #d1fae5;
     --status-watched-text: #065f46;
     --status-watched-border: #6ee7b7;
+    --viz-1: #2a78d6;
+    --viz-2: #eb6834;
+    --viz-seq: #2a78d6;
+    --viz-heat-1: #86b6ef;
+    --viz-heat-2: #5598e7;
+    --viz-heat-3: #2a78d6;
+    --viz-heat-4: #1c5cab;
   }
 
   * { border-color: var(--border-subtle); box-sizing: border-box; }

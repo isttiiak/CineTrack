@@ -1,4 +1,4 @@
-import { handleTmdbRequest } from './_tmdb';
+import { handleTmdbRequest } from './_tmdb.js';
 
 declare const process: { env: Record<string, string | undefined> };
 

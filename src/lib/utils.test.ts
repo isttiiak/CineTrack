@@ -37,6 +37,7 @@ describe('ratingSourceOf', () => {
     expect(ratingSourceOf({ ratingSource: 'imdb', tmdbId: 1 })).toBe('imdb');
     expect(ratingSourceOf({ tmdbId: 1 })).toBe('tmdb');
     expect(ratingSourceOf({})).toBe('imdb');
+    expect(ratingSourceOf({ tmdbId: 1, isCustom: false })).toBe('imdb');   // starter titles had IMDb scores
   });
 });
 

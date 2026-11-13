@@ -4,7 +4,7 @@ import { Plus, ArrowUp, Compass, List, CheckSquare, LayoutGrid, Rows3, CalendarC
 import { useAuth } from '@/hooks/useAuth';
 import { saveUserProfile } from '@/lib/firestore';
 import { track } from '@/lib/analytics';
-import { useWatchlist, type ImportMode } from '@/hooks/useWatchlist';
+import { useWatchlist, type ImportMode, type ExportFormat } from '@/hooks/useWatchlist';
 import { useToast } from '@/hooks/useToast';
 import { useCursorGlow } from '@/hooks/useCursorGlow';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
@@ -25,17 +25,18 @@ import { UpcomingPage } from '@/components/upcoming/UpcomingPage';
 import { BulkActionBar } from '@/components/ui/bulk-action-bar';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { ImportDialog } from '@/components/ui/import-dialog';
-import { ExternalImportDialog } from '@/components/import/ExternalImportDialog';
+import { ExternalImportDialog, type ImportSource } from '@/components/import/ExternalImportDialog';
 import { ToastContainer } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { SECTION_COLORS, SECTION_EMOJIS, cn } from '@/lib/utils';
 import { defaultRegion } from '@/lib/titleData';
-import { sharedTextFrom } from '@/lib/links';
+import { parseTitleLink, sharedTextFrom } from '@/lib/links';
+import { countryOptions, hasCountry } from '@/lib/countries';
 import type { FilterState, MovieEntry, WatchMeta, ThemeMode, WatchStatus, ViewMode, WatchlistState } from '@/types';
 
 type Tab = 'watchlist' | 'discover' | 'upcoming';
 
-const EMPTY_FILTERS: FilterState = { query: '', section: '', type: '', status: '', platform: '', sort: '' };
+const EMPTY_FILTERS: FilterState = { query: '', section: '', country: '', type: '', status: '', platform: '', sort: '' };
 const MAX_IMPORT_BYTES = 5 * 1024 * 1024;          // CineTrack JSON backups
 const MAX_EXTERNAL_IMPORT_BYTES = 25 * 1024 * 1024; // Letterboxd .zip / IMDb .csv exports
 
@@ -57,7 +58,7 @@ export default function App() {
     state, initialised, cloudError, retrySync,
     addEntry, updateEntry, deleteEntries,
     setStatus, setStatuses, setMeta, setProgress, reorderSections, updatePoster,
-    exportJSON, parseImport, applyImport, forceSync,
+    exportData, parseImport, applyImport, forceSync,
     flush, lastSync, syncStatus,
   } = useWatchlist(uid);
 
@@ -77,7 +78,8 @@ export default function App() {
   const [drawerId, setDrawerId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
   const [pendingImport, setPendingImport] = useState<WatchlistState | null>(null);
-  const [externalFile, setExternalFile] = useState<File | null>(null);
+  const [importSource, setImportSource] = useState<ImportSource | null>(null);
+  const openPasteList = useCallback((text = '') => { setModalOpen(false); setSettingsOpen(false); setImportSource({ kind: 'text', text }); }, []);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('watchlist');
@@ -105,6 +107,25 @@ export default function App() {
     setDiscoverQuery(shared);
     setShareIntent(true);
   }, []);
+
+  // Paste anywhere (outside a text field): an IMDb/TMDB link opens that title ready to add; a list
+  // of several lines opens "Add a list of titles" with it.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const t = e.target;
+      if (t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      const text = e.clipboardData?.getData('text')?.trim();
+      if (!text) return;
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
+      if (lines.length >= 2) { e.preventDefault(); openPasteList(text); return; }
+      if (parseTitleLink(text)) {
+        e.preventDefault();
+        setActiveTab('discover'); setDiscoverQuery(text); setShareIntent(true);
+      }
+    };
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+  }, [openPasteList]);
 
   // "/" or ⌘K / Ctrl+K focuses the search box (unless the user is typing somewhere else).
   useEffect(() => {
@@ -202,7 +223,7 @@ export default function App() {
     // Letterboxd / IMDb exports go through matching + review; JSON is a CineTrack backup.
     if (/\.(csv|zip)$/i.test(file.name)) {
       if (file.size > MAX_EXTERNAL_IMPORT_BYTES) { addToast('File is too large (max 25 MB)', 'error'); return; }
-      setExternalFile(file);
+      setImportSource({ kind: 'file', file });
       return;
     }
     if (file.size > MAX_IMPORT_BYTES) { addToast('File is too large (max 5 MB)', 'error'); return; }
@@ -226,7 +247,14 @@ export default function App() {
     if (res.added) pulse();
   };
 
-  const handleExport = () => { exportJSON(); addToast('Exported!', 'success'); track('export_json'); };
+  const handleExport = (format: ExportFormat = 'json') => {
+    const n = exportData(format);
+    const what = { json: 'Backup', csv: 'Spreadsheet', 'letterboxd-watched': 'Letterboxd diary', 'letterboxd-watchlist': 'Letterboxd watchlist' }[format];
+    if (format.startsWith('letterboxd')) {
+      addToast(n ? `${what} saved (${n} films) — import it at letterboxd.com/import` : 'No films to export for Letterboxd (it only tracks films)', n ? 'success' : 'info');
+    } else addToast(`${what} saved (${n} titles)`, 'success');
+    track('export_json', { format });
+  };
 
   const handleForceSync = async () => {
     try {
@@ -256,7 +284,10 @@ export default function App() {
   };
 
   // ── Derived view data ──────────────────────────────────────────────────
-  const { query, type: tFilter, status: stFilter, platform: pFilter, sort } = filters;
+  const { query, type: tFilter, status: stFilter, platform: pFilter, country: cFilter, sort } = filters;
+  const countries = useMemo(() => countryOptions(state.entries), [state.entries]);
+  // A country that no longer exists in the list (last title deleted) must not leave an empty view.
+  const activeCountry = countries.some((c) => c.name === cFilter) ? cFilter : '';
 
   // Search: typo-tolerant, accent-insensitive, ranked, with filters like year:2024 (src/lib/search.ts).
   const parsedQuery = useMemo(() => parseQuery(query), [query]);
@@ -271,11 +302,12 @@ export default function App() {
       if (tFilter && e.type !== tFilter) continue;
       if (stFilter && (m?.status ?? 'plan') !== stFilter) continue;
       if (pFilter && m?.watchPlatform !== pFilter) continue;
+      if (activeCountry && !hasCountry(e, activeCountry)) continue;
       scores.set(e.id, score);
       list.push(e);
     }
     return { filtered: list, scoreOf: scores };
-  }, [state.entries, state.meta, parsedQuery, tFilter, stFilter, pFilter]);
+  }, [state.entries, state.meta, parsedQuery, tFilter, stFilter, pFilter, activeCountry]);
   const rankByRelevance = !sort && (parsedQuery.terms.length > 0 || parsedQuery.phrases.length > 0);
 
   const navSections = useMemo(
@@ -311,7 +343,7 @@ export default function App() {
 
   const drawerEntry = drawerId ? state.entries.find((e) => e.id === drawerId) ?? null : null;
   const drawerMeta = drawerEntry ? state.meta[drawerEntry.id] ?? { id: drawerEntry.id, status: 'plan' as WatchStatus } : null;
-  const hasFilters = !!(parsedQuery.hasCriteria || tFilter || stFilter || pFilter || activeSection);
+  const hasFilters = !!(parsedQuery.hasCriteria || tFilter || stFilter || pFilter || activeCountry || activeSection);
   const highlight = parsedQuery.terms.length || parsedQuery.phrases.length ? parsedQuery : null;
 
   if (loading || !initialised) {
@@ -459,7 +491,11 @@ export default function App() {
               entries={state.entries}
               meta={state.meta}
               onOpen={(id) => setDrawerId(id)}
-              onResolved={(id, tmdbId) => updateEntry(id, { tmdbId })}
+              onResolved={(id, tmdbId) => {
+                // Pin the rating source first: a looked-up id must not relabel an IMDb score as TMDB.
+                const e = state.entries.find((x) => x.id === id);
+                updateEntry(id, { tmdbId, ratingSource: e?.ratingSource ?? 'imdb' });
+              }}
               onExported={(n) => addToast(`Calendar file with ${n} date${n === 1 ? '' : 's'} downloaded`, 'success')}
             />
           )}
@@ -468,7 +504,7 @@ export default function App() {
             <div className="pb-24">
               {/* Row 2: filters + sort + layout */}
               <div className="mb-5">
-                <FilterBar filters={filters} onChange={setFilters} sections={navSections} sectionCounts={sectionCounts} total={filtered.length}>
+                <FilterBar filters={{ ...filters, country: activeCountry }} onChange={setFilters} sections={navSections} sectionCounts={sectionCounts} total={filtered.length} countries={countries}>
                   <div className="ml-auto flex flex-shrink-0 rounded-lg border p-0.5" style={{ borderColor: 'var(--border-subtle)' }} role="group" aria-label="Layout">
                     {([['grid', LayoutGrid, 'Grid view'], ['list', Rows3, 'List view']] as const).map(([mode, Icon, label]) => (
                       <button
@@ -489,18 +525,23 @@ export default function App() {
               {groups.every((g) => g.entries.length === 0) ? (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-20 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
                   {hasFilters ? (
-                    <div className="flex flex-col items-center gap-3">
-                      <span>No titles in your list match{query ? <> “<b style={{ color: 'var(--text-primary)' }}>{query.trim()}</b>”</> : ' these filters'}.</span>
+                    // Watchlist search is for finding what you already have: one line, no suggestions,
+                    // just a shortcut to look the title up on Discover if it isn't in the list yet.
+                    <p>
+                      Not in your list{query.trim() ? <>: “<b style={{ color: 'var(--text-primary)' }}>{query.trim()}</b>”</> : ' with these filters'}.
                       {freeText(parsedQuery) && (
-                        <button
-                          onClick={() => { setActiveTab('discover'); setDiscoverQuery(freeText(parsedQuery)); }}
-                          className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white"
-                          style={{ background: 'var(--accent-purple)' }}
-                        >
-                          <Compass className="h-3.5 w-3.5" /> Search “{freeText(parsedQuery)}” on Discover
-                        </button>
+                        <>
+                          {' '}
+                          <button
+                            onClick={() => { setActiveTab('discover'); setDiscoverQuery(freeText(parsedQuery)); }}
+                            className="font-semibold underline-offset-2 hover:underline"
+                            style={{ color: 'var(--accent-purple)' }}
+                          >
+                            Find it on Discover →
+                          </button>
+                        </>
                       )}
-                    </div>
+                    </p>
                   ) : 'No entries yet. Click "+ Add" or explore the Discover tab.'}
                 </motion.div>
               ) : (
@@ -550,6 +591,7 @@ export default function App() {
       />
 
       <AddModal
+        onPasteList={openPasteList}
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onSave={handleSave}
@@ -586,13 +628,15 @@ export default function App() {
         region={region}
         onExport={handleExport}
         onImport={() => { setSettingsOpen(false); importRef.current?.click(); }}
+        onPasteList={() => openPasteList()}
       />
 
       <ExternalImportDialog
-        file={externalFile}
-        onCancel={() => setExternalFile(null)}
+        source={importSource}
+        onCancel={() => setImportSource(null)}
+        existing={state.entries}
         onImport={(items) => {
-          setExternalFile(null);
+          setImportSource(null);
           const imported: WatchlistState = {
             entries: items.map((i) => i.entry),
             meta: Object.fromEntries(items.map((i) => [i.entry.id, i.meta])),

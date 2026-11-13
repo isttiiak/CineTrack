@@ -1,15 +1,18 @@
+import { useEffect, useRef, useState } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { AnimatePresence, motion, Reorder, useDragControls } from 'framer-motion';
-import { X, Download, Upload, GripVertical, Sun, Moon, LayoutGrid, Rows3 } from 'lucide-react';
+import { X, Download, Upload, FileJson, Sheet, GripVertical, Sun, Moon, LayoutGrid, Rows3, ListPlus, Bookmark } from 'lucide-react';
 import type { Preferences } from '@/hooks/usePreferences';
 import type { ThemeMode, ViewMode } from '@/types';
+import type { ExportFormat } from '@/hooks/useWatchlist';
 import { SECTION_COLORS, SECTION_EMOJIS, PLATFORMS, cn } from '@/lib/utils';
 import { defaultRegion } from '@/lib/titleData';
+import { analyticsConfigured, analyticsPreference, browserOptedOut, setAnalyticsEnabled } from '@/lib/analytics';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const REGIONS = ['US', 'GB', 'CA', 'AU', 'NZ', 'IE', 'IN', 'BD', 'PK', 'SG', 'MY', 'ID', 'PH', 'TH', 'JP', 'KR',
   'AE', 'SA', 'TR', 'DE', 'FR', 'ES', 'IT', 'NL', 'BE', 'SE', 'NO', 'DK', 'FI', 'PL', 'BR', 'MX', 'AR', 'ZA'];
-const SERVICES = PLATFORMS.filter((p) => !['Torrent', 'FTB', 'Other'].includes(p));
+const SERVICES = PLATFORMS.filter((p) => p !== 'Other');
 const regionName = (code: string) => {
   try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(code) ?? code; } catch { return code; }
 };
@@ -27,8 +30,9 @@ interface Props {
   onReorderSections: (order: string[]) => void;
   entryCount: number;
   region: string;                           // effective region (saved or auto-detected)
-  onExport: () => void;
+  onExport: (format: ExportFormat) => void;
   onImport: () => void;
+  onPasteList: () => void;
 }
 
 function Switch({ checked, onChange, label, description }: { checked: boolean; onChange: (v: boolean) => void; label: string; description?: string }) {
@@ -107,7 +111,7 @@ const Heading = ({ children }: { children: React.ReactNode }) => (
 
 /** Right-side sheet (bottom sheet on mobile) with display preferences and data import/export. */
 export function SettingsPanel(props: Props) {
-  const { open, onClose, prefs, onPrefChange, theme, onThemeChange, view, onViewChange, sections, onReorderSections, entryCount, region, onExport, onImport } = props;
+  const { open, onClose, prefs, onPrefChange, theme, onThemeChange, view, onViewChange, sections, onReorderSections, entryCount, region, onExport, onImport, onPasteList } = props;
   const auto = defaultRegion();
   const regionOptions = [...new Set([auto, region, ...REGIONS])].sort((a, b) => regionName(a).localeCompare(regionName(b)));
   const toggleService = (svc: string) => onPrefChange('myServices',
@@ -156,7 +160,10 @@ export function SettingsPanel(props: Props) {
                       { value: 'list', label: 'List', icon: <Rows3 className="h-3.5 w-3.5" /> },
                     ]}
                   />
-                  <Switch label="Cursor glow" description="Soft spotlight that follows the mouse" checked={prefs.cursorGlow} onChange={(v) => onPrefChange('cursorGlow', v)} />
+                  {/* Mouse-only effect: pointless on phones and tablets. */}
+                  <div className="touch:hidden">
+                    <Switch label="Cursor glow" description="Soft spotlight that follows the mouse" checked={prefs.cursorGlow} onChange={(v) => onPrefChange('cursorGlow', v)} />
+                  </div>
 
                   <Heading>Watchlist</Heading>
                   <Switch
@@ -219,18 +226,63 @@ export function SettingsPanel(props: Props) {
                   )}
 
                   <Heading>Data</Heading>
-                  <p className="mb-2 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-                    Back up your {entryCount} titles as a JSON file. Import accepts a CineTrack backup,
-                    or your Letterboxd / IMDb export (.zip or .csv).
-                  </p>
-                  <div className="flex gap-2 px-3">
-                    <button onClick={onExport} className={dataBtn} style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}>
-                      <Download className="h-4 w-4" /> Export
-                    </button>
+                  <div className="grid gap-2 px-3">
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Export your {entryCount} titles:</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        ['json', <FileJson key="i" className="h-4 w-4" />, 'Backup', 'JSON · restores everything'],
+                        ['csv', <Sheet key="i" className="h-4 w-4" />, 'Spreadsheet', 'CSV · Excel, Sheets'],
+                        ['letterboxd-watched', <Download key="i" className="h-4 w-4" />, 'Letterboxd diary', 'Watched films + ratings'],
+                        ['letterboxd-watchlist', <Download key="i" className="h-4 w-4" />, 'Letterboxd watchlist', 'Films you plan to watch'],
+                      ] as [ExportFormat, React.ReactNode, string, string][]).map(([format, icon, label, hint]) => (
+                        <button
+                          key={format}
+                          onClick={() => onExport(format)}
+                          className="flex flex-col items-start gap-0.5 rounded-lg border px-3 py-2 text-left transition-colors hover:bg-[var(--bg-hover)]"
+                          style={{ borderColor: 'var(--border-subtle)' }}
+                        >
+                          <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{icon}{label}</span>
+                          <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{hint}</span>
+                        </button>
+                      ))}
+                    </div>
                     <button onClick={onImport} className={dataBtn} style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}>
                       <Upload className="h-4 w-4" /> Import
                     </button>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      Import accepts a CineTrack backup (.json) or spreadsheet (.csv), or your Letterboxd / IMDb export (.zip or .csv).
+                    </p>
                   </div>
+
+                  <Heading>Quick add</Heading>
+                  <div className="grid gap-2 px-3">
+                    <button onClick={onPasteList} className={dataBtn} style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}>
+                      <ListPlus className="h-4 w-4" /> Paste a list of titles
+                    </button>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      Tip: paste an IMDb/TMDB link or a list anywhere in the app to add it. On Android, use
+                      Share → CineTrack from the IMDb app.
+                    </p>
+                    <div className="touch:hidden">
+                      <p className="mb-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                        On a computer: drag this button to your bookmarks bar, then click it on any IMDb,
+                        TMDB or Letterboxd page to add that title.
+                      </p>
+                      <BookmarkletLink />
+                    </div>
+                  </div>
+
+                  <Heading>Privacy</Heading>
+                  <p className="px-3 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                    Your list stays in this browser. If you sign in with Google it is also stored in your own
+                    cloud account so it syncs between devices.
+                  </p>
+                  <AnalyticsSwitch />
+                  <p className="px-3 pt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--text-primary)]">
+                      Read the full privacy note
+                    </a>
+                  </p>
 
                   <Heading>About</Heading>
                   {/* Attribution required by the TMDB API terms. */}
@@ -247,5 +299,51 @@ export function SettingsPanel(props: Props) {
         )}
       </AnimatePresence>
     </DialogPrimitive.Root>
+  );
+}
+
+/**
+ * "+ CineTrack" bookmarklet: opens the app with the current page's URL and title, which the
+ * share-target handling turns into an add dialog. The href is set after mount because React
+ * warns about javascript: URLs in JSX.
+ */
+function BookmarkletLink() {
+  const ref = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    const code = `(()=>{window.open('${window.location.origin}/?url='+encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title),'_blank')})()`;
+    ref.current?.setAttribute('href', `javascript:${code}`);
+  }, []);
+  return (
+    <a
+      ref={ref}
+      onClick={(e) => e.preventDefault()}
+      draggable
+      className="inline-flex cursor-grab items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold active:cursor-grabbing"
+      style={{ borderColor: 'var(--accent-purple)', color: 'var(--accent-purple)' }}
+      title="Drag me to your bookmarks bar"
+    >
+      <Bookmark className="h-3.5 w-3.5" /> + CineTrack
+    </a>
+  );
+}
+
+const PRIVACY_URL = 'https://github.com/isttiiak/CineTrack/blob/main/PRIVACY.md';
+
+/** Opt-out for anonymous usage statistics; explains when nothing is collected anyway. */
+function AnalyticsSwitch() {
+  const [on, setOn] = useState(analyticsPreference);
+  if (!analyticsConfigured) {
+    return <p className="px-3 pt-2 text-xs" style={{ color: 'var(--text-muted)' }}>This copy of the app doesn't collect usage statistics.</p>;
+  }
+  const blocked = browserOptedOut();
+  return (
+    <Switch
+      label="Share anonymous usage statistics"
+      description={blocked
+        ? 'Off: your browser sends Do Not Track, so nothing is collected.'
+        : 'Which features get used: never titles, notes or links.'}
+      checked={on && !blocked}
+      onChange={(v) => { setOn(v); setAnalyticsEnabled(v); }}
+    />
   );
 }

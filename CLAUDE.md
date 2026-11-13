@@ -24,7 +24,8 @@ Scripts: `npm run dev` (5173) · `npm test` · `npm run lint` · `npm run build`
 ## Layout
 
 ```
-api/                    Vercel Functions (files starting with _ are shared code, not functions)
+api/                    Vercel Functions (files starting with _ are shared code, not functions).
+                        Relative imports here MUST end in .js (Vercel runs native ES modules); `npm run check:api` verifies it
   tmdb.ts  _tmdb.ts       TMDB proxy: allowlisted paths/params, adds the key server-side
   ratings.ts _ratings.ts  IMDb/RT/Metacritic/Letterboxd ratings via MDBList, OMDb fallback
 src/
@@ -34,7 +35,7 @@ src/
     filters/            SearchBox (tab-row search), FilterBar (dropdown filters + sort)
     import/             ExternalImportDialog (Letterboxd / IMDb CSV & ZIP)
     layout/             Header, UserProfile
-    profile/            ProfilePage (stats)
+    profile/            ProfilePage (Analytics)
     ratings/            RatingsRow, WhereToWatch
     settings/           SettingsPanel
     upcoming/           UpcomingPage
@@ -48,10 +49,14 @@ src/
     merge.ts                   three-way merge of watchlist states (the sync algorithm)
     schema.ts                  normalizeState: sanitises ALL untrusted input (import, LS, Firestore)
     search.ts                  watchlist search: parse, filters, fuzzy match, ranking, highlight
+    discoverSearch.ts          Discover search: relevance tiers + popularity, typo recovery, people
+    stats.ts                   everything on the Analytics page (pure, tested)
     duplicates.ts              findDuplicate (strict) / findSimilar (Add-form warning)
     titleData.ts               TMDB details/ratings/providers, id resolution, matching
     tmdb.ts                    client for /api/tmdb      links.ts  IMDb/TMDB link parsing
-    csvImport.ts importMatch.ts  external import parsing + TMDB matching
+    csvImport.ts importMatch.ts  external import + pasted lists → candidates → TMDB matching
+    exporters.ts download.ts     export formats (JSON v2, spreadsheet CSV, Letterboxd CSV)
+    countries.ts                 split/fold country text for the country filter, search and analytics
     progress.ts ics.ts analytics.ts utils.ts
   types/index.ts        MovieEntry, WatchMeta, WatchlistState, …
 firestore.rules         Security rules (deploy separately, see TODO.md)
@@ -111,8 +116,17 @@ prefix server keys with `VITE_`, which would ship them in the bundle). `.env.loc
 ## Features (where they live)
 
 - Watchlist: flat grid/list, optional grouping by section (Settings), section tag on cards,
-  filters + sort (`FilterBar`), bulk select, stats (`ProfilePage`).
-- Search (`lib/search.ts`, `SearchBox`): all words must match; accent/case/punctuation-insensitive;
+  filters (section, country, type, status, platform) + sort (`FilterBar`), bulk select,
+  analytics (`ProfilePage`). Country (not language) is the filter: it's already stored for every
+  title, works for manual/imported entries, and is what search and analytics use.
+- Two searches, two jobs. **Watchlist** = find what you have: precision, ranked by match
+  quality (never popularity), one-line "not in your list" + link to Discover, no suggestions.
+  **Discover** = explore: `lib/discoverSearch.ts` ranks by relevance tier (exact > starts with >
+  all words > word prefixes > typo) then popularity (log popularity + log vote count); retries
+  shortened words when TMDB finds little (TMDB has no fuzzy search) and reports "showing results
+  for …"; adds a searched person's known-for titles; supports `year:`, `is:series|film`,
+  `rating>`; empty results → one line + recommendations or trending.
+- Watchlist search (`lib/search.ts`, `SearchBox`): all words must match; accent/case/punctuation-insensitive;
   typo-tolerant (1 edit from 4 letters, 2 from 8; never for numbers); ranked (exact title > prefix
   > word > other fields > notes) unless an explicit sort is chosen; filters `year:2020-2024`,
   `year>2015`, `status:`/`is:watched`, `type:`/`is:series`, `genre:`, `country:`, `section:`,
@@ -126,7 +140,23 @@ prefix server keys with `VITE_`, which would ship them in the bundle). `.env.loc
 - Discover: trending / for-you / movies / TV, search or pasted IMDb/TMDB link, add dialog
   (status, optional date, rating, platform pre-filled from your services, section).
 - Upcoming: next episodes, premieres, releases, just aired, returning; `.ics` export.
-- Import: CineTrack JSON (merge/replace), Letterboxd ZIP/CSV, IMDb CSV (match + review).
+- Adding titles: Discover (+ dialog), Add form with TMDB suggestions, **paste a list** (one title
+  per line; `candidatesFromText`), paste an IMDb/TMDB link or a list **anywhere** in the app,
+  Android share target and the desktop **bookmarklet** (Settings) — both open `/?url=&title=`,
+  handled by `sharedTextFrom` (links, Letterboxd slugs, cleaned page titles).
+- Import: CineTrack JSON (merge/replace), Letterboxd ZIP/CSV, IMDb CSV, pasted lists — all go
+  through match + review (`ExternalImportDialog`), which flags titles already in the list.
+- Export (`lib/exporters.ts`): **JSON backup v2** = `{ app, version: 2, exportedAt, source,
+  summary, titles[], data }` — `titles` are readable self-contained records (details + your data,
+  ids, links, `publicRating {value, source}`), `data` is the exact state for lossless restore.
+  Import prefers `data`, falls back to `titles`, still reads v1 (`data` only). **Spreadsheet CSV**
+  (UTF-8 BOM, formula-safe cells) re-imports with status/rating/date/TMDB id intact.
+  **Letterboxd CSV** (films only): watched (Rating10, WatchedDate, Review) and watchlist.
+  Change the format → bump `EXPORT_VERSION` and keep older versions importable.
+- Analytics (`lib/stats.ts`, `ProfilePage`): period picker (all time / year), insights, watched,
+  time watched (film vs series), weekly streaks, backlog + time to clear at your pace, monthly
+  bars, day heatmap, rating histogram, you vs the crowd (IMDb/TMDB), genres with your avg
+  rating, decades, countries, platforms, section completion.
 - PWA with Android share target (`public/manifest.json` → `?url=` → Discover).
 
 ## Conventions
@@ -137,6 +167,17 @@ prefix server keys with `VITE_`, which would ship them in the bundle). `.env.loc
   empty date (= unknown).
 - Analytics: `track(event, params)` from `lib/analytics.ts`; no titles, notes or links in params.
 - New third-party origins must be added to the CSP in `vercel.json`.
+- Hover-only UI must use the `mouse:` variant (and touch alternatives `touch:` / `mouse:hidden`),
+  not `sm:` — phones "hover" on tap (custom screens in `tailwind.config.ts`).
+- Charts use the `--viz-*` tokens in `index.css` (validated for colour-blind separation and
+  contrast in both themes); single series = `--viz-seq`, two series = `--viz-1` / `--viz-2`,
+  heatmap = `--viz-heat-1..4`. Labels and values use text colours, never the series colour.
+- Stored values that get renamed or removed need a legacy map + migration in `schema.ts` (see
+  `LEGACY_PLATFORMS`): `normalizeState` converts on every read and flags the state in
+  `migratedStates` so local storage and the cloud copy are rewritten. Never just drop the value.
+- Privacy: `PRIVACY.md` must match what the code collects/sends; update it with any new analytics
+  event, third-party origin or stored field. Analytics honours the Settings opt-out and DNT/GPC.
+- Releases: update `CHANGELOG.md`, bump `package.json`, tag `vX.Y.Z` on `main`, publish a GitHub release with that section.
 - Tests live next to the code (`*.test.ts`); pure logic goes in `lib/` so it can be tested.
 - Keep CLAUDE.md, README.md and TODO.md in sync with the code.
 

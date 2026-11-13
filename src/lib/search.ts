@@ -1,4 +1,5 @@
 import type { MovieEntry, WatchMeta, WatchStatus } from '../types';
+import { countriesOf, matchesCountryText } from './countries';
 
 /**
  * Watchlist search.
@@ -116,7 +117,7 @@ function passesFilter(f: SearchFilter, e: MovieEntry, m: WatchMeta | undefined):
     case 'status': return STATUS_WORDS[f.value.replace(/[^a-z]/g, '')] === status;
     case 'type': return TYPE_WORDS[f.value] === e.type;
     case 'genre': return textHas(e.genre, f.value);
-    case 'country': return textHas(e.country, f.value);
+    case 'country': return matchesCountryText(e, f.value);
     case 'section': return textHas(e.section, f.value);
     case 'platform': return textHas(m?.watchPlatform, f.value);
     case 'rating': return compareNum(parseFloat(e.imdbRating), f.op === ':' ? '>=' : f.op, f.value);
@@ -155,7 +156,7 @@ export function scoreEntry(q: ParsedQuery, e: MovieEntry, m: WatchMeta | undefin
   // Type and status words are searchable too: "korean series", "watched nolan".
   const typeWords = e.type === 'Series' ? 'series show tv' : 'film movie';
   const statusWords = { plan: 'plan to watch planned', watching: 'watching', watched: 'watched seen' }[m?.status ?? 'plan'];
-  const other = normalize([e.genre, e.country, e.section, m?.watchPlatform, e.year, typeWords, statusWords].filter(Boolean).join(' '));
+  const other = normalize([e.genre, e.country, ...countriesOf(e), e.section, m?.watchPlatform, e.year, typeWords, statusWords].filter(Boolean).join(' '));
   const otherWords = other.split(' ');
   const notes = m?.notes ? normalize(m.notes) : '';
 

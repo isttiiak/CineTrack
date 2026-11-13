@@ -1,6 +1,6 @@
 import type { MovieEntry, WatchMeta } from '../types';
 import type { ImportCandidate } from './csvImport';
-import { findByImdb, searchTitle, TMDB_GENRES, type TmdbKind } from './titleData';
+import { findByImdb, getDetails, searchTitle, TMDB_GENRES, type TmdbKind } from './titleData';
 import { TMDB_IMG } from './tmdb';
 
 export interface MatchHit {
@@ -33,11 +33,20 @@ function toHit(h: { id: number; title?: string; name?: string; release_date?: st
 }
 
 async function matchOne(c: ImportCandidate): Promise<MatchResult> {
+  if (c.tmdbRef) {
+    const d = await getDetails(c.tmdbRef.kind, c.tmdbRef.id).catch(() => null);
+    if (d) return { candidate: c, hit: toHit({ ...d, genre_ids: (d.genres ?? []).map((g) => g.id) }, c.tmdbRef.kind), confident: true };
+  }
   if (c.imdbId) {
     const found = await findByImdb(c.imdbId).catch(() => null);
     if (found) return { candidate: c, hit: toHit(found.hit, found.kind), confident: true };
   }
   const kind: TmdbKind | 'any' = c.type === 'Series' ? 'tv' : c.type === 'Film' ? 'movie' : 'any';
+  // "Wonder Woman 1984": a title that ends in a year-like number wins over "Wonder Woman" from 1984.
+  if (c.fullTitle) {
+    const whole = await searchTitle(c.fullTitle, '', kind).catch(() => null);
+    if (whole?.confident) return { candidate: c, hit: toHit(whole.hit, whole.kind), confident: true };
+  }
   const m = await searchTitle(c.title, c.year, kind).catch(() => null);
   return m ? { candidate: c, hit: toHit(m.hit, m.kind), confident: m.confident } : { candidate: c, hit: null, confident: false };
 }

@@ -155,3 +155,44 @@ describe('upcomingFor', () => {
     expect(upcomingFor(film, 'plan', { release_date: '2025-01-01' }, today)).toEqual([]);
   });
 });
+
+describe('candidatesFromText (paste a list)', () => {
+  it('reads one title per line with bullets, years, types and links', async () => {
+    const { candidatesFromText } = await import('./csvImport');
+    const list = candidatesFromText([
+      '1. Inception (2010)',
+      '- Breaking Bad (series)',
+      '• Past Lives 2023',
+      'https://www.imdb.com/title/tt0816692/',
+      'https://www.themoviedb.org/tv/1399-game-of-thrones',
+      'Inception (2010)',
+      '',
+    ].join('\n'), 'watched');
+    expect(list.map((c) => [c.title, c.year, c.type, c.imdbId, c.tmdbRef?.id, c.status])).toEqual([
+      ['Inception', '2010', undefined, undefined, undefined, 'watched'],
+      ['Breaking Bad', '', 'Series', undefined, undefined, 'watched'],
+      ['Past Lives', '2023', undefined, undefined, undefined, 'watched'],
+      ['', '', undefined, 'tt0816692', undefined, 'watched'],
+      ['', '', 'Series', undefined, 1399, 'watched'],
+    ]);
+  });
+
+  it('splits a single line on semicolons, or commas when it is clearly a list', async () => {
+    const { candidatesFromText } = await import('./csvImport');
+    expect(candidatesFromText('Dune; Heat; Alien').map((c) => c.title)).toEqual(['Dune', 'Heat', 'Alien']);
+    expect(candidatesFromText('Dune, Heat, Alien, Up').map((c) => c.title)).toEqual(['Dune', 'Heat', 'Alien', 'Up']);
+    expect(candidatesFromText('Crouching Tiger, Hidden Dragon').map((c) => c.title)).toEqual(['Crouching Tiger, Hidden Dragon']);
+    expect(candidatesFromText('Blade Runner 2049').map((c) => [c.title, c.year])).toEqual([['Blade Runner 2049', '']]);
+  });
+});
+
+describe('shared pages from other sites', () => {
+  it('cleans page titles into a Discover search', async () => {
+    const { cleanPageTitle, sharedTextFrom } = await import('./links');
+    expect(cleanPageTitle('Dune: Part Two (2024) - IMDb')).toBe('Dune: Part Two year:2024');
+    expect(cleanPageTitle('Spider-Man: No Way Home (2021) - IMDb')).toBe('Spider-Man: No Way Home year:2021');
+    expect(cleanPageTitle('Watch Wednesday | Netflix Official Site')).toBe('Wednesday');
+    expect(sharedTextFrom(new URLSearchParams({ url: 'https://letterboxd.com/film/past-lives/', title: 'Past Lives (2023) • Letterboxd' }))).toBe('past lives');
+    expect(sharedTextFrom(new URLSearchParams({ url: 'https://www.netflix.com/title/81231974', title: 'Watch Wednesday | Netflix Official Site' }))).toBe('Wednesday');
+  });
+});

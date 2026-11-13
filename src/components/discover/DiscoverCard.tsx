@@ -72,7 +72,7 @@ export function DiscoverCard({ item, inList, adding, reason, listStatus, onAdd, 
             )}
             <button
               onClick={onEdit}
-              className="ml-auto flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-black/70 text-white transition-colors hover:bg-indigo-500"
+              className="ml-auto hidden h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-black/70 text-white transition-colors hover:bg-indigo-500 mouse:flex"
               aria-label={`Edit ${title} in your list`}
               title="Edit in your list"
             >
@@ -83,7 +83,7 @@ export function DiscoverCard({ item, inList, adding, reason, listStatus, onAdd, 
 
         {/* Add overlay on hover (desktop) */}
         <div
-          className={`absolute inset-0 items-end justify-center pb-3 opacity-0 transition-opacity group-hover:opacity-100 ${inList && onEdit ? 'hidden' : 'flex'}`}
+          className={`absolute inset-0 hidden items-end justify-center pb-3 opacity-0 transition-opacity group-hover:opacity-100 ${inList && onEdit ? '' : 'mouse:flex'}`}
           style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 60%)' }}
         >
           <button
@@ -116,7 +116,7 @@ export function DiscoverCard({ item, inList, adding, reason, listStatus, onAdd, 
         <button
           onClick={inList && onEdit ? onEdit : onAdd}
           disabled={(inList && !onEdit) || adding}
-          className="mt-1.5 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-semibold transition-colors sm:hidden"
+          className="mt-1.5 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-semibold transition-colors mouse:hidden"
           style={{
             background: inList ? 'color-mix(in srgb, var(--accent-green) 15%, transparent)' : 'color-mix(in srgb, var(--accent-purple) 20%, transparent)',
             color: inList ? 'var(--accent-green)' : 'var(--accent-purple)',
@@ -130,7 +130,7 @@ export function DiscoverCard({ item, inList, adding, reason, listStatus, onAdd, 
       <a
         href={`https://www.themoviedb.org/${item.media_type}/${item.id}`}
         target="_blank" rel="noopener noreferrer"
-        className="absolute bottom-2 right-2 hidden opacity-0 transition-opacity group-hover:opacity-50 sm:block"
+        className="absolute bottom-2 right-2 hidden opacity-0 transition-opacity group-hover:opacity-50 mouse:block"
         title="View on TMDB"
       >
         <ExternalLink className="h-3 w-3" style={{ color: 'var(--text-muted)' }} />

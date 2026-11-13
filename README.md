@@ -1,5 +1,8 @@
 # <img src="public/favicon.svg" alt="CineTrack logo" width="48" style="height:auto;" /> CineTrack
 
+[![CI](https://github.com/isttiiak/CineTrack/actions/workflows/ci.yml/badge.svg)](https://github.com/isttiiak/CineTrack/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A personal movie and TV series watchlist tracker. Works instantly as a guest, or sign in with Google for permanent cloud sync across all your devices.
 
 
@@ -16,10 +19,24 @@ A personal movie and TV series watchlist tracker. Works instantly as a guest, or
 - Personal rating (1–10), notes, platform, private watch link and watched date per title
 - **Episode progress** for series (S2 · E5, +1 episode). The status follows automatically: started → Watching, finished an ended show → Watched.
 - Flat poster grid (or compact list) with a small section tag; optional grouping by section
-- **Smart search**: typo-tolerant ("oppenhiemer"), ignores accents, ranks best matches first, highlights them, and understands filters like `year:2020-2024 is:watched rating>8 genre:thriller`. Press `/` or ⌘K to search.
-- Filter by section / type / status / platform, and sort
+- **Smart search**: typo-tolerant ("oppenhiemer"), ignores accents, ranks best matches first, highlights them, and understands filters like `year:2020-2024 is:watched rating>8 genre:thriller`. Press `/` or ⌘K to search. On Discover, results are ranked by match then popularity, typos are corrected ("showing results for …"), and searching a person ("nolan") shows their films.
+- Filter by section / country / type / status / platform, and sort
 - **Duplicate protection**: the Add form suggests TMDB matches as you type and warns about titles you already have (even with typos, a different type, or "Part 2" vs "Part Two"). Discover cards show titles already in your list, with an Edit button.
 - Bulk select, duplicate detection, stats (hours watched, heatmap, genres, platforms)
+
+### Adding titles
+- Search Discover (or paste an IMDb / TMDB link) and add with status, date, rating and platform
+- The Add form suggests TMDB matches as you type and fills in everything
+- **Paste a list**: one title per line from notes or chats, matched and reviewed before adding
+- Paste a link or a list **anywhere** in the app
+- **Bookmarklet** (Settings): click "+ CineTrack" on any IMDb, TMDB or Letterboxd page
+- Android: Share → CineTrack; imports from Letterboxd and IMDb
+
+### Analytics
+- Insights, time watched (films vs series), weekly streaks, backlog and time to clear it
+- Monthly and day-by-day activity, rating distribution, you vs IMDb/TMDB
+- Top genres with your average rating, decades, countries, platforms, section completion
+- All time or any single year
 
 ### Ratings & where to watch
 - **Ratings from IMDb, Rotten Tomatoes (critics + audience), Metacritic, Letterboxd and TMDB** on Discover cards and in each title's details (needs a free MDBList or OMDb key, see below)
@@ -37,7 +54,8 @@ A personal movie and TV series watchlist tracker. Works instantly as a guest, or
 
 ### Import & sync
 - **Import from Letterboxd** (the export `.zip`, or `diary.csv` / `ratings.csv` / `watched.csv` / `watchlist.csv`) and **IMDb** (ratings or watchlist CSV). Titles are matched on TMDB and uncertain matches are shown for review first.
-- JSON backup export / import (merge or replace)
+- Export a **backup** (readable JSON that also restores everything), a **spreadsheet** (CSV for Excel / Google Sheets), or **Letterboxd** files (watched films with ratings and dates, and your watchlist) to move your films there
+- Import a CineTrack backup or spreadsheet (merge or replace)
 - Guest mode (no sign-in) or Google sign-in with Firestore sync. Edits from several devices are merged field by field.
 
 ### App
@@ -215,4 +233,6 @@ signals Do Not Track or Global Privacy Control. Events carry no titles, notes or
 
 ## License
 
-MIT — use it, fork it, make it yours.
+[MIT](LICENSE): use it, fork it, make it yours. Title data, posters and streaming availability come from
+[TMDB](https://www.themoviedb.org/) and JustWatch, and ratings from MDBList / OMDb; those services have their own
+terms (TMDB's API is free for non-commercial use). See [PRIVACY.md](PRIVACY.md) for what data the app stores and sends.

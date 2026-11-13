@@ -40,9 +40,13 @@ export function parseMins(d?: string): number | null {
   return t;
 }
 
-/** Where an entry's star rating came from. Older entries added from Discover predate the field and hold TMDB scores. */
-export function ratingSourceOf(entry: { ratingSource?: 'imdb' | 'tmdb'; tmdbId?: number }): 'imdb' | 'tmdb' {
-  return entry.ratingSource ?? (entry.tmdbId ? 'tmdb' : 'imdb');
+/**
+ * Where an entry's star rating came from. Entries added from Discover before the field existed
+ * hold TMDB scores; starter-list (seed) titles always had IMDb scores, even after the app looked
+ * up their TMDB id.
+ */
+export function ratingSourceOf(entry: { ratingSource?: 'imdb' | 'tmdb'; tmdbId?: number; isCustom?: boolean }): 'imdb' | 'tmdb' {
+  return entry.ratingSource ?? (entry.tmdbId && entry.isCustom !== false ? 'tmdb' : 'imdb');
 }
 
 export function getImdbColor(rating: string): string {
@@ -71,10 +75,14 @@ export const PLATFORMS = [
   'Disney+',
   'HBO Max',
   'YouTube',
-  'Torrent',
-  'FTB',
   'Other',
 ] as const;
+
+/** Platform names from older versions → their replacement. Applied whenever data is read (schema.ts). */
+export const LEGACY_PLATFORMS: Record<string, (typeof PLATFORMS)[number]> = {
+  torrent: 'Other',
+  ftb: 'Other',
+};
 
 export const GENRES = [
   'Action', 'Adventure', 'Animation', 'Biography', 'Comedy', 'Crime',

@@ -1,4 +1,5 @@
 import type { MediaType, WatchStatus } from '../types';
+import { parseTitleLink } from './links';
 
 /** One title read from another site's export, before it is matched to TMDB. */
 export interface ImportCandidate {
@@ -10,12 +11,14 @@ export interface ImportCandidate {
   status: WatchStatus;
   rating?: number;            // 1–10
   watchedOn?: string;         // YYYY-MM-DD
-  source: 'letterboxd' | 'imdb' | 'csv';
+  tmdbRef?: { kind: 'movie' | 'tv'; id: number };   // from a pasted TMDB link
+  fullTitle?: string;         // "Wonder Woman 1984": the trailing number might be part of the title
+  source: 'letterboxd' | 'imdb' | 'csv' | 'text';
 }
 
 export type ExportKind =
   | 'letterboxd-watched' | 'letterboxd-ratings' | 'letterboxd-diary' | 'letterboxd-watchlist'
-  | 'imdb' | 'generic';
+  | 'imdb' | 'cinetrack' | 'generic';
 
 /** RFC 4180 CSV: quoted fields, escaped quotes (""), commas and newlines inside quotes, CRLF or LF. */
 export function parseCsv(text: string): string[][] {
@@ -56,6 +59,7 @@ export function detectKind(headers: string[], fileName = ''): ExportKind {
     return 'letterboxd-watched';
   }
   if (has('const') || h.some((x) => x === 'your rating' || x === 'title type')) return 'imdb';
+  if (has('title', 'status', 'my rating', 'tmdb id')) return 'cinetrack';
   return 'generic';
 }
 
@@ -118,6 +122,22 @@ export function candidatesFrom(rows: string[][], fileName = ''): { kind: ExportK
         rating,
         watchedOn: isoDate(get(row, 'date rated')),
       });
+    } else if (kind === 'cinetrack') {
+      // Our own spreadsheet export: keep status, rating, date and the exact TMDB id.
+      const title = get(row, 'title');
+      if (!title) continue;
+      const tmdb = parseInt(get(row, 'tmdb id') ?? '', 10);
+      const type: MediaType = /series/i.test(get(row, 'type') ?? '') ? 'Series' : 'Film';
+      const status = (get(row, 'status') ?? '').toLowerCase();
+      out.push({
+        key: Number.isFinite(tmdb) ? `tmdb:${type}/${tmdb}` : `${title.toLowerCase()}|${get(row, 'year') ?? ''}`,
+        title, year: get(row, 'year') ?? '', type, source: 'csv',
+        imdbId: get(row, 'imdb id')?.match(/tt\d+/)?.[0],
+        ...(Number.isFinite(tmdb) ? { tmdbRef: { kind: type === 'Series' ? 'tv' as const : 'movie' as const, id: tmdb } } : {}),
+        status: status.startsWith('watched') ? 'watched' : status.startsWith('watching') ? 'watching' : 'plan',
+        rating: ratingOf(get(row, 'my rating'), 10),
+        watchedOn: isoDate(get(row, 'watched on')),
+      });
     } else {
       const title = get(row, 'title', 'name', 'film', 'movie');
       if (!title) continue;
@@ -171,4 +191,60 @@ export async function readExportFile(file: File): Promise<{ kinds: ExportKind[];
   }
   const parsed = files.map((f) => candidatesFrom(parseCsv(f.text), f.name));
   return { kinds: parsed.map((p) => p.kind), candidates: mergeCandidates(parsed.map((p) => p.candidates)) };
+}
+
+const BULLET = /^\s*(?:[-*•·▪◦–—>]+|\d{1,4}[.):]|\[[ x]\])\s*/i;
+
+/**
+ * A pasted list → candidates. One title per line (bullets and numbering are fine); a single line
+ * can also be separated by semicolons, or by commas when it clearly is a list. Understands
+ * "Title (2010)", "Title 2010", "Title (series)", IMDb/TMDB links and bare tt ids.
+ */
+export function candidatesFromText(text: string, status: WatchStatus = 'plan'): ImportCandidate[] {
+  let lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 1) {
+    const one = lines[0];
+    if (one.includes(';')) lines = one.split(';');
+    else {
+      const parts = one.split(',').map((p) => p.trim()).filter(Boolean);
+      if (parts.length >= 3 && parts.every((p) => p.split(/\s+/).length <= 6)) lines = parts;
+    }
+  }
+  const out: ImportCandidate[] = [];
+  const seen = new Set<string>();
+  for (const rawLine of lines) {
+    let line = rawLine.replace(BULLET, '').trim();
+    if (!line) continue;
+
+    const link = parseTitleLink(line.match(/https?:\/\/\S+/)?.[0] ?? line);
+    if (link) {
+      const key = link.kind === 'imdb' ? link.id : `tmdb:${link.type}/${link.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        key, title: '', year: '', status, source: 'text',
+        ...(link.kind === 'imdb' ? { imdbId: link.id } : { tmdbRef: { kind: link.type, id: link.id }, type: link.type === 'tv' ? 'Series' : 'Film' }),
+      });
+      continue;
+    }
+
+    let type: MediaType | undefined;
+    line = line.replace(/\s*[([](tv|series|show|tv series|mini-?series)[)\]]\s*/i, () => { type = 'Series'; return ' '; })
+      .replace(/\s*[([](film|movie)[)\]]\s*/i, () => { type = 'Film'; return ' '; });
+    let year = '';
+    line = line.replace(/\s*[([]((?:19|20)\d{2})[)\]]\s*/, (_, y: string) => { year = y; return ' '; }).trim();
+    let fullTitle: string | undefined;
+    if (!year) {
+      // "Past Lives 2023" → year; "Blade Runner 2049" (future) stays part of the title.
+      const m = line.match(/^(.{2,}?)\s+[-–]?\s*((?:19|20)\d{2})$/);
+      if (m && +m[2] <= new Date().getFullYear() + 2) { fullTitle = line; line = m[1].trim(); year = m[2]; }
+    }
+    const title = line.replace(/\s{2,}/g, ' ').replace(/[\s,;:–-]+$/, '').slice(0, 200);
+    if (!title) continue;
+    const key = `text:${title.toLowerCase()}|${year}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ key, title, year, type, status, source: 'text', ...(fullTitle ? { fullTitle } : {}) });
+  }
+  return out.slice(0, 500);
 }
