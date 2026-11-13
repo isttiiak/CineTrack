@@ -40,7 +40,7 @@ src/
     settings/           SettingsPanel
     upcoming/           UpcomingPage
     watchlist/          EntryCard (grid), EntryRow (list), EntryDrawer (details), AddModal, PosterThumb, StatusBadge
-    ui/                 Radix-based primitives, toast, dialogs, HighlightText
+    ui/                 Radix-based primitives, toast, dialogs, HighlightText, WatchDateField
   hooks/                useWatchlist (state + sync), useFirestore (debounced saves), useAuth,
                         usePreferences, useTMDB (posters), useTMDBDiscover, useRatings,
                         useRecommendations, useUpcoming, useTitleSuggestions, useToast, useCursorGlow
@@ -57,6 +57,9 @@ src/
     csvImport.ts importMatch.ts  external import + pasted lists → candidates → TMDB matching
     exporters.ts download.ts     export formats (JSON v2, spreadsheet CSV, Letterboxd CSV)
     countries.ts                 split/fold country text for the country filter, search and analytics
+    watchDate.ts                 "watched on" as YYYY / YYYY-MM / YYYY-MM-DD: parse, format, clamp to the past
+    recommend.ts                 "For you" scoring (seed weights, taste profile, quality, variety)
+    discoverFeeds.ts             Coming soon feed + isUnreleased()
     progress.ts ics.ts analytics.ts utils.ts
   types/index.ts        MovieEntry, WatchMeta, WatchlistState, …
 firestore.rules         Security rules (deploy separately, see TODO.md)
@@ -68,7 +71,7 @@ vercel.json             Security headers incl. Content-Security-Policy
 ```ts
 MovieEntry  { id, title, year, type: 'Film'|'Series', section, country, genre, imdbRating,
               ratingSource?: 'imdb'|'tmdb', imdbUrl, posterUrl?, tmdbId?, isCustom }
-WatchMeta   { id, status: 'plan'|'watching'|'watched', personalRating?, notes?, watchedOn?,
+WatchMeta   { id, status: 'plan'|'watching'|'watched', personalRating?, notes?, watchedOn?,  // 'YYYY' | 'YYYY-MM' | 'YYYY-MM-DD'
               watchPlatform?, watchLink?, duration?, progressSeason?, progressEpisode? }
 WatchlistState { entries[], meta: Record<id, WatchMeta>, sectionOrder[], lastModified }
 ```
@@ -135,10 +138,22 @@ prefix server keys with `VITE_`, which would ship them in the bundle). `.env.loc
 - Duplicates (`lib/duplicates.ts`): strict = same IMDb id / TMDB id+type / normalized title+type
   with compatible years ("Part Two" = "Part 2" = "Part II"). Add form uses `findSimilar` (also
   other type, spacing, typos) and TMDB suggestions; Discover cards show in-list status + Edit.
-- Detail drawer: all ratings, where to watch (+ "set platform"), episode progress, auto-enrichment
-  (resolves tmdbId, swaps TMDB score for live IMDb rating).
-- Discover: trending / for-you / movies / TV, search or pasted IMDb/TMDB link, add dialog
-  (status, optional date, rating, platform pre-filled from your services, section).
+- Detail drawer (`EntryDrawer`): built around daily edits, all in place: status, **watched on** (year /
+  month / day via `WatchDateField`, never in the future; marking watched auto-fills today and pulses the
+  card with the `.attention` animation), rating, episode progress, platform chips, notes (save/cancel,
+  Esc cancels the editor not the drawer). Below: ratings and where to watch. "Edit details" (AddModal)
+  is for rarely-changed facts. Partial dates count in year/month totals but not the daily heatmap or
+  streaks; Letterboxd export only gets full dates. Auto-enrichment resolves tmdbId and swaps TMDB
+  score for the live IMDb rating.
+- Discover: trending / for-you / **coming soon** / movies / TV, search or pasted IMDb/TMDB link, add
+  dialog (status, optional date, rating, platform pre-filled from your services, section).
+  Trending is TMDB attention-based, so unreleased blockbusters appear there; cards show
+  "Releases <date>" and the add dialog only allows Plan to Watch for them. Coming soon =
+  `discover/movie|tv` by release date + popularity (allowlisted in the proxy).
+- For you (`lib/recommend.ts`): up to 8 seeds weighted by rating (10→3 … watched-unrated→1; ≤4 never
+  seeds and counts against its genres), TMDB recommendations per seed, score = multi-seed affinity ×
+  quality (Bayesian-damped votes) + genre fit + small popularity; drops listed/obscure/poorly reviewed
+  titles; no seed fills more than 7 of the list; seeds without a tmdbId get one resolved.
 - Upcoming: next episodes, premieres, releases, just aired, returning; `.ics` export.
 - Adding titles: Discover (+ dialog), Add form with TMDB suggestions, **paste a list** (one title
   per line; `candidatesFromText`), paste an IMDb/TMDB link or a list **anywhere** in the app,
@@ -167,6 +182,9 @@ prefix server keys with `VITE_`, which would ship them in the bundle). `.env.loc
   empty date (= unknown).
 - Analytics: `track(event, params)` from `lib/analytics.ts`; no titles, notes or links in params.
 - New third-party origins must be added to the CSP in `vercel.json`.
+- Dark only: there is no light theme. Colours come from tokens in `index.css` (`--accent` gold,
+  `--accent-gradient`, `--accent-fg` for text on it, `--status-*`, `--viz-*`); use Tailwind `brand`
+  (`text-brand`, `bg-brand/10`) or the CSS variables, never hard-coded purple/indigo.
 - Hover-only UI must use the `mouse:` variant (and touch alternatives `touch:` / `mouse:hidden`),
   not `sm:` — phones "hover" on tap (custom screens in `tailwind.config.ts`).
 - Charts use the `--viz-*` tokens in `index.css` (validated for colour-blind separation and

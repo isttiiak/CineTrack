@@ -32,7 +32,7 @@ import { SECTION_COLORS, SECTION_EMOJIS, cn } from '@/lib/utils';
 import { defaultRegion } from '@/lib/titleData';
 import { parseTitleLink, sharedTextFrom } from '@/lib/links';
 import { countryOptions, hasCountry } from '@/lib/countries';
-import type { FilterState, MovieEntry, WatchMeta, ThemeMode, WatchStatus, ViewMode, WatchlistState } from '@/types';
+import type { FilterState, MovieEntry, WatchMeta, WatchStatus, ViewMode, WatchlistState } from '@/types';
 
 type Tab = 'watchlist' | 'discover' | 'upcoming';
 
@@ -64,13 +64,13 @@ export default function App() {
 
   const { toasts, addToast, removeToast } = useToast();
   const { glowRef, pulse } = useCursorGlow();
-  const [theme, setTheme] = useLocalStorage<ThemeMode>('cinetrack_theme', 'dark');
   const [view, setView] = useLocalStorage<ViewMode>('cinetrack_view', 'grid');
   const { prefs, setPref } = usePreferences();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const [discoverQuery, setDiscoverQuery] = useState('');
   const [shareIntent, setShareIntent] = useState(false);
+  const [discoverStart, setDiscoverStart] = useState<'trending' | 'soon'>('trending');
   const region = prefs.region || defaultRegion();
   const [modalOpen, setModalOpen] = useState(false);
   const [editEntry, setEditEntry] = useState<MovieEntry | null>(null);
@@ -87,10 +87,6 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const importRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('light', theme === 'light');
-  }, [theme]);
 
   useEffect(() => {
     if (user) saveUserProfile(user).catch(() => {});
@@ -147,8 +143,6 @@ export default function App() {
     window.addEventListener('scroll', handler, { passive: true });
     return () => window.removeEventListener('scroll', handler);
   }, []);
-
-  const changeTheme = (next: ThemeMode) => { if (next === theme) return; setTheme(next); track('theme_toggled', { theme: next }); };
 
   // ── Auth ────────────────────────────────────────────────────────────────
   const handleSignIn = async () => {
@@ -348,9 +342,9 @@ export default function App() {
 
   if (loading || !initialised) {
     return (
-      <div className="flex h-screen items-center justify-center" style={{ background: 'var(--bg-base)' }}>
+      <div className="app-bg flex h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand border-t-transparent" />
           <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading CineTrack…</span>
         </div>
       </div>
@@ -385,7 +379,7 @@ export default function App() {
 
   const tabBtn = (tab: Tab, icon: React.ReactNode, label: string) => (
     <button
-      onClick={() => { setActiveTab(tab); exitSelect(); }}
+      onClick={() => { if (tab === 'discover') setDiscoverStart('trending'); setActiveTab(tab); exitSelect(); }}
       title={label}
       aria-label={label}
       aria-pressed={activeTab === tab}
@@ -401,7 +395,7 @@ export default function App() {
   );
 
   return (
-    <div className="relative min-h-screen" style={{ background: 'var(--bg-base)' }}>
+    <div className="app-bg relative min-h-screen">
       {/* Always mounted (the glow hook binds to it once); hidden when the effect is off. */}
       <div ref={glowRef} className={cn('pointer-events-none fixed inset-0 z-0', !prefs.cursorGlow && 'hidden')} />
 
@@ -409,11 +403,9 @@ export default function App() {
         <Header
           state={state}
           user={user}
-          theme={theme}
           lastSync={lastSync}
           syncStatus={syncStatus}
           cloudError={cloudError}
-          onToggleTheme={() => changeTheme(theme === 'dark' ? 'light' : 'dark')}
           onSignIn={handleSignIn}
           onSignOut={handleSignOut}
           onSettings={() => setSettingsOpen(true)}
@@ -452,9 +444,9 @@ export default function App() {
                   title={selectMode ? 'Done selecting' : 'Select entries'}
                   className="flex h-9 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition-colors"
                   style={{
-                    color: selectMode ? 'var(--accent-purple)' : 'var(--text-muted)',
-                    borderColor: selectMode ? 'var(--accent-purple)' : 'var(--border-subtle)',
-                    background: selectMode ? 'color-mix(in srgb, var(--accent-purple) 10%, transparent)' : 'transparent',
+                    color: selectMode ? 'var(--accent)' : 'var(--text-muted)',
+                    borderColor: selectMode ? 'var(--accent)' : 'var(--border-subtle)',
+                    background: selectMode ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'transparent',
                   }}
                 >
                   <CheckSquare className="h-3.5 w-3.5" /> <span className={selectMode ? '' : 'hidden min-[420px]:inline'}>{selectMode ? 'Done' : 'Select'}</span>
@@ -477,6 +469,7 @@ export default function App() {
               openFirstResult={shareIntent}
               onOpenedFirstResult={() => setShareIntent(false)}
               onEdit={openEdit}
+              initialTab={discoverStart}
               onAdd={(entryData, metaData) => {
                 addEntry(entryData, metaData);
                 addToast(`Added to watchlist${metaData.status && metaData.status !== 'plan' ? ` as ${metaData.status}` : ''}`, 'success');
@@ -496,6 +489,7 @@ export default function App() {
                 const e = state.entries.find((x) => x.id === id);
                 updateEntry(id, { tmdbId, ratingSource: e?.ratingSource ?? 'imdb' });
               }}
+              onBrowseComingSoon={() => { setDiscoverStart('soon'); setActiveTab('discover'); exitSelect(); }}
               onExported={(n) => addToast(`Calendar file with ${n} date${n === 1 ? '' : 's'} downloaded`, 'success')}
             />
           )}
@@ -535,7 +529,7 @@ export default function App() {
                           <button
                             onClick={() => { setActiveTab('discover'); setDiscoverQuery(freeText(parsedQuery)); }}
                             className="font-semibold underline-offset-2 hover:underline"
-                            style={{ color: 'var(--accent-purple)' }}
+                            style={{ color: 'var(--accent)' }}
                           >
                             Find it on Discover →
                           </button>
@@ -555,7 +549,7 @@ export default function App() {
                           title={`Show only ${section}`}
                         >
                           <span className="text-base">{SECTION_EMOJIS[section] ?? '🎬'}</span>
-                          <h2 className="text-sm font-semibold tracking-wide" style={{ color: SECTION_COLORS[section] ?? '#818cf8' }}>{section}</h2>
+                          <h2 className="text-sm font-semibold tracking-wide" style={{ color: SECTION_COLORS[section] ?? '#f2b24a' }}>{section}</h2>
                           <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{entries.length}</span>
                           <span className="h-px flex-1" style={{ background: 'var(--border-subtle)' }} />
                         </button>
@@ -587,7 +581,13 @@ export default function App() {
           setProgress(drawerEntry.id, pos, status);
           if (status !== before) { addToast(status === 'watched' ? 'Finished — marked as watched' : `Marked as ${status}`, 'success'); pulse(); }
         }}
-        onSetPlatform={(p) => { if (drawerEntry) { setMeta(drawerEntry.id, { watchPlatform: p }); track('platform_set', { platform: p }); } }}
+        onPlatformChange={(p) => { if (drawerEntry) { setMeta(drawerEntry.id, { watchPlatform: p }); if (p) track('platform_set', { platform: p }); } }}
+        onWatchedOnChange={(d) => { if (drawerEntry) setMeta(drawerEntry.id, { watchedOn: d }); }}
+        onNotesChange={(n) => {
+          if (!drawerEntry) return;
+          setMeta(drawerEntry.id, { notes: n || undefined });
+          if (n) track('notes_saved');
+        }}
       />
 
       <AddModal
@@ -618,8 +618,6 @@ export default function App() {
         onClose={() => setSettingsOpen(false)}
         prefs={prefs}
         onPrefChange={setPref}
-        theme={theme}
-        onThemeChange={changeTheme}
         view={view}
         onViewChange={setView}
         sections={navSections}
@@ -679,7 +677,7 @@ export default function App() {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="fixed bottom-6 right-6 z-40 flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500 text-white shadow-lg transition-colors hover:bg-indigo-600"
+            className="fixed bottom-6 right-6 z-40 flex h-10 w-10 items-center justify-center rounded-full bg-[image:var(--accent-gradient)] text-[var(--accent-fg)] shadow-lg transition-[filter] hover:brightness-110"
             aria-label="Scroll to top"
           >
             <ArrowUp className="h-4 w-4" />

@@ -4,6 +4,38 @@ All notable changes to CineTrack. Dates are `YYYY-MM-DD`. Versions follow
 [Semantic Versioning](https://semver.org/). Earlier history: see the
 [v1.0.0 release](https://github.com/isttiiak/CineTrack/releases/tag/v1.0.0).
 
+## [1.2.0] - 2026-11-13
+
+A daily-use details drawer, watch dates you can record as precisely as you remember them, a Coming
+soon feed, smarter recommendations, and a new dark-only look.
+
+### Added
+
+- **Details drawer redesigned for daily use**: status, watch date, rating, episode progress,
+  platform and notes are all edited in place. Notes save and cancel inline. "Edit details" is
+  now only for the rarely-changed facts.
+- **Flexible watch date**: record the exact day, just a month, or just a year (it can't be in the
+  future). Marking something watched still fills in today and now highlights the date card so you
+  can correct it in one tap. The same picker is in the Edit form and the Discover add dialog.
+- **Coming soon** tab in Discover: the most anticipated films and series of the next year, grouped
+  by month. Unreleased titles show "Releases <date>" on their card and can only be added as Plan to
+  Watch. The Upcoming tab links to it.
+
+### Changed
+
+- **New look**: a dark-only "cinema noir" theme with a gold-to-ember accent replaces the purple one.
+  The light theme and its toggle are gone.
+- **"For you" is smarter**: it now uses up to 8 titles (it was 4, and ignored titles without a TMDB
+  id), weights them by how highly you rated them, prefers titles several of your favourites agree on,
+  uses your genre taste, filters out obscure or poorly reviewed picks, and keeps variety. Titles you
+  rated 4 or lower no longer seed recommendations.
+- Analytics: titles dated only by year or month count in the totals but not the daily heatmap or streaks.
+
+### Fixed
+
+- Why a blockbuster like *Avengers: Doomsday* showed up in Trending: TMDB ranks Trending by
+  attention, not release status. It is now labelled with its release date and also listed in Coming soon.
+
 ## [1.1.0] - 2026-11-13
 
 A big update: a redesigned watchlist, ratings and streaming info on every title, much smarter
@@ -93,4 +125,5 @@ search, a real analytics page, several new ways to add titles, and a security an
 3. **Node.js 20.19+ (or 22.12+)** is required to build.
 4. Existing lists upgrade automatically. Old backup files (version 1) still import.
 
+[1.2.0]: https://github.com/isttiiak/CineTrack/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/isttiiak/CineTrack/releases/tag/v1.1.0

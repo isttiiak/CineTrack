@@ -24,7 +24,7 @@ export interface ExportedTitle {
   type: 'movie' | 'series';
   status: 'plan_to_watch' | 'watching' | 'watched';
   myRating: number | null;          // 1–10
-  watchedOn: string | null;         // YYYY-MM-DD
+  watchedOn: string | null;         // YYYY, YYYY-MM or YYYY-MM-DD (as precise as you recorded it)
   progress: { season: number; episode: number } | null;
   platform: string | null;
   watchLink: string | null;         // private link you saved
@@ -135,7 +135,8 @@ export function buildSpreadsheetCsv(state: WatchlistState): string {
 
 /**
  * Letterboxd's import format (letterboxd.com/import): films only.
- * `watched` = films you've watched (rating, watch date, notes as the review);
+ * `watched` = films you've watched (rating, watch date, notes as the review). Letterboxd needs a
+ * full date, so titles dated only by year or month are exported without one;
  * `watchlist` = films you plan to watch (import it on Letterboxd's watchlist page).
  */
 export function buildLetterboxdCsv(state: WatchlistState, which: 'watched' | 'watchlist'): { csv: string; count: number } {
@@ -147,7 +148,7 @@ export function buildLetterboxdCsv(state: WatchlistState, which: 'watched' | 'wa
   const rows = pick.map(({ e, m }) => {
     const base = [e.title, e.year.slice(0, 4), imdbIdOf(e.imdbUrl) ?? '', e.tmdbId ?? ''];
     return which === 'watched'
-      ? [...base, m?.personalRating != null ? Math.round(m.personalRating) : '', m?.watchedOn ?? '', m?.notes ?? '']
+      ? [...base, m?.personalRating != null ? Math.round(m.personalRating) : '', m?.watchedOn?.length === 10 ? m.watchedOn : '', m?.notes ?? '']
       : base;
   });
   return { csv: csv(header, rows), count: rows.length };

@@ -1,5 +1,6 @@
 import type { MediaType, WatchStatus } from '../types';
 import { parseTitleLink } from './links';
+import { isValidWatchDate } from './watchDate';
 
 /** One title read from another site's export, before it is matched to TMDB. */
 export interface ImportCandidate {
@@ -10,7 +11,7 @@ export interface ImportCandidate {
   type?: MediaType;           // known for IMDb exports; Letterboxd is films only
   status: WatchStatus;
   rating?: number;            // 1–10
-  watchedOn?: string;         // YYYY-MM-DD
+  watchedOn?: string;         // YYYY, YYYY-MM or YYYY-MM-DD
   tmdbRef?: { kind: 'movie' | 'tv'; id: number };   // from a pasted TMDB link
   fullTitle?: string;         // "Wonder Woman 1984": the trailing number might be part of the title
   source: 'letterboxd' | 'imdb' | 'csv' | 'text';
@@ -65,7 +66,7 @@ export function detectKind(headers: string[], fileName = ''): ExportKind {
 
 const isoDate = (v: string | undefined): string | undefined => {
   const s = (v ?? '').trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  if (isValidWatchDate(s)) return s;                  // "2026", "2026-03" or "2026-03-14" are kept as they are
   const t = Date.parse(s);
   if (!s || Number.isNaN(t)) return undefined;
   const d = new Date(t);

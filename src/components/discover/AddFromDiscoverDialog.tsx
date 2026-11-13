@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { Film, Star } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { WatchDateField } from '@/components/ui/watch-date-field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { STATUS_CONFIG } from '@/components/watchlist/StatusBadge';
+import { isUnreleased, releaseDate } from '@/lib/discoverFeeds';
+import { formatWatchDate } from '@/lib/watchDate';
 import { TMDB_IMG, type TMDBItem } from '@/hooks/useTMDBDiscover';
-import { PLATFORMS, SECTIONS, todayKey } from '@/lib/utils';
+import { PLATFORMS, SECTIONS } from '@/lib/utils';
 import { getDetails, suggestPlatform, type RegionProviders } from '@/lib/titleData';
 import { useRatings } from '@/hooks/useRatings';
 import { RatingsRow } from '@/components/ratings/RatingsRow';
@@ -74,6 +76,8 @@ export function AddFromDiscoverDialog({ item, sections, region, myServices, onCa
   if (!item) return null;
   const title = item.title ?? item.name ?? '';
   const year = (item.release_date ?? item.first_air_date ?? '').slice(0, 4);
+  // Not out yet: it can only be planned. (You can't have watched it.)
+  const unreleased = isUnreleased(item);
   const sectionOptions = [...new Set([...SECTIONS, ...sections])];
 
   const confirm = () => onConfirm(item, {
@@ -122,28 +126,26 @@ export function AddFromDiscoverDialog({ item, sections, region, myServices, onCa
                 {STATUSES.map((s) => (
                   <button
                     key={s} type="button" role="radio" aria-checked={status === s}
+                    disabled={unreleased && s !== 'plan'}
                     onClick={() => setStatus(s)}
-                    className="rounded-lg px-2 py-2 text-xs font-semibold transition-all"
+                    className="rounded-lg px-2 py-2 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-30"
                     style={status === s ? STATUS_CONFIG[s].style : { color: 'var(--text-muted)', border: '1px solid transparent' }}
                   >
                     {STATUS_CONFIG[s].label}
                   </button>
                 ))}
               </div>
+              {unreleased && (
+                <p className="text-xs" style={{ color: 'var(--accent)' }}>
+                  Not out yet: releases {formatWatchDate(releaseDate(item))}. It will be added to Plan to Watch, and the Upcoming tab will remind you.
+                </p>
+              )}
             </div>
 
             {status === 'watched' && (
               <div className="grid gap-1.5">
-                <Label htmlFor="discover-watched-on">Watched on <span className="font-normal" style={{ color: 'var(--text-muted)' }}>(optional)</span></Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="discover-watched-on" type="date" value={watchedOn} max={todayKey()}
-                    onChange={(e) => setWatchedOn(e.target.value)}
-                    className="flex-1 [color-scheme:dark]"
-                  />
-                  <Button type="button" variant="outline" size="sm" className="h-9" onClick={() => setWatchedOn(todayKey())}>Today</Button>
-                  {watchedOn && <Button type="button" variant="ghost" size="sm" className="h-9" onClick={() => setWatchedOn('')}>Clear</Button>}
-                </div>
+                <Label>Watched on <span className="font-normal" style={{ color: 'var(--text-muted)' }}>(optional, a year is enough)</span></Label>
+                <WatchDateField idPrefix="discover-watched" value={watchedOn || undefined} onChange={(v) => setWatchedOn(v ?? '')} />
               </div>
             )}
 

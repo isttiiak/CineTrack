@@ -9,6 +9,8 @@ describe('buildTmdbUrl', () => {
       .toBe('https://api.themoviedb.org/3/search/movie?query=Dune&year=2021');
     expect(buildTmdbUrl(new URL('http://x/api/tmdb?path=tv/1399&append_to_response=external_ids'))).not.toBeNull();
     expect(buildTmdbUrl(new URL('http://x/api/tmdb?path=trending/all/week&language=en-US'))).not.toBeNull();
+    expect(buildTmdbUrl(new URL('http://x/api/tmdb?path=discover/movie&sort_by=popularity.desc&primary_release_date.gte=2026-11-13&with_release_type=2|3'))?.href)
+      .toContain('primary_release_date.gte=2026-11-13');
   });
 
   it('rejects other endpoints, traversal and unknown params', () => {
@@ -19,6 +21,10 @@ describe('buildTmdbUrl', () => {
       'path=search/movie&api_key=stolen',
       'path=search/movie&query=x&callback=evil',
       'path=movie/1&append_to_response=videos',
+      'path=discover/movie&sort_by=revenue.desc',
+      'path=discover/movie&primary_release_date.gte=tomorrow',
+      'path=discover/person',
+      'path=discover/movie&with_keywords=1',
     ]) expect(buildTmdbUrl(new URL(`http://x/api/tmdb?${qs}`)), qs).toBeNull();
   });
 });

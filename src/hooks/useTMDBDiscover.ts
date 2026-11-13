@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { tmdb, TMDB_IMG } from '../lib/tmdb';
 import { getDetails, itemFromDetails, findByImdb, type TmdbKind } from '../lib/titleData';
 import { parseTitleLink } from '../lib/links';
+import { fetchComingSoon } from '../lib/discoverFeeds';
 import { searchDiscover } from '../lib/discoverSearch';
 
 export { TMDB_IMG };
@@ -28,7 +29,7 @@ export interface TMDBDetails {
   duration: string;
 }
 
-export type DiscoverTab = 'trending' | 'movies' | 'tv';
+export type DiscoverTab = 'trending' | 'movies' | 'tv' | 'soon';
 
 const COUNTRY_CODES: Record<string, string> = {
   US: 'USA', GB: 'UK', FR: 'France', DE: 'Germany', JP: 'Japan',
@@ -125,7 +126,15 @@ export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string) {
         return;
       }
 
-      const path = ({ trending: 'trending/all/week', movies: 'movie/popular', tv: 'tv/popular' } as Record<DiscoverTab, string>)[tab];
+      // Coming soon: the most anticipated unreleased films and series, soonest first.
+      if (tab === 'soon') {
+        fetchComingSoon(controller.signal)
+          .then((list) => { if (!cancelled) { setItems(list); setReasons({}); setCorrectedTo(undefined); setFromLink(false); setLoading(false); } })
+          .catch((err) => { if (err?.name !== 'AbortError' && !cancelled) { setLoading(false); setError(true); } });
+        return;
+      }
+
+      const path = ({ trending: 'trending/all/week', movies: 'movie/popular', tv: 'tv/popular' } as Record<Exclude<DiscoverTab, 'soon'>, string>)[tab];
       const params: Record<string, string> = { language: 'en-US' };
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

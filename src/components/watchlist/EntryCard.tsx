@@ -22,7 +22,7 @@ export interface EntryItemProps {
 }
 
 export function SectionTag({ section, className }: { section: string; className?: string }) {
-  const color = SECTION_COLORS[section] ?? 'var(--accent-purple)';
+  const color = SECTION_COLORS[section] ?? 'var(--accent)';
   return (
     <span
       className={cn('inline-flex max-w-full items-center gap-1 truncate rounded-md px-1.5 py-px text-[10px] font-medium', className)}
@@ -40,11 +40,11 @@ export function SelectCheck({ selected }: { selected: boolean }) {
     <div
       className="flex h-5 w-5 items-center justify-center rounded-md border-2 transition-colors"
       style={{
-        borderColor: selected ? 'var(--accent-purple)' : 'var(--text-muted)',
-        background: selected ? 'var(--accent-purple)' : 'color-mix(in srgb, var(--bg-base) 60%, transparent)',
+        borderColor: selected ? 'var(--accent)' : 'var(--text-muted)',
+        background: selected ? 'var(--accent)' : 'color-mix(in srgb, var(--bg-base) 60%, transparent)',
       }}
     >
-      {selected && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+      {selected && <Check className="h-3 w-3 text-[var(--accent-fg)]" strokeWidth={3} />}
     </div>
   );
 }
@@ -66,12 +66,12 @@ export function EntryCard({ entry, meta, selectMode, selected, onOpen, onToggleS
       onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); (selectMode ? onToggleSelect : onOpen)(); } }}
       className={cn(
         'group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border transition-colors',
-        'focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/60',
       )}
       style={{
         background: 'var(--bg-surface)',
-        borderColor: selected ? 'var(--accent-purple)' : 'var(--border-subtle)',
-        boxShadow: selected ? '0 0 0 1px var(--accent-purple)' : undefined,
+        borderColor: selected ? 'var(--accent)' : 'var(--border-subtle)',
+        boxShadow: selected ? '0 0 0 1px var(--accent)' : undefined,
       }}
     >
       <div className="relative">

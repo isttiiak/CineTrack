@@ -6,7 +6,7 @@ export function HighlightText({ text, query }: { text: string; query: ParsedQuer
   return (
     <>
       {highlightParts(text, query).map((p, i) => p.hit
-        ? <mark key={i} className="rounded-sm bg-indigo-500/25 px-px text-inherit">{p.text}</mark>
+        ? <mark key={i} className="rounded-sm bg-brand/25 px-px text-inherit">{p.text}</mark>
         : <span key={i}>{p.text}</span>)}
     </>
   );

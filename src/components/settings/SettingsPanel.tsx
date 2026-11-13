@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { AnimatePresence, motion, Reorder, useDragControls } from 'framer-motion';
-import { X, Download, Upload, FileJson, Sheet, GripVertical, Sun, Moon, LayoutGrid, Rows3, ListPlus, Bookmark } from 'lucide-react';
+import { X, Download, Upload, FileJson, Sheet, GripVertical, LayoutGrid, Rows3, ListPlus, Bookmark } from 'lucide-react';
 import type { Preferences } from '@/hooks/usePreferences';
-import type { ThemeMode, ViewMode } from '@/types';
+import type { ViewMode } from '@/types';
 import type { ExportFormat } from '@/hooks/useWatchlist';
 import { SECTION_COLORS, SECTION_EMOJIS, PLATFORMS, cn } from '@/lib/utils';
 import { defaultRegion } from '@/lib/titleData';
@@ -22,8 +22,6 @@ interface Props {
   onClose: () => void;
   prefs: Preferences;
   onPrefChange: <K extends keyof Preferences>(key: K, value: Preferences[K]) => void;
-  theme: ThemeMode;
-  onThemeChange: (theme: ThemeMode) => void;
   view: ViewMode;
   onViewChange: (view: ViewMode) => void;
   sections: string[];                       // sections that have entries, in the user's order
@@ -42,7 +40,7 @@ function Switch({ checked, onChange, label, description }: { checked: boolean; o
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+      className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
     >
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{label}</span>
@@ -50,7 +48,7 @@ function Switch({ checked, onChange, label, description }: { checked: boolean; o
       </span>
       <span
         className="relative h-5 w-9 flex-shrink-0 rounded-full transition-colors"
-        style={{ background: checked ? 'var(--accent-purple)' : 'var(--bg-hover)' }}
+        style={{ background: checked ? 'var(--accent)' : 'var(--bg-hover)' }}
       >
         <span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform', checked ? 'translate-x-[18px]' : 'translate-x-0.5')} />
       </span>
@@ -111,7 +109,7 @@ const Heading = ({ children }: { children: React.ReactNode }) => (
 
 /** Right-side sheet (bottom sheet on mobile) with display preferences and data import/export. */
 export function SettingsPanel(props: Props) {
-  const { open, onClose, prefs, onPrefChange, theme, onThemeChange, view, onViewChange, sections, onReorderSections, entryCount, region, onExport, onImport, onPasteList } = props;
+  const { open, onClose, prefs, onPrefChange, view, onViewChange, sections, onReorderSections, entryCount, region, onExport, onImport, onPasteList } = props;
   const auto = defaultRegion();
   const regionOptions = [...new Set([auto, region, ...REGIONS])].sort((a, b) => regionName(a).localeCompare(regionName(b)));
   const toggleService = (svc: string) => onPrefChange('myServices',
@@ -146,13 +144,6 @@ export function SettingsPanel(props: Props) {
 
                 <div className="flex-1 overflow-y-auto px-2 py-4">
                   <Heading>Appearance</Heading>
-                  <Segmented<ThemeMode>
-                    label="Theme" value={theme} onChange={onThemeChange}
-                    options={[
-                      { value: 'dark', label: 'Dark', icon: <Moon className="h-3.5 w-3.5" /> },
-                      { value: 'light', label: 'Light', icon: <Sun className="h-3.5 w-3.5" /> },
-                    ]}
-                  />
                   <Segmented<ViewMode>
                     label="Layout" value={view} onChange={onViewChange}
                     options={[
@@ -319,7 +310,7 @@ function BookmarkletLink() {
       onClick={(e) => e.preventDefault()}
       draggable
       className="inline-flex cursor-grab items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold active:cursor-grabbing"
-      style={{ borderColor: 'var(--accent-purple)', color: 'var(--accent-purple)' }}
+      style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
       title="Drag me to your bookmarks bar"
     >
       <Bookmark className="h-3.5 w-3.5" /> + CineTrack

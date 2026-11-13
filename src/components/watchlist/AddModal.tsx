@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { WatchDateField } from '@/components/ui/watch-date-field';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { GenreSelector } from '@/components/ui/genre-selector';
@@ -137,7 +138,7 @@ export function AddModal({ open, onClose, onSave, onOpenExisting, editEntry, edi
           <DialogHeader>
             <DialogTitle>{editEntry ? 'Edit Entry' : 'Add New Entry'}</DialogTitle>
             {!editEntry && onPasteList && (
-              <button type="button" onClick={() => onPasteList()} className="w-fit text-xs font-medium hover:underline" style={{ color: 'var(--accent-purple)' }}>
+              <button type="button" onClick={() => onPasteList()} className="w-fit text-xs font-medium hover:underline" style={{ color: 'var(--accent)' }}>
                 Adding several? Paste a list instead →
               </button>
             )}
@@ -348,30 +349,23 @@ export function AddModal({ open, onClose, onSave, onOpenExisting, editEntry, edi
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-1.5">
-                  <Label>Platform</Label>
-                  <Select
-                    value={meta.watchPlatform || '_none'}
-                    onValueChange={(v) => setM('watchPlatform', (v === '_none' ? '' : v) as WatchPlatform)}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Platform" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="_none">None</SelectItem>
-                      {PLATFORMS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="ct-watched-on">Watched On</Label>
-                  <Input
-                    id="ct-watched-on" name="watchedOn"
-                    type="date"
-                    value={meta.watchedOn ?? ''}
-                    onChange={(e) => setM('watchedOn', e.target.value)}
-                    className="[color-scheme:dark]"
-                  />
-                </div>
+              <div className="grid gap-1.5">
+                <Label>Platform</Label>
+                <Select
+                  value={meta.watchPlatform || '_none'}
+                  onValueChange={(v) => setM('watchPlatform', (v === '_none' ? undefined : v) as WatchPlatform | undefined)}
+                >
+                  <SelectTrigger><SelectValue placeholder="Platform" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">None</SelectItem>
+                    {PLATFORMS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label>Watched on <span className="font-normal" style={{ color: 'var(--text-muted)' }}>(year is enough)</span></Label>
+                <WatchDateField idPrefix="ct-watched" value={meta.watchedOn || undefined} onChange={(v) => setM('watchedOn', v)} />
               </div>
 
               <div className="grid gap-1.5">

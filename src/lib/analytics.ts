@@ -58,7 +58,7 @@ export function setAnalyticsEnabled(on: boolean): void {
 export type AnalyticsEvent =
   | 'watchlist_entry_added' | 'watchlist_entry_deleted' | 'watchlist_entry_edited'
   | 'status_changed' | 'personal_rating_set' | 'notes_saved' | 'platform_set'
-  | 'sign_in' | 'sign_out' | 'theme_toggled' | 'section_reordered'
+  | 'sign_in' | 'sign_out' | 'section_reordered'
   | 'export_json' | 'import_json';
 
 export function track(event: AnalyticsEvent, params?: Record<string, string | number>): void {

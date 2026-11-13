@@ -15,7 +15,8 @@ A personal movie and TV series watchlist tracker. Works instantly as a guest, or
 ## Features
 
 ### Watchlist
-- **Plan to Watch → Watching → Watched**: tap the badge to cycle. Marking something watched records today's date.
+- **Plan to Watch → Watching → Watched**: tap the badge to cycle. Marking something watched records today's date, which you can correct to the exact day, just a month, or just a year.
+- **Details drawer built for daily use**: status, watch date, rating, episode progress, platform and notes are all editable in place; "Edit details" is only for the rarely-changed facts
 - Personal rating (1–10), notes, platform, private watch link and watched date per title
 - **Episode progress** for series (S2 · E5, +1 episode). The status follows automatically: started → Watching, finished an ended show → Watched.
 - Flat poster grid (or compact list) with a small section tag; optional grouping by section
@@ -44,11 +45,12 @@ A personal movie and TV series watchlist tracker. Works instantly as a guest, or
 - Posters, genres, runtime and IMDb links filled in automatically from TMDB
 
 ### Discover
-- Trending, popular movies, popular TV, and **For you**: recommendations based on what you rated highly
+- Trending, popular movies, popular TV, **Coming soon**, and **For you**: recommendations weighted by how highly you rated things, favouring titles several of your favourites agree on, and ignoring titles you rated 4 or lower
 - Search any title, or **paste an IMDb / TMDB link** to jump to that exact title
 - Adding asks for status, watch date (optional), rating, platform and section, so already-watched titles can be logged properly
 
 ### Upcoming
+- **Coming soon** (in Discover): the most anticipated films and series of the next year, grouped by month. Unreleased titles can only be added as Plan to Watch
 - New episodes, season premieres and film releases for titles in your list, plus "just aired" and "returning, date TBA"
 - **Add to calendar**: download an `.ics` file for Google / Apple / Outlook Calendar
 
@@ -61,7 +63,7 @@ A personal movie and TV series watchlist tracker. Works instantly as a guest, or
 ### App
 - Installable PWA. On Android, **Share → CineTrack** from the IMDb app (or any link) opens that title ready to add.
 - Settings: theme, layout, cursor glow, grouping, card details, section order, country, your services, backup
-- Dark / light theme, fully responsive
+- One dark, cinematic theme (near-black with a gold accent), fully responsive
 
 ---
 

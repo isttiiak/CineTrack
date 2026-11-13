@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Film, Tv, TrendingUp, Sparkles } from 'lucide-react';
+import { Film, Tv, TrendingUp, Sparkles, CalendarClock } from 'lucide-react';
 import { useTMDBDiscover, fetchTMDBDetails, TMDB_IMG, type TMDBItem, type DiscoverTab } from '@/hooks/useTMDBDiscover';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import type { MovieEntry, WatchMeta } from '@/types';
@@ -8,6 +8,7 @@ import { findDuplicate } from '@/lib/duplicates';
 import { getRatings, TMDB_GENRES } from '@/lib/titleData';
 import { AddFromDiscoverDialog, type DiscoverAddChoice } from './AddFromDiscoverDialog';
 import { DiscoverCard } from './DiscoverCard';
+import { releaseDate, releaseGroupLabel } from '@/lib/discoverFeeds';
 
 interface Props {
   existingEntries: MovieEntry[];
@@ -20,26 +21,38 @@ interface Props {
   onOpenedFirstResult: () => void;
   onAdd: (entry: Omit<MovieEntry, 'id' | 'isCustom'>, meta: Partial<WatchMeta>) => void;
   onEdit: (entry: MovieEntry) => void;
+  initialTab?: Tab;           // e.g. 'soon' when arriving from the Upcoming tab
 }
 
 type Tab = DiscoverTab | 'foryou';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: 'trending', label: 'Trending', icon: <TrendingUp className="h-3.5 w-3.5" /> },
-  { id: 'foryou',   label: 'For you',  icon: <Sparkles className="h-3.5 w-3.5" /> },
-  { id: 'movies',   label: 'Movies',   icon: <Film className="h-3.5 w-3.5" /> },
-  { id: 'tv',       label: 'TV Shows', icon: <Tv className="h-3.5 w-3.5" /> },
+  { id: 'trending', label: 'Trending',    icon: <TrendingUp className="h-3.5 w-3.5" /> },
+  { id: 'foryou',   label: 'For you',     icon: <Sparkles className="h-3.5 w-3.5" /> },
+  { id: 'soon',     label: 'Coming soon', icon: <CalendarClock className="h-3.5 w-3.5" /> },
+  { id: 'movies',   label: 'Movies',      icon: <Film className="h-3.5 w-3.5" /> },
+  { id: 'tv',       label: 'TV Shows',    icon: <Tv className="h-3.5 w-3.5" /> },
 ];
+
+/** Coming soon, grouped under "This week", "December 2026"… (the list is already in date order). */
+function groupByRelease(items: TMDBItem[]): [string, TMDBItem[]][] {
+  const groups = new Map<string, TMDBItem[]>();
+  for (const item of items) {
+    const label = releaseGroupLabel(releaseDate(item));
+    groups.set(label, [...(groups.get(label) ?? []), item]);
+  }
+  return [...groups.entries()];
+}
 
 const GRID = 'grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6';
 
-export function DiscoverPage({ existingEntries, meta, sections, search, region, myServices, openFirstResult, onOpenedFirstResult, onAdd, onEdit }: Props) {
-  const [tab, setTab] = useState<Tab>('trending');
+export function DiscoverPage({ existingEntries, meta, sections, search, region, myServices, openFirstResult, onOpenedFirstResult, onAdd, onEdit, initialTab = 'trending' }: Props) {
+  const [tab, setTab] = useState<Tab>(initialTab);
   const listTab: DiscoverTab = tab === 'foryou' ? 'trending' : tab;
   const isSearching = search.trim().length > 1;
   const showForYou = tab === 'foryou' && !isSearching;
   const { items, loading, error, fromLink, reasons, correctedTo } = useTMDBDiscover(listTab, search);
-  const { recs, loading: recsLoading, hasSeeds } = useRecommendations(existingEntries, meta, showForYou);
+  const { recs, loading: recsLoading, hasSeeds, seedTitles } = useRecommendations(existingEntries, meta, showForYou);
   const [pendingItem, setPendingItem] = useState<TMDBItem | null>(null);
   const [addState, setAddState] = useState<Record<number, 'loading' | 'done'>>({});
 
@@ -181,7 +194,13 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
         !hasSeeds ? muted(<>Rate a few titles 7+ (or mark them watched) and recommendations based on them will show up here.</>)
         : recsLoading ? skeleton(12)
         : recs.length === 0 ? muted('No recommendations yet — try rating more titles.')
-        : <div className={GRID}>{recs.map((r) => card(r.item, `Because you liked ${r.because}`))}</div>
+        : <>
+            <p className="mb-4 text-xs" style={{ color: 'var(--text-muted)' }}>
+              Picked from what you rated highest and watched recently: <span style={{ color: 'var(--text-secondary)' }}>{seedTitles.slice(0, 5).join(', ')}{seedTitles.length > 5 ? '…' : ''}</span>.
+              Titles you rated 4 or lower are ignored.
+            </p>
+            <div className={GRID}>{recs.map((r) => card(r.item, r.because))}</div>
+          </>
       ) : (
         <>
           {error && muted('Could not load titles. Check your connection, or set TMDB_API_KEY on the server.')}
@@ -200,9 +219,21 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
                 transition={{ duration: 0.18 }}
                 className={GRID}
               >
-                {items.map((item) => card(item, reasons[item.id]))}
+                {tab === 'soon' && !isSearching
+                  ? groupByRelease(items).map(([label, list]) => (
+                      <section key={label} className="col-span-full">
+                        <h2 className="mb-2 mt-3 text-xs font-bold uppercase tracking-widest first:mt-0" style={{ color: 'var(--text-disabled)' }}>{label}</h2>
+                        <div className={GRID}>{list.map((item) => card(item))}</div>
+                      </section>
+                    ))
+                  : items.map((item) => card(item, reasons[item.id]))}
               </motion.div>
             </AnimatePresence>
+          )}
+          {!loading && !error && items.length > 0 && tab === 'soon' && !isSearching && (
+            <p className="mt-6 text-xs" style={{ color: 'var(--text-disabled)' }}>
+              The most anticipated releases of the next year. Dates are TMDB's earliest release date and can differ by country.
+            </p>
           )}
         </>
       )}
@@ -223,7 +254,7 @@ function NoResults({ text, entries, meta, renderCard }: {
   const { recs, hasSeeds } = useRecommendations(entries, meta, true);
   const { items: trending } = useTMDBDiscover('trending', '');
   const listed = new Set(entries.map((e) => e.tmdbId).filter(Boolean));
-  const picks = (hasSeeds && recs.length ? recs.map((r) => ({ item: r.item, reason: `Because you liked ${r.because}` })) : trending.map((item) => ({ item, reason: undefined as string | undefined })))
+  const picks = (hasSeeds && recs.length ? recs.map((r) => ({ item: r.item, reason: r.because })) : trending.map((item) => ({ item, reason: undefined as string | undefined })))
     .filter(({ item }) => !listed.has(item.id))
     .slice(0, 12);
   return (

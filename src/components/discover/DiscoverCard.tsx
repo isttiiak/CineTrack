@@ -5,6 +5,13 @@ import type { WatchStatus } from '@/types';
 import { TMDB_IMG, type TMDBItem } from '@/hooks/useTMDBDiscover';
 import { useRatings, useSeen } from '@/hooks/useRatings';
 import { RatingsRow } from '@/components/ratings/RatingsRow';
+import { isUnreleased, releaseDate } from '@/lib/discoverFeeds';
+
+function formatRelease(date: string): string {
+  const [y, m, d] = date.split('-').map(Number);
+  const sameYear = y === new Date().getFullYear();
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) });
+}
 
 interface Props {
   item: TMDBItem;
@@ -72,7 +79,7 @@ export function DiscoverCard({ item, inList, adding, reason, listStatus, onAdd, 
             )}
             <button
               onClick={onEdit}
-              className="ml-auto hidden h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-black/70 text-white transition-colors hover:bg-indigo-500 mouse:flex"
+              className="ml-auto hidden h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-black/70 text-white transition-colors hover:bg-brand hover:text-[var(--accent-fg)] mouse:flex"
               aria-label={`Edit ${title} in your list`}
               title="Edit in your list"
             >
@@ -91,8 +98,8 @@ export function DiscoverCard({ item, inList, adding, reason, listStatus, onAdd, 
             disabled={inList || adding}
             className="flex min-h-[36px] items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all"
             style={{
-              background: inList ? 'rgba(52,211,153,0.2)' : 'var(--accent-purple)',
-              color: inList ? '#34d399' : 'white',
+              background: inList ? 'rgba(52,211,153,0.2)' : 'var(--accent-gradient)',
+              color: inList ? '#34d399' : 'var(--accent-fg)',
               border: inList ? '1px solid #34d399' : 'none',
               cursor: inList ? 'default' : 'pointer',
               opacity: adding ? 0.7 : 1,
@@ -105,9 +112,15 @@ export function DiscoverCard({ item, inList, adding, reason, listStatus, onAdd, 
 
       <div className="flex flex-1 flex-col gap-0.5 p-2.5">
         <p className="line-clamp-2 text-xs font-semibold leading-tight" style={{ color: 'var(--text-primary)' }}>{title}</p>
-        <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{year || '—'}</p>
+        {isUnreleased(item) ? (
+          <p className="text-[10px] font-semibold" style={{ color: 'var(--accent)' }}>
+            Releases {formatRelease(releaseDate(item))}
+          </p>
+        ) : (
+          <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{year || '—'}</p>
+        )}
         <RatingsRow ratings={ratings} loading={loading} compact className="mt-1" />
-        {reason && <p className="mt-0.5 line-clamp-1 text-[10px] italic" style={{ color: 'var(--accent-purple)' }}>{reason}</p>}
+        {reason && <p className="mt-0.5 line-clamp-1 text-[10px] italic" style={{ color: 'var(--accent)' }}>{reason}</p>}
         {item.overview && (
           <p className="mt-0.5 hidden text-[10px] leading-relaxed line-clamp-2 sm:block" style={{ color: 'var(--text-disabled)' }}>{item.overview}</p>
         )}
@@ -118,9 +131,9 @@ export function DiscoverCard({ item, inList, adding, reason, listStatus, onAdd, 
           disabled={(inList && !onEdit) || adding}
           className="mt-1.5 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-semibold transition-colors mouse:hidden"
           style={{
-            background: inList ? 'color-mix(in srgb, var(--accent-green) 15%, transparent)' : 'color-mix(in srgb, var(--accent-purple) 20%, transparent)',
-            color: inList ? 'var(--accent-green)' : 'var(--accent-purple)',
-            border: `1px solid ${inList ? 'color-mix(in srgb, var(--accent-green) 40%, transparent)' : 'color-mix(in srgb, var(--accent-purple) 40%, transparent)'}`,
+            background: inList ? 'color-mix(in srgb, var(--accent-green) 15%, transparent)' : 'color-mix(in srgb, var(--accent) 20%, transparent)',
+            color: inList ? 'var(--accent-green)' : 'var(--accent)',
+            border: `1px solid ${inList ? 'color-mix(in srgb, var(--accent-green) 40%, transparent)' : 'color-mix(in srgb, var(--accent) 40%, transparent)'}`,
           }}
         >
           {inList && onEdit ? <><Pencil className="h-3 w-3" /> Edit</> : label}
