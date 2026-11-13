@@ -95,7 +95,7 @@ function DrawerBody({ entry, meta, onStatusChange, onRatingChange, onEdit, onDel
     resolveTmdbId(entry).then((id) => {
       if (!active) return;
       setTmdbId(id);
-      if (id && !entry.tmdbId) onEnrich({ tmdbId: id });
+      if (id && !entry.tmdbId) onEnrich({ tmdbId: id, ratingSource: entry.ratingSource ?? 'imdb' });
       if (!id) setDetailsLoading(false);
     });
     return () => { active = false; };

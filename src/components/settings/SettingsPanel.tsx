@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { AnimatePresence, motion, Reorder, useDragControls } from 'framer-motion';
-import { X, Download, Upload, GripVertical, Sun, Moon, LayoutGrid, Rows3, ListPlus, Bookmark } from 'lucide-react';
+import { X, Download, Upload, FileJson, Sheet, GripVertical, Sun, Moon, LayoutGrid, Rows3, ListPlus, Bookmark } from 'lucide-react';
 import type { Preferences } from '@/hooks/usePreferences';
 import type { ThemeMode, ViewMode } from '@/types';
+import type { ExportFormat } from '@/hooks/useWatchlist';
 import { SECTION_COLORS, SECTION_EMOJIS, PLATFORMS, cn } from '@/lib/utils';
 import { defaultRegion } from '@/lib/titleData';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -28,7 +29,7 @@ interface Props {
   onReorderSections: (order: string[]) => void;
   entryCount: number;
   region: string;                           // effective region (saved or auto-detected)
-  onExport: () => void;
+  onExport: (format: ExportFormat) => void;
   onImport: () => void;
   onPasteList: () => void;
 }
@@ -224,17 +225,32 @@ export function SettingsPanel(props: Props) {
                   )}
 
                   <Heading>Data</Heading>
-                  <p className="mb-2 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-                    Back up your {entryCount} titles as a JSON file. Import accepts a CineTrack backup,
-                    or your Letterboxd / IMDb export (.zip or .csv).
-                  </p>
-                  <div className="flex gap-2 px-3">
-                    <button onClick={onExport} className={dataBtn} style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}>
-                      <Download className="h-4 w-4" /> Export
-                    </button>
+                  <div className="grid gap-2 px-3">
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Export your {entryCount} titles:</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        ['json', <FileJson key="i" className="h-4 w-4" />, 'Backup', 'JSON · restores everything'],
+                        ['csv', <Sheet key="i" className="h-4 w-4" />, 'Spreadsheet', 'CSV · Excel, Sheets'],
+                        ['letterboxd-watched', <Download key="i" className="h-4 w-4" />, 'Letterboxd diary', 'Watched films + ratings'],
+                        ['letterboxd-watchlist', <Download key="i" className="h-4 w-4" />, 'Letterboxd watchlist', 'Films you plan to watch'],
+                      ] as [ExportFormat, React.ReactNode, string, string][]).map(([format, icon, label, hint]) => (
+                        <button
+                          key={format}
+                          onClick={() => onExport(format)}
+                          className="flex flex-col items-start gap-0.5 rounded-lg border px-3 py-2 text-left transition-colors hover:bg-[var(--bg-hover)]"
+                          style={{ borderColor: 'var(--border-subtle)' }}
+                        >
+                          <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{icon}{label}</span>
+                          <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{hint}</span>
+                        </button>
+                      ))}
+                    </div>
                     <button onClick={onImport} className={dataBtn} style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}>
                       <Upload className="h-4 w-4" /> Import
                     </button>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      Import accepts a CineTrack backup (.json) or spreadsheet (.csv), or your Letterboxd / IMDb export (.zip or .csv).
+                    </p>
                   </div>
 
                   <Heading>Quick add</Heading>

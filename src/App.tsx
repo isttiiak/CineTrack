@@ -4,7 +4,7 @@ import { Plus, ArrowUp, Compass, List, CheckSquare, LayoutGrid, Rows3, CalendarC
 import { useAuth } from '@/hooks/useAuth';
 import { saveUserProfile } from '@/lib/firestore';
 import { track } from '@/lib/analytics';
-import { useWatchlist, type ImportMode } from '@/hooks/useWatchlist';
+import { useWatchlist, type ImportMode, type ExportFormat } from '@/hooks/useWatchlist';
 import { useToast } from '@/hooks/useToast';
 import { useCursorGlow } from '@/hooks/useCursorGlow';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
@@ -57,7 +57,7 @@ export default function App() {
     state, initialised, cloudError, retrySync,
     addEntry, updateEntry, deleteEntries,
     setStatus, setStatuses, setMeta, setProgress, reorderSections, updatePoster,
-    exportJSON, parseImport, applyImport, forceSync,
+    exportData, parseImport, applyImport, forceSync,
     flush, lastSync, syncStatus,
   } = useWatchlist(uid);
 
@@ -246,7 +246,14 @@ export default function App() {
     if (res.added) pulse();
   };
 
-  const handleExport = () => { exportJSON(); addToast('Exported!', 'success'); track('export_json'); };
+  const handleExport = (format: ExportFormat = 'json') => {
+    const n = exportData(format);
+    const what = { json: 'Backup', csv: 'Spreadsheet', 'letterboxd-watched': 'Letterboxd diary', 'letterboxd-watchlist': 'Letterboxd watchlist' }[format];
+    if (format.startsWith('letterboxd')) {
+      addToast(n ? `${what} saved (${n} films) — import it at letterboxd.com/import` : 'No films to export for Letterboxd (it only tracks films)', n ? 'success' : 'info');
+    } else addToast(`${what} saved (${n} titles)`, 'success');
+    track('export_json', { format });
+  };
 
   const handleForceSync = async () => {
     try {
@@ -479,7 +486,11 @@ export default function App() {
               entries={state.entries}
               meta={state.meta}
               onOpen={(id) => setDrawerId(id)}
-              onResolved={(id, tmdbId) => updateEntry(id, { tmdbId })}
+              onResolved={(id, tmdbId) => {
+                // Pin the rating source first: a looked-up id must not relabel an IMDb score as TMDB.
+                const e = state.entries.find((x) => x.id === id);
+                updateEntry(id, { tmdbId, ratingSource: e?.ratingSource ?? 'imdb' });
+              }}
               onExported={(n) => addToast(`Calendar file with ${n} date${n === 1 ? '' : 's'} downloaded`, 'success')}
             />
           )}

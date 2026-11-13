@@ -51,7 +51,8 @@ A personal movie and TV series watchlist tracker. Works instantly as a guest, or
 
 ### Import & sync
 - **Import from Letterboxd** (the export `.zip`, or `diary.csv` / `ratings.csv` / `watched.csv` / `watchlist.csv`) and **IMDb** (ratings or watchlist CSV). Titles are matched on TMDB and uncertain matches are shown for review first.
-- JSON backup export / import (merge or replace)
+- Export a **backup** (readable JSON that also restores everything), a **spreadsheet** (CSV for Excel / Google Sheets), or **Letterboxd** files (watched films with ratings and dates, and your watchlist) to move your films there
+- Import a CineTrack backup or spreadsheet (merge or replace)
 - Guest mode (no sign-in) or Google sign-in with Firestore sync. Edits from several devices are merged field by field.
 
 ### App
