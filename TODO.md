@@ -36,7 +36,7 @@ your Firebase API key. The key list page doesn't show the option; you have to op
 
 ## 2. GitHub settings *(a few minutes)*
 
-- [ ] Settings → **Code security**: enable **Dependabot alerts**, **Dependabot security updates**,
+- [ ] *(Dependabot version updates are configured in `.github/dependabot.yml`.)* Settings → **Code security**: enable **Dependabot alerts**, **Dependabot security updates**,
       **Secret scanning** and **Push protection**.
 - [ ] After the first CI run has finished on `main`: Settings → **Branches** → add a rule for
       `main` → **Require a pull request before merging** and **Require status checks to pass**
@@ -91,3 +91,14 @@ Deferred on purpose. The app already supports it: it turns on as soon as the sit
 - [ ] **"Delete my account" button** in Settings (removes the cloud list and sign-in record). Today
       deletion is by request, as described in PRIVACY.md.
 - [ ] **AI features** (Groq): needs a server-side key with per-user limits; see the discussion in chat.
+
+## Known and accepted (reviewed 2026-11-13)
+
+- `npm audit` reports moderate issues in the PWA build tooling (`vite-plugin-pwa` → `workbox-build` →
+  `deepmerge`, `glob`). They run at build time only and are not in the shipped app. The fix is a
+  breaking `vite-plugin-pwa` upgrade; take it when a non-breaking release lands.
+- Two `react-refresh/only-export-components` lint warnings (`button.tsx`, `StatusBadge.tsx`): the
+  shadcn pattern of exporting a variants helper next to the component. Harmless.
+- Major upgrades held back on purpose (React 19, Tailwind 4, ESLint 10, TypeScript 7): do them as a
+  planned migration, not through Dependabot.
+- Lists are capped at 1200 titles (one Firestore document). Needs sharding if anyone outgrows it.

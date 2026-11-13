@@ -95,7 +95,7 @@ export const SearchBox = forwardRef<HTMLInputElement, Props>(function SearchBox(
                 key={t.label}
                 onClick={() => add(t.insert)}
                 className="rounded-md border px-2 py-0.5 font-mono text-[11px] transition-colors hover:bg-[var(--bg-hover)]"
-                style={{ borderColor: 'var(--border-subtle)', color: 'var(--accent)' }}
+                style={{ borderColor: 'var(--border-subtle)', color: 'var(--accent-text)' }}
               >
                 {t.label}
               </button>

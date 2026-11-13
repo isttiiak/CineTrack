@@ -200,7 +200,7 @@ export function ProfilePage({ state, user, onClose }: Props) {
           <div className="mb-4 flex items-center gap-3 rounded-2xl border p-4" style={cardStyle}>
             {user.avatar
               ? <img src={user.avatar} alt="" className="h-11 w-11 flex-shrink-0 rounded-full" />
-              : <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-brand/20 font-bold text-brand">{user.name[0]}</div>}
+              : <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-brand/20 font-bold text-[var(--accent-text)]">{user.name[0]}</div>}
             <div className="min-w-0">
               <p className="truncate font-bold" style={{ color: 'var(--text-primary)' }}>{user.name}</p>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{S.total} titles · {S.byStatus.watched} watched · {S.byStatus.watching} watching · {S.byStatus.plan} planned</p>
@@ -210,7 +210,7 @@ export function ProfilePage({ state, user, onClose }: Props) {
 
         {S.insights.length > 0 && (
           <section className={cn(card, 'mb-4')} style={{ ...cardStyle, background: 'color-mix(in srgb, var(--accent) 7%, var(--bg-surface))' }}>
-            <h2 className="mb-2 flex items-center gap-2 text-sm font-bold" style={{ color: 'var(--text-primary)' }}><Sparkles className="h-4 w-4" style={{ color: 'var(--accent)' }} />Insights</h2>
+            <h2 className="mb-2 flex items-center gap-2 text-sm font-bold" style={{ color: 'var(--text-primary)' }}><Sparkles className="h-4 w-4" style={{ color: 'var(--accent-text)' }} />Insights</h2>
             <ul className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
               {S.insights.map((t) => <li key={t}>• {t}</li>)}
             </ul>

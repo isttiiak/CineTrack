@@ -30,7 +30,7 @@ export function AuthBanner({ onSignIn }: Props) {
         style={{ borderColor: 'var(--accent)', background: 'color-mix(in srgb, var(--accent) 8%, var(--bg-surface))' }}
       >
         <div className="flex min-w-0 items-center gap-2 text-xs sm:gap-2.5 sm:text-sm">
-          <CloudUpload className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--accent)' }} />
+          <CloudUpload className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--accent-text)' }} />
           <span className="font-medium" style={{ color: 'var(--text-secondary)' }}>
             <span className="sm:hidden">Sync your list across devices</span>
             <span className="hidden sm:inline">Sign in with Google to sync your watchlist across all devices.</span>

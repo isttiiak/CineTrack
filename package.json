@@ -53,5 +53,8 @@
   "overrides": {
     "@grpc/grpc-js": "^1.14.7"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  }
 }

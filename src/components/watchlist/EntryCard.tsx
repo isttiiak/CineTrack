@@ -19,6 +19,7 @@ export interface EntryItemProps {
   showSection: boolean;     // small section tag (hidden when the list is grouped by section)
   showDetails: boolean;     // runtime + notes indicators
   highlight?: ParsedQuery | null;   // search words to mark in the title
+  active?: boolean;                 // its details drawer is open: highlight it as the working item
 }
 
 export function SectionTag({ section, className }: { section: string; className?: string }) {
@@ -50,7 +51,7 @@ export function SelectCheck({ selected }: { selected: boolean }) {
 }
 
 /** Poster-first card for the grid view. Click opens the detail drawer (or toggles selection). */
-export function EntryCard({ entry, meta, selectMode, selected, onOpen, onToggleSelect, onStatusChange, onPosterLoaded, showSection, showDetails, highlight }: EntryItemProps) {
+export function EntryCard({ entry, meta, selectMode, selected, onOpen, onToggleSelect, onStatusChange, onPosterLoaded, showSection, showDetails, highlight, active }: EntryItemProps) {
   const hasImdb = entry.imdbRating && entry.imdbRating !== 'N/A';
   return (
     <motion.div
@@ -62,6 +63,7 @@ export function EntryCard({ entry, meta, selectMode, selected, onOpen, onToggleS
       role="button"
       tabIndex={0}
       aria-pressed={selectMode ? selected : undefined}
+      aria-current={active ? 'true' : undefined}
       onClick={selectMode ? onToggleSelect : onOpen}
       onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); (selectMode ? onToggleSelect : onOpen)(); } }}
       className={cn(
@@ -70,8 +72,8 @@ export function EntryCard({ entry, meta, selectMode, selected, onOpen, onToggleS
       )}
       style={{
         background: 'var(--bg-surface)',
-        borderColor: selected ? 'var(--accent)' : 'var(--border-subtle)',
-        boxShadow: selected ? '0 0 0 1px var(--accent)' : undefined,
+        borderColor: selected || active ? 'var(--accent)' : 'var(--border-subtle)',
+        boxShadow: active ? '0 0 0 1px var(--accent), 0 0 26px -4px rgb(var(--accent-rgb) / 0.6)' : selected ? '0 0 0 1px var(--accent)' : undefined,
       }}
     >
       <div className="relative">

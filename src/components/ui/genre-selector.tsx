@@ -118,7 +118,7 @@ export function GenreSelector({ value, onChange }: Props) {
                   type="button"
                   onClick={() => toggle(g)}
                   className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-left transition-colors hover:bg-[var(--bg-hover)]"
-                  style={{ color: checked ? 'var(--accent)' : 'var(--text-secondary)' }}
+                  style={{ color: checked ? 'var(--accent-text)' : 'var(--text-secondary)' }}
                 >
                   <div
                     className="flex-shrink-0 h-3.5 w-3.5 rounded border flex items-center justify-center"
@@ -154,7 +154,7 @@ export function GenreSelector({ value, onChange }: Props) {
               onClick={addCustom}
               disabled={!customInput.trim()}
               className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold transition-colors disabled:opacity-40"
-              style={{ background: 'var(--bg-hover)', color: 'var(--accent)' }}
+              style={{ background: 'var(--bg-hover)', color: 'var(--accent-text)' }}
             >
               <Plus className="h-3 w-3" /> Add
             </button>

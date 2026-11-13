@@ -138,7 +138,7 @@ export function AddModal({ open, onClose, onSave, onOpenExisting, editEntry, edi
           <DialogHeader>
             <DialogTitle>{editEntry ? 'Edit Entry' : 'Add New Entry'}</DialogTitle>
             {!editEntry && onPasteList && (
-              <button type="button" onClick={() => onPasteList()} className="w-fit text-xs font-medium hover:underline" style={{ color: 'var(--accent)' }}>
+              <button type="button" onClick={() => onPasteList()} className="w-fit text-xs font-medium hover:underline" style={{ color: 'var(--accent-text)' }}>
                 Adding several? Paste a list instead →
               </button>
             )}

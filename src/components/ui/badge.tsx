@@ -10,7 +10,7 @@ function Badge({ className, variant = 'default', ...props }: BadgeProps) {
     <span
       className={cn(
         'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium',
-        variant === 'default' && 'bg-brand/10 text-brand',
+        variant === 'default' && 'bg-brand/10 text-[var(--accent-text)]',
         variant === 'success' && 'bg-emerald-500/10 text-emerald-400',
         variant === 'warning' && 'bg-yellow-500/10 text-yellow-400',
         variant === 'destructive' && 'bg-red-500/10 text-red-400',

@@ -4,24 +4,25 @@
 
 @layer base {
   :root {
-    /* Dark only: "cinema noir". Near-black with a cool slate tint and a gold → ember accent. */
+    /* Dark only: "cinema noir". Near-black with a cool slate tint and a magenta → rose accent. */
     --bg-base: #080a0e;
     --bg-surface: #0f1319;
     --bg-elevated: #161b23;
     --bg-hover: #1e2530;
     --border-subtle: #252d39;
-    --border-focus: #f2b24a;
+    --border-focus: #d43795;
     --text-primary: #f2f4f7;
     --text-secondary: #c9cfd9;
     --text-muted: #8b95a5;
     --text-disabled: #4f5a69;
 
-    /* Brand accent: gold, fading to ember in gradients */
-    --accent: #f2b24a;
-    --accent-rgb: 242 178 74;
-    --accent-strong: #ea8f3c;
-    --accent-fg: #1a1205;            /* text on top of the accent */
-    --accent-gradient: linear-gradient(135deg, #f7c969 0%, #ee9a41 55%, #e8803a 100%);
+    /* Brand accent: magenta pink, warming to rose-coral in gradients */
+    --accent: #d43795;               /* fills, borders, glows */
+    --accent-rgb: 212 55 149;
+    --accent-text: #ea5fae;          /* the same hue, lighter, for small text on dark (6:1) */
+    --accent-strong: #c42d88;
+    --accent-fg: #ffffff;            /* text on top of the accent */
+    --accent-gradient: linear-gradient(135deg, #c42d88 0%, #d43795 45%, #e04668 100%);
 
     --accent-blue: #5aa9ff;
     --accent-green: #34d399;
@@ -31,7 +32,7 @@
     --accent-orange: #fdba74;
     --accent-cyan: #67e8f9;
 
-    /* Status: planned = neutral slate, watching = the accent, watched = green */
+    /* Status: planned = neutral slate, watching = amber, watched = green (independent of the accent) */
     --status-plan-bg: #151b24;
     --status-plan-text: #a9b8cb;
     --status-plan-border: #2f3b4b;
@@ -94,7 +95,7 @@
   }
 }
 
-/* App background: the base colour plus two soft gradient glows (gold top-left, blue top-right). */
+/* App background: the base colour plus two soft gradient glows (pink top-left, blue top-right). */
 .app-bg { background-color: var(--bg-base); }
 .app-bg::before {
   content: '';

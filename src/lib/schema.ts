@@ -10,7 +10,7 @@ import { isValidWatchDate } from './watchDate';
 export const migratedStates = new WeakSet<WatchlistState>();
 
 const STATUSES: WatchStatus[] = ['plan', 'watching', 'watched'];
-const MAX_ENTRIES = 2000;   // keeps the single Firestore doc well under its 1 MB cap
+const MAX_ENTRIES = 1200;   // ~600 B per title with notes: 1200 stays safely under Firestore's 1 MB document cap (2000 could not)
 const MAX_TEXT = 300;
 const MAX_NOTES = 500;
 

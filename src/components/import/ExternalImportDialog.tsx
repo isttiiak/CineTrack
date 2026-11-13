@@ -157,7 +157,7 @@ export function ExternalImportDialog({ source, onCancel, onImport, existing }: P
 
           {(phase === 'reading' || phase === 'matching') && (
             <div className="flex flex-col items-center gap-3 py-8 text-sm" style={{ color: 'var(--text-secondary)' }}>
-              <Loader2 className="h-6 w-6 animate-spin text-brand" />
+              <Loader2 className="h-6 w-6 animate-spin text-[var(--accent-text)]" />
               {phase === 'reading' ? 'Reading file…' : `Matching titles on TMDB… ${done}/${total}`}
               {phase === 'matching' && (
                 <div className="h-1 w-48 overflow-hidden rounded-full" style={{ background: 'var(--bg-elevated)' }}>
