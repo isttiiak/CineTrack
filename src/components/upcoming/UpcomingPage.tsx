@@ -11,6 +11,7 @@ interface Props {
   onOpen: (entryId: string) => void;
   onResolved: (entryId: string, tmdbId: number) => void;
   onExported: (count: number) => void;
+  onBrowseComingSoon: () => void;
 }
 
 const BADGE: Record<UpcomingItem['kind'], { text: string; color: string }> = {
@@ -49,7 +50,7 @@ function Row({ item, today, onOpen }: { item: UpcomingItem; today: string; onOpe
 }
 
 /** New episodes, season premieres and film releases for titles in the list, plus a calendar export. */
-export function UpcomingPage({ entries, meta, onOpen, onResolved, onExported }: Props) {
+export function UpcomingPage({ entries, meta, onOpen, onResolved, onExported, onBrowseComingSoon }: Props) {
   const { items, loading, progress } = useUpcoming(entries, meta, true, onResolved);
   const today = todayKey();
   const in7 = localDateKey(new Date(Date.now() + 7 * 86_400_000));
@@ -86,7 +87,11 @@ export function UpcomingPage({ entries, meta, onOpen, onResolved, onExported }: 
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
           {loading
             ? <span className="inline-flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" /> Checking {progress.done}/{progress.total} titles…</span>
-            : 'New episodes and releases for titles in your list.'}
+            : <>New episodes and releases for <b>titles in your list</b>.{' '}
+                <button onClick={onBrowseComingSoon} className="font-semibold hover:underline" style={{ color: 'var(--accent)' }}>
+                  Browse upcoming releases for everyone →
+                </button>
+              </>}
         </p>
         <button
           onClick={exportIcs}

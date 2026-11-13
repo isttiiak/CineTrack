@@ -8,8 +8,8 @@ export function useCursorGlow() {
     if (!el) return;
     const move = (e: MouseEvent) => {
       el.style.background = `radial-gradient(600px circle at ${e.clientX}px ${e.clientY}px,
-        rgba(99,102,241,0.10) 0%,
-        rgba(59,130,246,0.05) 30%,
+        rgba(242,178,74,0.075) 0%,
+        rgba(90,169,255,0.04) 30%,
         transparent 70%)`;
     };
     window.addEventListener('mousemove', move, { passive: true });

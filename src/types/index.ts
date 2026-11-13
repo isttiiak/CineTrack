@@ -1,6 +1,5 @@
 export type WatchStatus = 'plan' | 'watching' | 'watched';
 export type MediaType = 'Film' | 'Series';
-export type ThemeMode = 'dark' | 'light';
 
 export type WatchPlatform =
   | 'Netflix'

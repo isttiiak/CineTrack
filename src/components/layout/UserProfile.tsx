@@ -19,7 +19,7 @@ export function UserProfile({ user, onSettings, onSignOut }: Props) {
           {user.avatar ? (
             <img src={user.avatar} alt={user.name} className="h-6 w-6 rounded-full object-cover" />
           ) : (
-            <div className="h-6 w-6 rounded-full bg-indigo-500 flex items-center justify-center text-xs text-white font-medium">
+            <div className="h-6 w-6 rounded-full bg-brand flex items-center justify-center text-xs font-semibold text-[var(--accent-fg)]">
               {user.name[0]}
             </div>
           )}

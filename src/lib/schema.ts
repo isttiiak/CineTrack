@@ -1,5 +1,6 @@
 import type { MovieEntry, WatchMeta, WatchlistState, WatchStatus, WatchPlatform, MediaType } from '../types';
 import { LEGACY_PLATFORMS, PLATFORMS, SECTIONS } from './utils';
+import { isValidWatchDate } from './watchDate';
 
 /**
  * States produced by normalizeState that had old-format data converted (e.g. platform "Torrent" →
@@ -77,7 +78,7 @@ function normalizeMeta(id: string, raw: unknown, onMigrate: () => void): WatchMe
   if (rating !== undefined) meta.personalRating = rating;
   const notes = str(r.notes, MAX_NOTES);
   if (notes) meta.notes = notes;
-  if (typeof r.watchedOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.watchedOn)) meta.watchedOn = r.watchedOn;
+  if (isValidWatchDate(r.watchedOn)) meta.watchedOn = r.watchedOn;   // YYYY, YYYY-MM or YYYY-MM-DD
   if ((PLATFORMS as readonly string[]).includes(r.watchPlatform as string)) {
     meta.watchPlatform = r.watchPlatform as WatchPlatform;
   } else if (typeof r.watchPlatform === 'string' && LEGACY_PLATFORMS[r.watchPlatform.trim().toLowerCase()]) {

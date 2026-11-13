@@ -27,7 +27,7 @@ export function BulkActionBar({ count, onStatusChange, onDelete, onClear }: Prop
             boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
           }}
         >
-          <div className="flex items-center gap-1.5 mr-2 text-xs font-semibold" style={{ color: 'var(--accent-purple)' }}>
+          <div className="flex items-center gap-1.5 mr-2 text-xs font-semibold" style={{ color: 'var(--accent)' }}>
             <CheckSquare className="h-3.5 w-3.5" />
             {count} selected
           </div>

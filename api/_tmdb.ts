@@ -13,6 +13,7 @@ const ALLOWED_PATHS: RegExp[] = [
   /^(movie|tv)\/\d{1,10}$/,
   /^(movie|tv)\/\d{1,10}\/(recommendations|watch\/providers|external_ids)$/,
   /^find\/tt\d{5,10}$/,
+  /^discover\/(movie|tv)$/,           // "Coming soon": titles by release date and popularity
 ];
 
 const APPENDABLE = '(external_ids|watch/providers|recommendations)';
@@ -25,6 +26,15 @@ const ALLOWED_PARAMS: Record<string, RegExp> = {
   page: /^\d{1,3}$/,
   append_to_response: new RegExp(`^${APPENDABLE}(,${APPENDABLE}){0,2}$`),
   external_source: /^imdb_id$/,
+  // discover/* filters (all validated; nothing free-form gets through)
+  sort_by: /^(popularity|primary_release_date|first_air_date|vote_average|vote_count)\.(asc|desc)$/,
+  'primary_release_date.gte': /^\d{4}-\d{2}-\d{2}$/,
+  'primary_release_date.lte': /^\d{4}-\d{2}-\d{2}$/,
+  'first_air_date.gte': /^\d{4}-\d{2}-\d{2}$/,
+  'first_air_date.lte': /^\d{4}-\d{2}-\d{2}$/,
+  with_release_type: /^[1-6](\|[1-6]){0,5}$/,
+  region: /^[A-Z]{2}$/,
+  'vote_count.gte': /^\d{1,6}$/,
 };
 
 /** Builds the upstream TMDB URL, or returns null when the request isn't allowed. */

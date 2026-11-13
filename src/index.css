@@ -4,35 +4,45 @@
 
 @layer base {
   :root {
-    /* Dark mode (default) */
-    --bg-base: #07070f;
-    --bg-surface: #0d0d1a;
-    --bg-elevated: #131320;
-    --bg-hover: #1a1a2e;
-    --border-subtle: #232338;
-    --border-focus: #3b82f6;
-    --text-primary: #f1f5f9;
-    --text-secondary: #cbd5e1;
-    --text-muted: #8b92a8;
-    --text-disabled: #4a5268;
-    --accent-blue: #3b82f6;
-    --accent-purple: #818cf8;
+    /* Dark only: "cinema noir". Near-black with a cool slate tint and a gold → ember accent. */
+    --bg-base: #080a0e;
+    --bg-surface: #0f1319;
+    --bg-elevated: #161b23;
+    --bg-hover: #1e2530;
+    --border-subtle: #252d39;
+    --border-focus: #f2b24a;
+    --text-primary: #f2f4f7;
+    --text-secondary: #c9cfd9;
+    --text-muted: #8b95a5;
+    --text-disabled: #4f5a69;
+
+    /* Brand accent: gold, fading to ember in gradients */
+    --accent: #f2b24a;
+    --accent-rgb: 242 178 74;
+    --accent-strong: #ea8f3c;
+    --accent-fg: #1a1205;            /* text on top of the accent */
+    --accent-gradient: linear-gradient(135deg, #f7c969 0%, #ee9a41 55%, #e8803a 100%);
+
+    --accent-blue: #5aa9ff;
     --accent-green: #34d399;
     --accent-yellow: #fbbf24;
     --accent-red: #f87171;
     --accent-pink: #f9a8d4;
     --accent-orange: #fdba74;
     --accent-cyan: #67e8f9;
-    --status-plan-bg: #1e1a2e;
-    --status-plan-text: #c4b5fd;
-    --status-plan-border: #5b21b6;
-    --status-watching-bg: #221800;
-    --status-watching-text: #fcd34d;
-    --status-watching-border: #92400e;
+
+    /* Status: planned = neutral slate, watching = the accent, watched = green */
+    --status-plan-bg: #151b24;
+    --status-plan-text: #a9b8cb;
+    --status-plan-border: #2f3b4b;
+    --status-watching-bg: #2a1d08;
+    --status-watching-text: #f6c667;
+    --status-watching-border: #7c5518;
     --status-watched-bg: #052e16;
     --status-watched-text: #6ee7b7;
     --status-watched-border: #065f46;
-    /* Charts (validated for colour-blind separation + contrast on this surface) */
+
+    /* Charts (validated for colour-blind separation + contrast on --bg-surface) */
     --viz-1: #3987e5;            /* series 1 (films) */
     --viz-2: #d95926;            /* series 2 (series) */
     --viz-seq: #3987e5;          /* single-series bars */
@@ -42,45 +52,10 @@
     --viz-heat-4: #86b6ef;
   }
 
-  .light {
-    --bg-base: #f0f2f8;
-    --bg-surface: #ffffff;
-    --bg-elevated: #e8eaf2;
-    --bg-hover: #dde0ee;
-    --border-subtle: #c8cce0;
-    --border-focus: #4f46e5;
-    --text-primary: #0f0f1a;
-    --text-secondary: #2d2f45;
-    --text-muted: #5a5f7a;
-    --text-disabled: #9096b0;
-    --accent-blue: #4f46e5;
-    --accent-purple: #6d28d9;
-    --accent-green: #059669;
-    --accent-yellow: #d97706;
-    --accent-red: #dc2626;
-    --accent-cyan: #0891b2;
-    --status-plan-bg: #ede9fe;
-    --status-plan-text: #5b21b6;
-    --status-plan-border: #a78bfa;
-    --status-watching-bg: #fef3c7;
-    --status-watching-text: #92400e;
-    --status-watching-border: #fcd34d;
-    --status-watched-bg: #d1fae5;
-    --status-watched-text: #065f46;
-    --status-watched-border: #6ee7b7;
-    --viz-1: #2a78d6;
-    --viz-2: #eb6834;
-    --viz-seq: #2a78d6;
-    --viz-heat-1: #86b6ef;
-    --viz-heat-2: #5598e7;
-    --viz-heat-3: #2a78d6;
-    --viz-heat-4: #1c5cab;
-  }
-
   * { border-color: var(--border-subtle); box-sizing: border-box; }
 
-  html { color-scheme: dark; }
-  .light { color-scheme: light; }
+  html { color-scheme: dark; background: var(--bg-base); }
+  ::selection { background: rgb(var(--accent-rgb) / 0.3); }
 
   body {
     background-color: var(--bg-base);
@@ -107,12 +82,9 @@
     opacity: 1;
   }
 
-  /* Date input in dark mode */
+  /* Date input */
   input[type="date"]::-webkit-calendar-picker-indicator {
     filter: invert(0.7);
-  }
-  .light input[type="date"]::-webkit-calendar-picker-indicator {
-    filter: none;
   }
 
   /* Number input arrows */
@@ -120,6 +92,29 @@
   input[type="number"]::-webkit-outer-spin-button {
     opacity: 0.4;
   }
+}
+
+/* App background: the base colour plus two soft gradient glows (gold top-left, blue top-right). */
+.app-bg { background-color: var(--bg-base); }
+.app-bg::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1100px 540px at 10% -10%, rgb(var(--accent-rgb) / 0.08), transparent 62%),
+    radial-gradient(900px 480px at 105% -5%, rgb(90 169 255 / 0.055), transparent 60%);
+}
+
+/* Draws the eye to something that just changed (e.g. the auto-filled watch date). */
+@keyframes attention {
+  0%   { box-shadow: 0 0 0 0 rgb(var(--accent-rgb) / 0.75); background-color: rgb(var(--accent-rgb) / 0.22); }
+  55%  { box-shadow: 0 0 0 7px rgb(var(--accent-rgb) / 0);  background-color: rgb(var(--accent-rgb) / 0.08); }
+  100% { box-shadow: 0 0 0 0 rgb(var(--accent-rgb) / 0);    background-color: transparent; }
+}
+.attention { animation: attention 0.9s ease-out 3; border-color: var(--accent) !important; }
+@media (prefers-reduced-motion: reduce) {
+  .attention { animation: none; box-shadow: 0 0 0 2px rgb(var(--accent-rgb) / 0.6); }
 }
 
 .glow-pulse {

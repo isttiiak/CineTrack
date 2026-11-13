@@ -16,6 +16,7 @@ export default {
         mono: ['JetBrains Mono', 'monospace'],
       },
       colors: {
+        brand: 'rgb(var(--accent-rgb) / <alpha-value>)',
         base: 'var(--bg-base)',
         surface: 'var(--bg-surface)',
         elevated: 'var(--bg-elevated)',

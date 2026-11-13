@@ -29,7 +29,7 @@ you are signed in (it clears the signed-in list from that device).
 
 If the deployment has Firebase Analytics turned on, CineTrack sends anonymous usage events so the
 operator can see which features are used. Events are things like `status_changed`,
-`watchlist_entry_added`, `sign_in`, `theme_toggled`, `export_json`, with generic values such as
+`watchlist_entry_added`, `sign_in`, `platform_set`, `export_json`, with generic values such as
 the type (film/series), a count, or a rating number. **Titles, notes, links and search text are
 never included.**
 

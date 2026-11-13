@@ -57,7 +57,7 @@ export const SearchBox = forwardRef<HTMLInputElement, Props>(function SearchBox(
         aria-describedby={showTips ? 'search-tips' : undefined}
         autoComplete="off"
         spellCheck={false}
-        className="h-10 w-full rounded-xl border pl-9 pr-20 text-sm outline-none focus:ring-2 focus:ring-indigo-500/40 [&::-webkit-search-cancel-button]:hidden"
+        className="h-10 w-full rounded-xl border pl-9 pr-20 text-sm outline-none focus:ring-2 focus:ring-brand/40 [&::-webkit-search-cancel-button]:hidden"
         style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}
       />
       <div className="absolute right-2.5 top-1/2 flex -translate-y-1/2 items-center gap-1.5">
@@ -95,7 +95,7 @@ export const SearchBox = forwardRef<HTMLInputElement, Props>(function SearchBox(
                 key={t.label}
                 onClick={() => add(t.insert)}
                 className="rounded-md border px-2 py-0.5 font-mono text-[11px] transition-colors hover:bg-[var(--bg-hover)]"
-                style={{ borderColor: 'var(--border-subtle)', color: 'var(--accent-purple)' }}
+                style={{ borderColor: 'var(--border-subtle)', color: 'var(--accent)' }}
               >
                 {t.label}
               </button>

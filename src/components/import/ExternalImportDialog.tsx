@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { candidatesFromText, readExportFile, type ExportKind, type ImportCandidate } from '@/lib/csvImport';
 import { matchCandidates, toEntry, type MatchResult, type MatchHit } from '@/lib/importMatch';
 import { MAX_ENTRIES } from '@/lib/schema';
+import { formatWatchDate } from '@/lib/watchDate';
 import type { MovieEntry, WatchMeta, WatchStatus } from '@/types';
 
 export type ImportSource = { kind: 'file'; file: File } | { kind: 'text'; text: string };
@@ -113,7 +114,7 @@ export function ExternalImportDialog({ source, onCancel, onImport, existing }: P
     const listed = inList(r);
     return (
       <label key={i} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-[var(--bg-hover)]">
-        <input type="checkbox" checked={selected.has(i)} onChange={() => toggle(i)} className="h-4 w-4 flex-shrink-0 accent-indigo-500" />
+        <input type="checkbox" checked={selected.has(i)} onChange={() => toggle(i)} className="h-4 w-4 flex-shrink-0 accent-brand" />
         <span className="h-12 w-8 flex-shrink-0 overflow-hidden rounded" style={{ background: 'var(--bg-elevated)' }}>
           {h.posterPath ? <img src={`https://image.tmdb.org/t/p/w92${h.posterPath}`} alt="" loading="lazy" className="h-full w-full object-cover" />
             : <Film className="m-2 h-4 w-4 opacity-30" />}
@@ -125,7 +126,7 @@ export function ExternalImportDialog({ source, onCancel, onImport, existing }: P
             {differs ? <>From “{typed}”{r.candidate.year ? ` ${r.candidate.year}` : ''} · </> : null}
             {STATUS_LABEL[isText ? statusForAll : r.candidate.status]}
             {r.candidate.rating !== undefined && <> · {r.candidate.rating}/10</>}
-            {r.candidate.watchedOn && <> · {r.candidate.watchedOn}</>}
+            {r.candidate.watchedOn && <> · {formatWatchDate(r.candidate.watchedOn)}</>}
           </span>
         </span>
       </label>
@@ -156,11 +157,11 @@ export function ExternalImportDialog({ source, onCancel, onImport, existing }: P
 
           {(phase === 'reading' || phase === 'matching') && (
             <div className="flex flex-col items-center gap-3 py-8 text-sm" style={{ color: 'var(--text-secondary)' }}>
-              <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
+              <Loader2 className="h-6 w-6 animate-spin text-brand" />
               {phase === 'reading' ? 'Reading file…' : `Matching titles on TMDB… ${done}/${total}`}
               {phase === 'matching' && (
                 <div className="h-1 w-48 overflow-hidden rounded-full" style={{ background: 'var(--bg-elevated)' }}>
-                  <div className="h-full bg-indigo-500 transition-all" style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
+                  <div className="h-full bg-brand transition-all" style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
                 </div>
               )}
             </div>

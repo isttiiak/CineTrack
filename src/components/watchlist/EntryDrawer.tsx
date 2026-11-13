@@ -1,17 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X, ExternalLink, Pencil, Trash2, Link as LinkIcon, Clock, Calendar, MonitorPlay, Star, Minus, Plus, Tv } from 'lucide-react';
+import { X, ExternalLink, Pencil, Trash2, Link as LinkIcon, Calendar, MonitorPlay, Star, Minus, Plus, Tv, StickyNote, Check } from 'lucide-react';
 import type { MovieEntry, WatchMeta, WatchPlatform, WatchStatus } from '@/types';
-import { getDetails, kindOf, regularSeasons, resolveTmdbId, suggestPlatform, type TitleDetails } from '@/lib/titleData';
+import { getDetails, kindOf, platformOf, regularSeasons, resolveTmdbId, type TitleDetails } from '@/lib/titleData';
 import { episodesLeft, isCaughtUp, nextEpisode, prevEpisode, statusAfterProgress, type EpisodePos } from '@/lib/progress';
+import { formatWatchDate, precisionOf } from '@/lib/watchDate';
 import { useRatings } from '@/hooks/useRatings';
 import { RatingsRow } from '@/components/ratings/RatingsRow';
 import { WhereToWatch } from '@/components/ratings/WhereToWatch';
+import { WatchDateField } from '@/components/ui/watch-date-field';
 import { PosterThumb } from './PosterThumb';
 import { STATUS_CONFIG } from './StatusBadge';
 import { safeUrl } from '@/lib/schema';
-import { getImdbColor, ratingSourceOf, cn, SECTION_COLORS, SECTION_EMOJIS } from '@/lib/utils';
+import { getImdbColor, ratingSourceOf, cn, PLATFORMS, SECTION_COLORS, SECTION_EMOJIS } from '@/lib/utils';
 
 interface Props {
   entry: MovieEntry | null;
@@ -19,6 +21,9 @@ interface Props {
   onClose: () => void;
   onStatusChange: (status: WatchStatus) => void;
   onRatingChange: (rating: number | undefined) => void;
+  onWatchedOnChange: (date: string | undefined) => void;
+  onNotesChange: (notes: string) => void;
+  onPlatformChange: (platform: WatchPlatform | undefined) => void;
   onEdit: () => void;
   onDelete: () => void;
   region: string;
@@ -26,25 +31,26 @@ interface Props {
   /** Saves data looked up automatically (TMDB id, real IMDb rating/link). */
   onEnrich: (patch: Partial<MovieEntry>) => void;
   onProgress: (pos: EpisodePos | null, status: WatchStatus) => void;
-  onSetPlatform: (platform: WatchPlatform) => void;
 }
 
 const STATUSES: WatchStatus[] = ['plan', 'watching', 'watched'];
+const MAX_NOTES = 500;
 
-function Fact({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border p-3" style={{ background: 'var(--bg-elevated)', borderColor: 'var(--border-subtle)' }}>
-      <div className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--text-disabled)' }}>
-        {icon}{label}
-      </div>
-      <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{children}</div>
-    </div>
-  );
-}
+const sectionTitle = 'mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest';
+const labelColor = { color: 'var(--text-disabled)' };
+const panel = { background: 'var(--bg-elevated)', borderColor: 'var(--border-subtle)' };
 
-/** Right-side sheet on desktop, bottom sheet on mobile. Holds everything that used to be collapsed into rows. */
+/**
+ * Right-side sheet on desktop, bottom sheet on mobile.
+ *
+ * Built around what people do every day, all editable in place: status, watch date (as precise as
+ * you remember it), rating, episode progress, platform and notes. Details that rarely change
+ * (title, year, genres, section…) live behind "Edit details".
+ */
 export function EntryDrawer({ entry, meta, onClose, ...rest }: Props) {
   const open = entry !== null && meta !== null;
+  // While an inline editor (notes, date) is open, Escape closes the editor, not the whole drawer.
+  const editingRef = useRef(false);
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(o) => !o && onClose()}>
@@ -57,12 +63,15 @@ export function EntryDrawer({ entry, meta, onClose, ...rest }: Props) {
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               />
             </DialogPrimitive.Overlay>
-            <DialogPrimitive.Content asChild forceMount aria-describedby={undefined}>
+            <DialogPrimitive.Content
+              asChild forceMount aria-describedby={undefined}
+              onEscapeKeyDown={(e) => { if (editingRef.current) e.preventDefault(); }}
+            >
               <motion.div
                 className={cn(
                   'fixed z-50 flex flex-col overflow-hidden border shadow-2xl focus:outline-none',
                   'inset-x-0 bottom-0 max-h-[92vh] rounded-t-2xl',
-                  'sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-[440px] sm:rounded-none sm:rounded-l-2xl',
+                  'sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-[460px] sm:rounded-none sm:rounded-l-2xl',
                 )}
                 style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)' }}
                 initial={{ opacity: 0, y: 40 }}
@@ -70,7 +79,7 @@ export function EntryDrawer({ entry, meta, onClose, ...rest }: Props) {
                 exit={{ opacity: 0, y: 40 }}
                 transition={{ type: 'spring', stiffness: 380, damping: 36 }}
               >
-                <DrawerBody key={entry.id} entry={entry} meta={meta} {...rest} />
+                <DrawerBody key={entry.id} entry={entry} meta={meta} editingRef={editingRef} {...rest} />
               </motion.div>
             </DialogPrimitive.Content>
           </DialogPrimitive.Portal>
@@ -80,9 +89,91 @@ export function EntryDrawer({ entry, meta, onClose, ...rest }: Props) {
   );
 }
 
-const sectionTitle = 'mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest';
+/** Notes you can write and save without leaving the drawer. Ctrl/⌘+Enter saves, Esc cancels. */
+function NotesEditor({ value, onSave, editingRef }: { value: string; onSave: (notes: string) => void; editingRef: React.MutableRefObject<boolean> }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [saved, setSaved] = useState(false);
+  const latest = useRef({ editing, draft, value, onSave });
+  latest.current = { editing, draft, value, onSave };
 
-function DrawerBody({ entry, meta, onStatusChange, onRatingChange, onEdit, onDelete, region, myServices, onEnrich, onProgress, onSetPlatform }: Omit<Props, 'entry' | 'meta' | 'onClose'> & { entry: MovieEntry; meta: WatchMeta }) {
+  useEffect(() => { if (!editing) setDraft(value); }, [value, editing]);
+  useEffect(() => { editingRef.current = editing; }, [editing, editingRef]);
+  // Closing the drawer with unsaved changes keeps them rather than losing what you typed.
+  useEffect(() => () => {
+    const { editing: e, draft: d, value: v, onSave: save } = latest.current;
+    editingRef.current = false;
+    if (e && d.trim() !== v) save(d.trim().slice(0, MAX_NOTES));
+  }, [editingRef]);
+
+  const save = () => {
+    onSave(draft.trim().slice(0, MAX_NOTES));
+    setEditing(false);
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 1800);
+  };
+  const cancel = () => { setDraft(value); setEditing(false); };
+
+  if (!editing) {
+    return value ? (
+      <button
+        type="button" onClick={() => setEditing(true)}
+        className="group w-full rounded-xl border px-3.5 py-3 text-left transition-colors hover:border-[var(--accent)]" style={panel}
+        aria-label="Edit notes"
+      >
+        <p className="whitespace-pre-wrap text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{value}</p>
+        <span className="mt-2 flex items-center gap-1 text-[11px] font-semibold" style={{ color: saved ? 'var(--accent-green)' : 'var(--accent)' }}>
+          {saved ? <><Check className="h-3 w-3" /> Saved</> : <><Pencil className="h-3 w-3" /> Edit notes</>}
+        </span>
+      </button>
+    ) : (
+      <button
+        type="button" onClick={() => setEditing(true)}
+        className="flex w-full items-center gap-2 rounded-xl border border-dashed px-3.5 py-3 text-sm transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+        style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-muted)' }}
+      >
+        <Plus className="h-4 w-4" /> Add your notes or a short review
+        {saved && <span className="ml-auto flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--accent-green)' }}><Check className="h-3 w-3" /> Saved</span>}
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border p-2.5" style={{ ...panel, borderColor: 'var(--accent)' }}>
+      <textarea
+        autoFocus
+        value={draft}
+        maxLength={MAX_NOTES}
+        rows={5}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); save(); }
+          else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+        }}
+        placeholder="What did you think? Favourite scene, who to recommend it to…"
+        className="w-full resize-y rounded-lg bg-transparent px-1.5 py-1 text-sm leading-relaxed outline-none"
+        style={{ color: 'var(--text-primary)' }}
+        aria-label="Notes"
+      />
+      <div className="mt-1.5 flex items-center gap-2">
+        <span className="font-mono text-[10px]" style={{ color: 'var(--text-disabled)' }}>{draft.length}/{MAX_NOTES}</span>
+        <button type="button" onClick={cancel} className="ml-auto rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-[var(--bg-hover)]" style={{ color: 'var(--text-secondary)' }}>Cancel</button>
+        <button
+          type="button" onClick={save}
+          className="rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-[filter] hover:brightness-110"
+          style={{ background: 'var(--accent-gradient)', color: 'var(--accent-fg)' }}
+        >
+          Save notes
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DrawerBody({
+  entry, meta, editingRef, onStatusChange, onRatingChange, onWatchedOnChange, onNotesChange, onPlatformChange,
+  onEdit, onDelete, region, myServices, onEnrich, onProgress,
+}: Omit<Props, 'entry' | 'meta' | 'onClose'> & { entry: MovieEntry; meta: WatchMeta; editingRef: React.MutableRefObject<boolean> }) {
   const kind = kindOf(entry.type);
   const [tmdbId, setTmdbId] = useState<number | null>(entry.tmdbId ?? null);
   const [details, setDetails] = useState<TitleDetails | null>(null);
@@ -123,8 +214,32 @@ function DrawerBody({ entry, meta, onStatusChange, onRatingChange, onEdit, onDel
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ratings]);
 
+  // ── Watch date: when marking watched fills in today, make that obvious and easy to correct ──
+  const [editingDate, setEditingDate] = useState(false);
+  const [flash, setFlash] = useState(false);
+  const [autoHint, setAutoHint] = useState(false);
+  const dateCard = useRef<HTMLDivElement>(null);
+  const previous = useRef({ status: meta.status, watchedOn: meta.watchedOn });
+  const timers = useRef<number[]>([]);
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  useEffect(() => {
+    const before = previous.current;
+    previous.current = { status: meta.status, watchedOn: meta.watchedOn };
+    if (meta.status === 'watched' && before.status !== 'watched' && meta.watchedOn && meta.watchedOn !== before.watchedOn) {
+      setFlash(true); setAutoHint(true);
+      timers.current.push(window.setTimeout(() => setFlash(false), 3000), window.setTimeout(() => setAutoHint(false), 14000));
+      requestAnimationFrame(() => dateCard.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+    }
+  }, [meta.status, meta.watchedOn]);
+  useEffect(() => { editingRef.current = editingDate; }, [editingDate, editingRef]);
+  const openDateEditor = () => { setFlash(false); setAutoHint(false); setEditingDate((v) => !v); };
+  const precision = precisionOf(meta.watchedOn);
+
   const providers = details?.['watch/providers']?.results?.[region];
-  const suggested = !meta.watchPlatform ? suggestPlatform(providers, myServices) : null;
+  const streamsHere = new Set(
+    [...(providers?.flatrate ?? []), ...(providers?.free ?? []), ...(providers?.ads ?? [])]
+      .map((p) => platformOf(p.provider_name)).filter(Boolean),
+  );
   const seasons = details ? regularSeasons(details) : [];
   const pos: EpisodePos | null = meta.progressSeason != null && meta.progressEpisode != null
     ? { season: meta.progressSeason, episode: meta.progressEpisode } : null;
@@ -139,7 +254,7 @@ function DrawerBody({ entry, meta, onStatusChange, onRatingChange, onEdit, onDel
   const ratingUrl = fromTmdb
     ? (entry.tmdbId ? `https://www.themoviedb.org/${entry.type === 'Series' ? 'tv' : 'movie'}/${entry.tmdbId}` : '')
     : imdbUrl;
-  const color = SECTION_COLORS[entry.section] ?? '#818cf8';
+  const color = SECTION_COLORS[entry.section] ?? '#f2b24a';
 
   return (
     <>
@@ -159,14 +274,14 @@ function DrawerBody({ entry, meta, onStatusChange, onRatingChange, onEdit, onDel
         <div className="flex gap-4">
           <PosterThumb
             title={entry.title} year={entry.year} type={entry.type} tmdbId={entry.tmdbId} posterUrl={entry.posterUrl}
-            size="w342" className="aspect-[2/3] w-28 rounded-lg shadow-lg"
+            size="w342" className="aspect-[2/3] w-24 rounded-lg shadow-lg sm:w-28"
           />
           <div className="min-w-0 flex-1">
             <DialogPrimitive.Title className="text-xl font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>
               {entry.title}
             </DialogPrimitive.Title>
             <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
-              {[entry.year, entry.type, entry.country].filter(Boolean).join(' · ')}
+              {[entry.year, entry.type, entry.country, meta.duration].filter(Boolean).join(' · ')}
             </p>
             {entry.genre && (
               <div className="mt-2 flex flex-wrap gap-1">
@@ -189,15 +304,9 @@ function DrawerBody({ entry, meta, onStatusChange, onRatingChange, onEdit, onDel
           </div>
         </div>
 
-        {(ratings || ratingsLoading) && (
-          <section className="mt-5">
-            <h3 className={sectionTitle} style={{ color: 'var(--text-disabled)' }}><Star className="h-3 w-3" /> Ratings</h3>
-            <RatingsRow ratings={ratings} loading={ratingsLoading && !ratings} tmdbFallback={details?.vote_average || undefined} />
-          </section>
-        )}
-
+        {/* ── Your log: everything you update day to day ───────────────────────── */}
         <section className="mt-6">
-          <h3 className="mb-2 text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--text-disabled)' }}>Status</h3>
+          <h3 className={sectionTitle} style={labelColor}>Status</h3>
           <div className="grid grid-cols-3 gap-1.5 rounded-xl p-1" style={{ background: 'var(--bg-elevated)' }}>
             {STATUSES.map((s) => {
               const active = meta.status === s;
@@ -216,9 +325,43 @@ function DrawerBody({ entry, meta, onStatusChange, onRatingChange, onEdit, onDel
           </div>
         </section>
 
+        {meta.status === 'watched' && (
+          <section className="mt-5">
+            <h3 className={sectionTitle} style={labelColor}><Calendar className="h-3 w-3" /> Watched on</h3>
+            <div ref={dateCard} className={cn('rounded-xl border transition-colors', flash && 'attention')} style={panel}>
+              <button
+                type="button" onClick={openDateEditor} aria-expanded={editingDate}
+                className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left"
+              >
+                <span className="min-w-0">
+                  <span className="block text-base font-semibold" style={{ color: meta.watchedOn ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                    {meta.watchedOn ? formatWatchDate(meta.watchedOn) : 'No date yet'}
+                  </span>
+                  <span className="block text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                    {precision === 'day' ? 'Exact day' : precision === 'month' ? 'Month only' : precision === 'year' ? 'Year only' : 'Add the date, or just the year'}
+                  </span>
+                </span>
+                <span className="flex flex-shrink-0 items-center gap-1 text-xs font-semibold" style={{ color: 'var(--accent)' }}>
+                  <Pencil className="h-3.5 w-3.5" /> {editingDate ? 'Done' : 'Change'}
+                </span>
+              </button>
+              {editingDate && (
+                <div className="border-t px-3.5 py-3" style={{ borderColor: 'var(--border-subtle)' }}>
+                  <WatchDateField idPrefix="drawer-watched" value={meta.watchedOn} onChange={onWatchedOnChange} />
+                </div>
+              )}
+            </div>
+            {autoHint && !editingDate && (
+              <p className="mt-1.5 text-xs" style={{ color: 'var(--accent)' }}>
+                Set to today. Watched it earlier? Tap <b>Change</b> to pick the date, or just the year.
+              </p>
+            )}
+          </section>
+        )}
+
         <section className="mt-5">
-          <h3 className="mb-2 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--text-disabled)' }}>
-            My Rating
+          <h3 className={cn(sectionTitle, 'justify-between')} style={labelColor}>
+            <span className="flex items-center gap-1.5"><Star className="h-3 w-3" /> My rating</span>
             {meta.personalRating != null && (
               <button onClick={() => onRatingChange(undefined)} className="normal-case tracking-normal hover:underline" style={{ color: 'var(--text-muted)' }}>
                 Clear
@@ -235,8 +378,8 @@ function DrawerBody({ entry, meta, onStatusChange, onRatingChange, onEdit, onDel
                   aria-label={`Rate ${n} out of 10`}
                   className="h-8 rounded-md font-mono text-xs font-semibold transition-colors"
                   style={{
-                    background: filled ? 'color-mix(in srgb, var(--accent-cyan) 22%, transparent)' : 'var(--bg-elevated)',
-                    color: filled ? 'var(--accent-cyan)' : 'var(--text-muted)',
+                    background: filled ? 'color-mix(in srgb, var(--accent) 22%, transparent)' : 'var(--bg-elevated)',
+                    color: filled ? 'var(--accent)' : 'var(--text-muted)',
                   }}
                 >
                   {n}
@@ -248,8 +391,8 @@ function DrawerBody({ entry, meta, onStatusChange, onRatingChange, onEdit, onDel
 
         {entry.type === 'Series' && seasons.length > 0 && (
           <section className="mt-5">
-            <h3 className={sectionTitle} style={{ color: 'var(--text-disabled)' }}><Tv className="h-3 w-3" /> Progress</h3>
-            <div className="rounded-xl border p-3" style={{ background: 'var(--bg-elevated)', borderColor: 'var(--border-subtle)' }}>
+            <h3 className={sectionTitle} style={labelColor}><Tv className="h-3 w-3" /> Progress</h3>
+            <div className="rounded-xl border p-3" style={panel}>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => pos && logProgress(prevEpisode(seasons, pos))}
@@ -273,8 +416,8 @@ function DrawerBody({ entry, meta, onStatusChange, onRatingChange, onEdit, onDel
                 <button
                   onClick={() => { const n = nextEpisode(seasons, pos); if (n) logProgress(n); }}
                   disabled={!nextEpisode(seasons, pos) || isCaughtUp(pos, details?.last_episode_to_air)}
-                  className="flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold text-white transition-opacity disabled:opacity-30"
-                  style={{ background: 'var(--accent-purple)' }}
+                  className="flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold transition-opacity disabled:opacity-30"
+                  style={{ background: 'var(--accent-gradient)', color: 'var(--accent-fg)' }}
                 >
                   <Plus className="h-3.5 w-3.5" /> Episode
                 </button>
@@ -313,53 +456,65 @@ function DrawerBody({ entry, meta, onStatusChange, onRatingChange, onEdit, onDel
           </section>
         )}
 
-        {(meta.duration || meta.watchPlatform || meta.watchedOn) && (
-          <section className="mt-5 grid grid-cols-2 gap-2">
-            {meta.duration && <Fact icon={<Clock className="h-3 w-3" />} label="Duration">{meta.duration}</Fact>}
-            {meta.watchPlatform && <Fact icon={<MonitorPlay className="h-3 w-3" />} label="Platform">{meta.watchPlatform}</Fact>}
-            {meta.watchedOn && <Fact icon={<Calendar className="h-3 w-3" />} label="Watched on">{meta.watchedOn}</Fact>}
-          </section>
-        )}
-
-        {watchLink && (
-          <a
-            href={watchLink} target="_blank" rel="noopener noreferrer"
-            className="mt-4 flex items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition-opacity hover:opacity-80"
-            style={{ color: 'var(--accent-cyan)', borderColor: 'var(--accent-cyan)', background: 'color-mix(in srgb, var(--accent-cyan) 8%, transparent)' }}
-          >
-            <LinkIcon className="h-4 w-4" /> Open watch link
-          </a>
-        )}
-
-        {(tmdbId || detailsLoading) && (
-          <section className="mt-5">
-            <h3 className={sectionTitle} style={{ color: 'var(--text-disabled)' }}><MonitorPlay className="h-3 w-3" /> Where to watch</h3>
-            <WhereToWatch providers={providers} region={region} myServices={myServices} loading={detailsLoading} />
-            {suggested && (
-              <button
-                onClick={() => onSetPlatform(suggested)}
-                className="mt-2 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors hover:bg-[var(--bg-hover)]"
-                style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-secondary)' }}
-              >
-                Set platform to {suggested}
-              </button>
-            )}
-          </section>
-        )}
-
         <section className="mt-5">
-          <h3 className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--text-disabled)' }}>
-            <Pencil className="h-3 w-3" /> Notes
-          </h3>
-          {meta.notes ? (
-            <p className="whitespace-pre-wrap rounded-xl border px-3 py-2.5 text-sm leading-relaxed"
-               style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}>
-              {meta.notes}
+          <h3 className={sectionTitle} style={labelColor}><MonitorPlay className="h-3 w-3" /> Watched on platform</h3>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Platform">
+            {PLATFORMS.map((p) => {
+              const active = meta.watchPlatform === p;
+              const here = streamsHere.has(p);
+              return (
+                <button
+                  key={p} type="button" aria-pressed={active}
+                  onClick={() => onPlatformChange(active ? undefined : p)}
+                  title={here ? `${p}: streaming in your country` : p}
+                  className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors"
+                  style={active
+                    ? { color: 'var(--accent)', borderColor: 'var(--accent)', background: 'color-mix(in srgb, var(--accent) 12%, transparent)' }
+                    : { color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}
+                >
+                  {here && <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--accent-green)' }} aria-hidden />}
+                  {p}
+                </button>
+              );
+            })}
+          </div>
+          {streamsHere.size > 0 && (
+            <p className="mt-1.5 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+              <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ background: 'var(--accent-green)' }} /> streams in your country
             </p>
-          ) : (
-            <button onClick={onEdit} className="text-sm hover:underline" style={{ color: 'var(--text-muted)' }}>+ Add notes</button>
+          )}
+          {watchLink && (
+            <a
+              href={watchLink} target="_blank" rel="noopener noreferrer"
+              className="mt-3 flex items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition-opacity hover:opacity-80"
+              style={{ color: 'var(--accent-cyan)', borderColor: 'var(--accent-cyan)', background: 'color-mix(in srgb, var(--accent-cyan) 8%, transparent)' }}
+            >
+              <LinkIcon className="h-4 w-4" /> Open watch link
+            </a>
           )}
         </section>
+
+        <section className="mt-5">
+          <h3 className={sectionTitle} style={labelColor}><StickyNote className="h-3 w-3" /> Notes</h3>
+          <NotesEditor value={meta.notes ?? ''} onSave={onNotesChange} editingRef={editingRef} />
+        </section>
+
+        {/* ── About this title: public information ─────────────────────────────── */}
+        <div className="mt-7 border-t pt-5" style={{ borderColor: 'var(--border-subtle)' }}>
+          {(ratings || ratingsLoading) && (
+            <section>
+              <h3 className={sectionTitle} style={labelColor}><Star className="h-3 w-3" /> Ratings</h3>
+              <RatingsRow ratings={ratings} loading={ratingsLoading && !ratings} tmdbFallback={details?.vote_average || undefined} />
+            </section>
+          )}
+
+          {(tmdbId || detailsLoading) && (
+            <section className="mt-5">
+              <h3 className={sectionTitle} style={labelColor}><MonitorPlay className="h-3 w-3" /> Where to watch</h3>
+              <WhereToWatch providers={providers} region={region} myServices={myServices} loading={detailsLoading} />
+            </section>
+          )}
+        </div>
       </div>
 
       <div className="flex gap-2 border-t px-5 py-3" style={{ borderColor: 'var(--border-subtle)', paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
@@ -367,8 +522,9 @@ function DrawerBody({ entry, meta, onStatusChange, onRatingChange, onEdit, onDel
           onClick={onEdit}
           className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border py-2.5 text-sm font-semibold transition-colors hover:bg-[var(--bg-hover)]"
           style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}
+          title="Change the title, year, genres, section and other details"
         >
-          <Pencil className="h-4 w-4" /> Edit
+          <Pencil className="h-4 w-4" /> Edit details
         </button>
         <button
           onClick={onDelete}

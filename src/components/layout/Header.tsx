@@ -1,17 +1,15 @@
-import { Moon, Sun, LogIn, Settings, BarChart2, RefreshCw, CloudOff, Cloud, Loader2 } from 'lucide-react';
+import { LogIn, Settings, BarChart2, RefreshCw, CloudOff, Cloud, Loader2 } from 'lucide-react';
 import { UserProfile } from './UserProfile';
 import { Button } from '@/components/ui/button';
-import type { WatchlistState, UserProfile as UserProfileType, ThemeMode, SyncStatus } from '@/types';
+import type { WatchlistState, UserProfile as UserProfileType, SyncStatus } from '@/types';
 import { formatRelativeTime } from '@/lib/utils';
 
 interface Props {
   state: WatchlistState;
   user: UserProfileType | null;
-  theme: ThemeMode;
   lastSync: string | null;
   syncStatus: SyncStatus;
   cloudError: boolean;
-  onToggleTheme: () => void;
   onSignIn: () => void;
   onSignOut: () => void;
   onSettings: () => void;
@@ -47,7 +45,7 @@ function SyncIndicator({ status, cloudError, lastSync, onForceSync, onRetrySync 
   );
 }
 
-export function Header({ state, user, theme, lastSync, syncStatus, cloudError, onToggleTheme, onSignIn, onSignOut, onSettings, onProfile, onForceSync, onRetrySync }: Props) {
+export function Header({ state, user, lastSync, syncStatus, cloudError, onSignIn, onSignOut, onSettings, onProfile, onForceSync, onRetrySync }: Props) {
   // Count from entries (not meta values) so orphaned meta can't skew stats past 100%.
   const total = state.entries.length;
   const counts = { plan: 0, watching: 0, watched: 0 };
@@ -63,7 +61,7 @@ export function Header({ state, user, theme, lastSync, syncStatus, cloudError, o
           <div className="flex items-center gap-2.5">
             <img src="/favicon.svg" alt="" className="h-8 w-8 rounded-lg" />
             <h1 className="hidden text-lg font-bold tracking-tight text-[var(--text-primary)] min-[400px]:block">
-              Cine<span className="text-indigo-400">Track</span>
+              Cine<span className="text-brand">Track</span>
             </h1>
           </div>
 
@@ -71,7 +69,7 @@ export function Header({ state, user, theme, lastSync, syncStatus, cloudError, o
             <span><span className="font-mono text-base font-bold" style={{ color: 'var(--text-primary)' }}>{total}</span> total</span>
             <span><span className="font-mono text-base font-bold text-emerald-400">{counts.watched}</span> watched</span>
             <span><span className="font-mono text-base font-bold text-yellow-400">{counts.watching}</span> watching</span>
-            <span><span className="font-mono text-base font-bold" style={{ color: 'var(--accent-purple)' }}>{counts.plan}</span> planned</span>
+            <span><span className="font-mono text-base font-bold" style={{ color: 'var(--accent)' }}>{counts.plan}</span> planned</span>
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -80,9 +78,6 @@ export function Header({ state, user, theme, lastSync, syncStatus, cloudError, o
             )}
             <button onClick={onProfile} className={iconBtn} title="Analytics" aria-label="Analytics">
               <BarChart2 className="h-4 w-4" />
-            </button>
-            <button onClick={onToggleTheme} className={iconBtn} title="Toggle theme" aria-label="Toggle theme">
-              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
             <button onClick={onSettings} className={iconBtn} title="Settings" aria-label="Settings">
               <Settings className="h-4 w-4" />
@@ -98,7 +93,7 @@ export function Header({ state, user, theme, lastSync, syncStatus, cloudError, o
 
         <div className="mt-2.5 flex items-center gap-3">
           <div className="h-1 flex-1 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
-            <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-emerald-400 transition-all duration-700" style={{ width: `${progress}%` }} />
+            <div className="h-full rounded-full bg-gradient-to-r from-[#f7c969] via-[#ee9a41] to-emerald-400 transition-all duration-700" style={{ width: `${progress}%` }} />
           </div>
           <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{progress}% watched</span>
         </div>

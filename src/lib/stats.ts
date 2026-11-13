@@ -22,6 +22,7 @@ export interface Stats {
   // Activity in the period
   watchedInPeriod: number;
   watchedUndated: number;                 // watched titles without a date (only counted in 'all')
+  watchedPartial: number;                 // dated only by year or month: in the totals, not in every chart
   minutesWatched: number;
   minutesUnknown: number;                 // watched series whose length we can't total
   filmMinutes: number; seriesMinutes: number;
@@ -91,7 +92,11 @@ export function computeStats(state: WatchlistState, period: Period = 'all', now 
   for (const e of entries) byStatus[metaOf(e).status]++;
 
   const watchedAll = entries.filter((e) => metaOf(e).status === 'watched');
+  // A watch date can be just a year ("2019") or a month ("2024-03"): those titles count towards
+  // that year / month, but have no day, so they stay out of the daily heatmap and the streaks.
   const dated = watchedAll.filter((e) => metaOf(e).watchedOn);
+  const monthDated = dated.filter((e) => metaOf(e).watchedOn!.length >= 7);
+  const dayDated = dated.filter((e) => metaOf(e).watchedOn!.length === 10);
   const watched = period === 'all' ? watchedAll : dated.filter((e) => inPeriod(metaOf(e).watchedOn));
 
   // Hours
@@ -106,7 +111,7 @@ export function computeStats(state: WatchlistState, period: Period = 'all', now 
   // Months: last 12 (all-time) or Jan–Dec of the chosen year
   const monthCount = new Map<string, number>();
   const monthMins = new Map<string, number>();
-  for (const e of dated) {
+  for (const e of monthDated) {
     const k = metaOf(e).watchedOn!.slice(0, 7);
     inc(monthCount, k);
     inc(monthMins, k, parseMins(metaOf(e).duration) ?? 0);
@@ -125,7 +130,7 @@ export function computeStats(state: WatchlistState, period: Period = 'all', now 
 
   // Heatmap: 53 weeks ending this week (all-time) or the chosen calendar year
   const dayCount = new Map<string, number>();
-  for (const e of dated) inc(dayCount, metaOf(e).watchedOn!);
+  for (const e of dayDated) inc(dayCount, metaOf(e).watchedOn!);
   const heatStart = period === 'all' ? addDays(weekStart(now), -52 * 7) : weekStart(new Date(+period, 0, 1));
   const heatEnd = period === 'all' ? today : `${period}-12-31`;
   const heatmap: { date: string; count: number }[] = [];
@@ -134,7 +139,7 @@ export function computeStats(state: WatchlistState, period: Period = 'all', now 
   }
 
   // Pace & streaks (weeks with at least one dated watch)
-  const weeks = new Set(dated.map((e) => { const [y, m, d] = metaOf(e).watchedOn!.split('-').map(Number); return weekStart(new Date(y, m - 1, d)); }));
+  const weeks = new Set(dayDated.map((e) => { const [y, m, d] = metaOf(e).watchedOn!.split('-').map(Number); return weekStart(new Date(y, m - 1, d)); }));
   let streakWeeks = 0;
   let w = weekStart(now);
   if (!weeks.has(w)) w = addDays(w, -7);                 // a streak survives until this week is over
@@ -145,7 +150,7 @@ export function computeStats(state: WatchlistState, period: Period = 'all', now 
     longestStreakWeeks = Math.max(longestStreakWeeks, run);
     prev = k;
   }
-  const since = (days: number) => dated.filter((e) => metaOf(e).watchedOn! > addDays(today, -days)).length;
+  const since = (days: number) => dayDated.filter((e) => metaOf(e).watchedOn! > addDays(today, -days)).length;
   const last30 = since(30);
   const last90 = since(90);
   const monthsWithData = period === 'all' ? 12 : (period === String(now.getFullYear()) ? now.getMonth() + 1 : 12);
@@ -221,6 +226,7 @@ export function computeStats(state: WatchlistState, period: Period = 'all', now 
     byStatus,
     watchedInPeriod: watched.length,
     watchedUndated: period === 'all' ? watchedAll.length - dated.length : 0,
+    watchedPartial: dated.filter((e) => metaOf(e).watchedOn!.length < 10 && inPeriod(metaOf(e).watchedOn)).length,
     minutesWatched, minutesUnknown, filmMinutes, seriesMinutes,
     months, peakMonth: peak, heatmap, avgPerMonth, last30, streakWeeks, longestStreakWeeks, years,
     backlogCount: backlog.length, backlogMinutes, weeksToClear,

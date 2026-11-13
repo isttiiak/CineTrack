@@ -23,11 +23,11 @@ export function EntryRow({ entry, meta, selectMode, selected, onOpen, onToggleSe
       onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); (selectMode ? onToggleSelect : onOpen)(); } }}
       className={cn(
         'group flex cursor-pointer items-center gap-3 rounded-xl border px-2.5 py-2 transition-colors',
-        'hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60',
+        'hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/60',
       )}
       style={{
-        borderColor: selected ? 'var(--accent-purple)' : 'transparent',
-        background: selected ? 'color-mix(in srgb, var(--accent-purple) 8%, transparent)' : undefined,
+        borderColor: selected ? 'var(--accent)' : 'transparent',
+        background: selected ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : undefined,
       }}
     >
       {selectMode && <SelectCheck selected={selected} />}

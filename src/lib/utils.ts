@@ -91,14 +91,14 @@ export const GENRES = [
 ] as const;
 
 export const SECTION_COLORS: Record<string, string> = {
-  'General': '#818cf8',
+  'General': '#7dd3fc',
   'K-Drama & Asian': '#f9a8d4',
   'Crime & Gangster': '#f87171',
   'Racing': '#fdba74',
   'Christopher Nolan': '#67e8f9',
   'World Cinema': '#34d399',
   'TV Series': '#fbbf24',
-  'Animation & Family': '#a78bfa',
+  'Animation & Family': '#bef264',
 };
 
 export const SECTION_EMOJIS: Record<string, string> = {
