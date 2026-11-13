@@ -4,7 +4,7 @@ import { seedMovies } from '../data/seedMovies';
 import { getLocalStorage, setLocalStorage } from './useLocalStorage';
 import { useFirestore } from './useFirestore';
 import { SECTIONS, todayKey } from '../lib/utils';
-import { normalizeState, withAllSections } from '../lib/schema';
+import { migratedStates, normalizeState, withAllSections } from '../lib/schema';
 import { findDuplicate } from '../lib/duplicates';
 import { mergeWatchlist, sameContent } from '../lib/merge';
 import { subscribeUserWatchlist } from '../lib/firestore';
@@ -31,7 +31,9 @@ function buildInitialState(): WatchlistState {
 }
 
 function readLocal(): WatchlistState | null {
-  return normalizeState(getLocalStorage<unknown>(LS_KEY));
+  const state = normalizeState(getLocalStorage<unknown>(LS_KEY));
+  if (state && migratedStates.has(state)) setLocalStorage(LS_KEY, state);   // persist converted old-format data
+  return state;
 }
 
 /**
@@ -167,6 +169,8 @@ export function useWatchlist(uid: string | null) {
         push = true;                          // first sign-in: create the cloud document
       }
 
+      // Old-format data in the cloud (e.g. platform "Torrent") was converted on read: write it back.
+      if (remote && migratedStates.has(remote)) push = true;
       if (push) use = { ...use, lastModified: new Date().toISOString() };
       setBase(remote);
       replaceState(use);

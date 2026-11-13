@@ -1,5 +1,6 @@
 import type { MovieEntry, WatchMeta, WatchlistState } from '../types';
 import { localDateKey, parseMins, ratingSourceOf } from './utils';
+import { countriesOf } from './countries';
 
 /**
  * Everything the Analytics page shows, computed from the list (pure, so it can be tested).
@@ -188,7 +189,7 @@ export function computeStats(state: WatchlistState, period: Period = 'all', now 
     }
     const y = parseInt(e.year, 10);
     if (Number.isFinite(y)) inc(decadeCount, `${Math.floor(y / 10) * 10}s`);
-    for (const c of e.country.split(/[/,]/).map((x) => x.trim()).filter(Boolean)) inc(countryCount, c);
+    for (const c of countriesOf(e)) inc(countryCount, c);
     if (m.watchPlatform) inc(platformCount, m.watchPlatform);
   }
   const genres = countBars(genreCount, 8).map((b) => {

@@ -9,8 +9,6 @@ export type WatchPlatform =
   | 'Disney+'
   | 'HBO Max'
   | 'YouTube'
-  | 'Torrent'
-  | 'FTB'
   | 'Other'
   | '';
 
@@ -75,6 +73,7 @@ export type SyncStatus = 'local' | 'loading' | 'saving' | 'saved' | 'error';
 export interface FilterState {
   query: string;
   section: string;
+  country: string;
   type: string;
   status: string;
   platform: string;

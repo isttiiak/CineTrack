@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { AnimatePresence, motion, Reorder, useDragControls } from 'framer-motion';
 import { X, Download, Upload, FileJson, Sheet, GripVertical, Sun, Moon, LayoutGrid, Rows3, ListPlus, Bookmark } from 'lucide-react';
@@ -7,11 +7,12 @@ import type { ThemeMode, ViewMode } from '@/types';
 import type { ExportFormat } from '@/hooks/useWatchlist';
 import { SECTION_COLORS, SECTION_EMOJIS, PLATFORMS, cn } from '@/lib/utils';
 import { defaultRegion } from '@/lib/titleData';
+import { analyticsConfigured, analyticsPreference, browserOptedOut, setAnalyticsEnabled } from '@/lib/analytics';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const REGIONS = ['US', 'GB', 'CA', 'AU', 'NZ', 'IE', 'IN', 'BD', 'PK', 'SG', 'MY', 'ID', 'PH', 'TH', 'JP', 'KR',
   'AE', 'SA', 'TR', 'DE', 'FR', 'ES', 'IT', 'NL', 'BE', 'SE', 'NO', 'DK', 'FI', 'PL', 'BR', 'MX', 'AR', 'ZA'];
-const SERVICES = PLATFORMS.filter((p) => !['Torrent', 'FTB', 'Other'].includes(p));
+const SERVICES = PLATFORMS.filter((p) => p !== 'Other');
 const regionName = (code: string) => {
   try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(code) ?? code; } catch { return code; }
 };
@@ -271,6 +272,18 @@ export function SettingsPanel(props: Props) {
                     </div>
                   </div>
 
+                  <Heading>Privacy</Heading>
+                  <p className="px-3 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                    Your list stays in this browser. If you sign in with Google it is also stored in your own
+                    cloud account so it syncs between devices.
+                  </p>
+                  <AnalyticsSwitch />
+                  <p className="px-3 pt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--text-primary)]">
+                      Read the full privacy note
+                    </a>
+                  </p>
+
                   <Heading>About</Heading>
                   {/* Attribution required by the TMDB API terms. */}
                   <p className="px-3 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
@@ -311,5 +324,26 @@ function BookmarkletLink() {
     >
       <Bookmark className="h-3.5 w-3.5" /> + CineTrack
     </a>
+  );
+}
+
+const PRIVACY_URL = 'https://github.com/isttiiak/CineTrack/blob/main/PRIVACY.md';
+
+/** Opt-out for anonymous usage statistics; explains when nothing is collected anyway. */
+function AnalyticsSwitch() {
+  const [on, setOn] = useState(analyticsPreference);
+  if (!analyticsConfigured) {
+    return <p className="px-3 pt-2 text-xs" style={{ color: 'var(--text-muted)' }}>This copy of the app doesn't collect usage statistics.</p>;
+  }
+  const blocked = browserOptedOut();
+  return (
+    <Switch
+      label="Share anonymous usage statistics"
+      description={blocked
+        ? 'Off: your browser sends Do Not Track, so nothing is collected.'
+        : 'Which features get used: never titles, notes or links.'}
+      checked={on && !blocked}
+      onChange={(v) => { setOn(v); setAnalyticsEnabled(v); }}
+    />
   );
 }

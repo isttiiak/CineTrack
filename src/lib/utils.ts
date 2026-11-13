@@ -75,10 +75,14 @@ export const PLATFORMS = [
   'Disney+',
   'HBO Max',
   'YouTube',
-  'Torrent',
-  'FTB',
   'Other',
 ] as const;
+
+/** Platform names from older versions → their replacement. Applied whenever data is read (schema.ts). */
+export const LEGACY_PLATFORMS: Record<string, (typeof PLATFORMS)[number]> = {
+  torrent: 'Other',
+  ftb: 'Other',
+};
 
 export const GENRES = [
   'Action', 'Adventure', 'Animation', 'Biography', 'Comedy', 'Crime',

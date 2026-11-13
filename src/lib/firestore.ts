@@ -1,6 +1,6 @@
 import { doc, getDoc, onSnapshot, runTransaction, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
-import { normalizeState, stripUndefined } from './schema';
+import { migratedStates, normalizeState, stripUndefined } from './schema';
 import { mergeWatchlist, sameContent } from './merge';
 import type { WatchlistState, UserProfile } from '../types';
 
@@ -24,7 +24,8 @@ export async function syncUserWatchlist(uid: string, base: WatchlistState | null
     const snap = await tx.get(ref);
     const remote = snap.exists() ? normalizeState(snap.data()) : null;
     const merged = remote ? mergeWatchlist(base, local, remote) : local;
-    if (remote && sameContent(merged, remote)) return remote;   // nothing new to write
+    // Nothing new to write, unless the cloud copy is in an old format that was just converted.
+    if (remote && !migratedStates.has(remote) && sameContent(merged, remote)) return remote;
     const out = { ...merged, lastModified: new Date().toISOString() };
     tx.set(ref, stripUndefined(out));
     return out;

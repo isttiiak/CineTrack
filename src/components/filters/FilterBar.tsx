@@ -9,15 +9,16 @@ interface Props {
   sections: string[];                     // sections that have entries, in the user's order
   sectionCounts: Record<string, number>;  // entries per section after the other filters
   total: number;
+  countries: { name: string; count: number }[];   // every country in the list, most titles first
   children?: React.ReactNode;             // extra toolbar controls (view toggle)
 }
 
 const trigger = 'h-8 w-auto flex-shrink-0 gap-1.5 whitespace-nowrap px-2.5 text-xs';
 
 /** Filter + sort dropdowns. The search box lives in the tab row (App). */
-export function FilterBar({ filters, onChange, sections, sectionCounts, total, children }: Props) {
+export function FilterBar({ filters, onChange, sections, sectionCounts, total, countries, children }: Props) {
   const set = (k: keyof FilterState, v: string) => onChange({ ...filters, [k]: v });
-  const hasFilter = filters.section || filters.type || filters.status || filters.platform || filters.sort;
+  const hasFilter = filters.section || filters.country || filters.type || filters.status || filters.platform || filters.sort;
 
   return (
     // Phones: one horizontally scrolling row (the set of filters is fixed, so it stays short).
@@ -30,6 +31,16 @@ export function FilterBar({ filters, onChange, sections, sectionCounts, total, c
             {sections.map((s) => (
               <SelectItem key={s} value={s}>{SECTION_EMOJIS[s] ?? '🎬'} {s} ({sectionCounts[s] ?? 0})</SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+      )}
+
+      {countries.length > 0 && (
+        <Select value={filters.country || '_all'} onValueChange={(v) => set('country', v === '_all' ? '' : v)}>
+          <SelectTrigger className={trigger} aria-label="Country"><SelectValue placeholder="Country" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="_all">All countries</SelectItem>
+            {countries.map((c) => <SelectItem key={c.name} value={c.name}>{c.name} ({c.count})</SelectItem>)}
           </SelectContent>
         </Select>
       )}
@@ -76,7 +87,7 @@ export function FilterBar({ filters, onChange, sections, sectionCounts, total, c
 
       {hasFilter && (
         <button
-          onClick={() => onChange({ ...filters, section: '', type: '', status: '', platform: '', sort: '' })}
+          onClick={() => onChange({ ...filters, section: '', country: '', type: '', status: '', platform: '', sort: '' })}
           className="flex flex-shrink-0 items-center gap-1 whitespace-nowrap text-xs text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
         >
           <X className="h-3.5 w-3.5" /> Clear

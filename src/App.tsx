@@ -31,11 +31,12 @@ import { Button } from '@/components/ui/button';
 import { SECTION_COLORS, SECTION_EMOJIS, cn } from '@/lib/utils';
 import { defaultRegion } from '@/lib/titleData';
 import { parseTitleLink, sharedTextFrom } from '@/lib/links';
+import { countryOptions, hasCountry } from '@/lib/countries';
 import type { FilterState, MovieEntry, WatchMeta, ThemeMode, WatchStatus, ViewMode, WatchlistState } from '@/types';
 
 type Tab = 'watchlist' | 'discover' | 'upcoming';
 
-const EMPTY_FILTERS: FilterState = { query: '', section: '', type: '', status: '', platform: '', sort: '' };
+const EMPTY_FILTERS: FilterState = { query: '', section: '', country: '', type: '', status: '', platform: '', sort: '' };
 const MAX_IMPORT_BYTES = 5 * 1024 * 1024;          // CineTrack JSON backups
 const MAX_EXTERNAL_IMPORT_BYTES = 25 * 1024 * 1024; // Letterboxd .zip / IMDb .csv exports
 
@@ -283,7 +284,10 @@ export default function App() {
   };
 
   // ── Derived view data ──────────────────────────────────────────────────
-  const { query, type: tFilter, status: stFilter, platform: pFilter, sort } = filters;
+  const { query, type: tFilter, status: stFilter, platform: pFilter, country: cFilter, sort } = filters;
+  const countries = useMemo(() => countryOptions(state.entries), [state.entries]);
+  // A country that no longer exists in the list (last title deleted) must not leave an empty view.
+  const activeCountry = countries.some((c) => c.name === cFilter) ? cFilter : '';
 
   // Search: typo-tolerant, accent-insensitive, ranked, with filters like year:2024 (src/lib/search.ts).
   const parsedQuery = useMemo(() => parseQuery(query), [query]);
@@ -298,11 +302,12 @@ export default function App() {
       if (tFilter && e.type !== tFilter) continue;
       if (stFilter && (m?.status ?? 'plan') !== stFilter) continue;
       if (pFilter && m?.watchPlatform !== pFilter) continue;
+      if (activeCountry && !hasCountry(e, activeCountry)) continue;
       scores.set(e.id, score);
       list.push(e);
     }
     return { filtered: list, scoreOf: scores };
-  }, [state.entries, state.meta, parsedQuery, tFilter, stFilter, pFilter]);
+  }, [state.entries, state.meta, parsedQuery, tFilter, stFilter, pFilter, activeCountry]);
   const rankByRelevance = !sort && (parsedQuery.terms.length > 0 || parsedQuery.phrases.length > 0);
 
   const navSections = useMemo(
@@ -338,7 +343,7 @@ export default function App() {
 
   const drawerEntry = drawerId ? state.entries.find((e) => e.id === drawerId) ?? null : null;
   const drawerMeta = drawerEntry ? state.meta[drawerEntry.id] ?? { id: drawerEntry.id, status: 'plan' as WatchStatus } : null;
-  const hasFilters = !!(parsedQuery.hasCriteria || tFilter || stFilter || pFilter || activeSection);
+  const hasFilters = !!(parsedQuery.hasCriteria || tFilter || stFilter || pFilter || activeCountry || activeSection);
   const highlight = parsedQuery.terms.length || parsedQuery.phrases.length ? parsedQuery : null;
 
   if (loading || !initialised) {
@@ -499,7 +504,7 @@ export default function App() {
             <div className="pb-24">
               {/* Row 2: filters + sort + layout */}
               <div className="mb-5">
-                <FilterBar filters={filters} onChange={setFilters} sections={navSections} sectionCounts={sectionCounts} total={filtered.length}>
+                <FilterBar filters={{ ...filters, country: activeCountry }} onChange={setFilters} sections={navSections} sectionCounts={sectionCounts} total={filtered.length} countries={countries}>
                   <div className="ml-auto flex flex-shrink-0 rounded-lg border p-0.5" style={{ borderColor: 'var(--border-subtle)' }} role="group" aria-label="Layout">
                     {([['grid', LayoutGrid, 'Grid view'], ['list', Rows3, 'List view']] as const).map(([mode, Icon, label]) => (
                       <button

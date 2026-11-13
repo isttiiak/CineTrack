@@ -1,5 +1,12 @@
 import type { MovieEntry, WatchMeta, WatchlistState, WatchStatus, WatchPlatform, MediaType } from '../types';
-import { PLATFORMS, SECTIONS } from './utils';
+import { LEGACY_PLATFORMS, PLATFORMS, SECTIONS } from './utils';
+
+/**
+ * States produced by normalizeState that had old-format data converted (e.g. platform "Torrent" →
+ * "Other"). Callers use it to write the converted data back, so the migration is persisted instead
+ * of being redone on every read.
+ */
+export const migratedStates = new WeakSet<WatchlistState>();
 
 const STATUSES: WatchStatus[] = ['plan', 'watching', 'watched'];
 const MAX_ENTRIES = 2000;   // keeps the single Firestore doc well under its 1 MB cap
@@ -60,7 +67,7 @@ function normalizeEntry(raw: unknown): MovieEntry | null {
   return entry;
 }
 
-function normalizeMeta(id: string, raw: unknown): WatchMeta {
+function normalizeMeta(id: string, raw: unknown, onMigrate: () => void): WatchMeta {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const meta: WatchMeta = {
     id,
@@ -71,7 +78,12 @@ function normalizeMeta(id: string, raw: unknown): WatchMeta {
   const notes = str(r.notes, MAX_NOTES);
   if (notes) meta.notes = notes;
   if (typeof r.watchedOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.watchedOn)) meta.watchedOn = r.watchedOn;
-  if ((PLATFORMS as readonly string[]).includes(r.watchPlatform as string)) meta.watchPlatform = r.watchPlatform as WatchPlatform;
+  if ((PLATFORMS as readonly string[]).includes(r.watchPlatform as string)) {
+    meta.watchPlatform = r.watchPlatform as WatchPlatform;
+  } else if (typeof r.watchPlatform === 'string' && LEGACY_PLATFORMS[r.watchPlatform.trim().toLowerCase()]) {
+    meta.watchPlatform = LEGACY_PLATFORMS[r.watchPlatform.trim().toLowerCase()] as WatchPlatform;
+    onMigrate();
+  }
   const watchLink = safeUrl(r.watchLink);
   if (watchLink) meta.watchLink = watchLink;
   const duration = str(r.duration, 30);
@@ -95,6 +107,7 @@ export function normalizeState(raw: unknown): WatchlistState | null {
   if (!Array.isArray(r.entries)) return null;
 
   const rawMeta = (r.meta && typeof r.meta === 'object' ? r.meta : {}) as Record<string, unknown>;
+  let migrated = false;
   const seen = new Set<string>();
   const entries: MovieEntry[] = [];
   const meta: Record<string, WatchMeta> = {};
@@ -103,7 +116,7 @@ export function normalizeState(raw: unknown): WatchlistState | null {
     if (!entry || seen.has(entry.id)) continue;
     seen.add(entry.id);
     entries.push(entry);
-    meta[entry.id] = normalizeMeta(entry.id, rawMeta[entry.id]);
+    meta[entry.id] = normalizeMeta(entry.id, rawMeta[entry.id], () => { migrated = true; });
   }
 
   const order = Array.isArray(r.sectionOrder)
@@ -115,7 +128,9 @@ export function normalizeState(raw: unknown): WatchlistState | null {
     ? r.lastModified
     : new Date(0).toISOString();
 
-  return { entries, meta, sectionOrder, lastModified };
+  const state: WatchlistState = { entries, meta, sectionOrder, lastModified };
+  if (migrated) migratedStates.add(state);
+  return state;
 }
 
 /** Appends any section used by an entry but missing from the order (otherwise those entries are invisible). */
