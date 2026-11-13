@@ -1,6 +1,7 @@
+import { useEffect, useRef } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { AnimatePresence, motion, Reorder, useDragControls } from 'framer-motion';
-import { X, Download, Upload, GripVertical, Sun, Moon, LayoutGrid, Rows3 } from 'lucide-react';
+import { X, Download, Upload, GripVertical, Sun, Moon, LayoutGrid, Rows3, ListPlus, Bookmark } from 'lucide-react';
 import type { Preferences } from '@/hooks/usePreferences';
 import type { ThemeMode, ViewMode } from '@/types';
 import { SECTION_COLORS, SECTION_EMOJIS, PLATFORMS, cn } from '@/lib/utils';
@@ -29,6 +30,7 @@ interface Props {
   region: string;                           // effective region (saved or auto-detected)
   onExport: () => void;
   onImport: () => void;
+  onPasteList: () => void;
 }
 
 function Switch({ checked, onChange, label, description }: { checked: boolean; onChange: (v: boolean) => void; label: string; description?: string }) {
@@ -107,7 +109,7 @@ const Heading = ({ children }: { children: React.ReactNode }) => (
 
 /** Right-side sheet (bottom sheet on mobile) with display preferences and data import/export. */
 export function SettingsPanel(props: Props) {
-  const { open, onClose, prefs, onPrefChange, theme, onThemeChange, view, onViewChange, sections, onReorderSections, entryCount, region, onExport, onImport } = props;
+  const { open, onClose, prefs, onPrefChange, theme, onThemeChange, view, onViewChange, sections, onReorderSections, entryCount, region, onExport, onImport, onPasteList } = props;
   const auto = defaultRegion();
   const regionOptions = [...new Set([auto, region, ...REGIONS])].sort((a, b) => regionName(a).localeCompare(regionName(b)));
   const toggleService = (svc: string) => onPrefChange('myServices',
@@ -156,7 +158,10 @@ export function SettingsPanel(props: Props) {
                       { value: 'list', label: 'List', icon: <Rows3 className="h-3.5 w-3.5" /> },
                     ]}
                   />
-                  <Switch label="Cursor glow" description="Soft spotlight that follows the mouse" checked={prefs.cursorGlow} onChange={(v) => onPrefChange('cursorGlow', v)} />
+                  {/* Mouse-only effect: pointless on phones and tablets. */}
+                  <div className="touch:hidden">
+                    <Switch label="Cursor glow" description="Soft spotlight that follows the mouse" checked={prefs.cursorGlow} onChange={(v) => onPrefChange('cursorGlow', v)} />
+                  </div>
 
                   <Heading>Watchlist</Heading>
                   <Switch
@@ -232,6 +237,24 @@ export function SettingsPanel(props: Props) {
                     </button>
                   </div>
 
+                  <Heading>Quick add</Heading>
+                  <div className="grid gap-2 px-3">
+                    <button onClick={onPasteList} className={dataBtn} style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}>
+                      <ListPlus className="h-4 w-4" /> Paste a list of titles
+                    </button>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      Tip: paste an IMDb/TMDB link or a list anywhere in the app to add it. On Android, use
+                      Share → CineTrack from the IMDb app.
+                    </p>
+                    <div className="touch:hidden">
+                      <p className="mb-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                        On a computer: drag this button to your bookmarks bar, then click it on any IMDb,
+                        TMDB or Letterboxd page to add that title.
+                      </p>
+                      <BookmarkletLink />
+                    </div>
+                  </div>
+
                   <Heading>About</Heading>
                   {/* Attribution required by the TMDB API terms. */}
                   <p className="px-3 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
@@ -247,5 +270,30 @@ export function SettingsPanel(props: Props) {
         )}
       </AnimatePresence>
     </DialogPrimitive.Root>
+  );
+}
+
+/**
+ * "+ CineTrack" bookmarklet: opens the app with the current page's URL and title, which the
+ * share-target handling turns into an add dialog. The href is set after mount because React
+ * warns about javascript: URLs in JSX.
+ */
+function BookmarkletLink() {
+  const ref = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    const code = `(()=>{window.open('${window.location.origin}/?url='+encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title),'_blank')})()`;
+    ref.current?.setAttribute('href', `javascript:${code}`);
+  }, []);
+  return (
+    <a
+      ref={ref}
+      onClick={(e) => e.preventDefault()}
+      draggable
+      className="inline-flex cursor-grab items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold active:cursor-grabbing"
+      style={{ borderColor: 'var(--accent-purple)', color: 'var(--accent-purple)' }}
+      title="Drag me to your bookmarks bar"
+    >
+      <Bookmark className="h-3.5 w-3.5" /> + CineTrack
+    </a>
   );
 }

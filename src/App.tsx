@@ -25,12 +25,12 @@ import { UpcomingPage } from '@/components/upcoming/UpcomingPage';
 import { BulkActionBar } from '@/components/ui/bulk-action-bar';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { ImportDialog } from '@/components/ui/import-dialog';
-import { ExternalImportDialog } from '@/components/import/ExternalImportDialog';
+import { ExternalImportDialog, type ImportSource } from '@/components/import/ExternalImportDialog';
 import { ToastContainer } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { SECTION_COLORS, SECTION_EMOJIS, cn } from '@/lib/utils';
 import { defaultRegion } from '@/lib/titleData';
-import { sharedTextFrom } from '@/lib/links';
+import { parseTitleLink, sharedTextFrom } from '@/lib/links';
 import type { FilterState, MovieEntry, WatchMeta, ThemeMode, WatchStatus, ViewMode, WatchlistState } from '@/types';
 
 type Tab = 'watchlist' | 'discover' | 'upcoming';
@@ -77,7 +77,8 @@ export default function App() {
   const [drawerId, setDrawerId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
   const [pendingImport, setPendingImport] = useState<WatchlistState | null>(null);
-  const [externalFile, setExternalFile] = useState<File | null>(null);
+  const [importSource, setImportSource] = useState<ImportSource | null>(null);
+  const openPasteList = useCallback((text = '') => { setModalOpen(false); setSettingsOpen(false); setImportSource({ kind: 'text', text }); }, []);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('watchlist');
@@ -105,6 +106,25 @@ export default function App() {
     setDiscoverQuery(shared);
     setShareIntent(true);
   }, []);
+
+  // Paste anywhere (outside a text field): an IMDb/TMDB link opens that title ready to add; a list
+  // of several lines opens "Add a list of titles" with it.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const t = e.target;
+      if (t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      const text = e.clipboardData?.getData('text')?.trim();
+      if (!text) return;
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
+      if (lines.length >= 2) { e.preventDefault(); openPasteList(text); return; }
+      if (parseTitleLink(text)) {
+        e.preventDefault();
+        setActiveTab('discover'); setDiscoverQuery(text); setShareIntent(true);
+      }
+    };
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+  }, [openPasteList]);
 
   // "/" or ⌘K / Ctrl+K focuses the search box (unless the user is typing somewhere else).
   useEffect(() => {
@@ -202,7 +222,7 @@ export default function App() {
     // Letterboxd / IMDb exports go through matching + review; JSON is a CineTrack backup.
     if (/\.(csv|zip)$/i.test(file.name)) {
       if (file.size > MAX_EXTERNAL_IMPORT_BYTES) { addToast('File is too large (max 25 MB)', 'error'); return; }
-      setExternalFile(file);
+      setImportSource({ kind: 'file', file });
       return;
     }
     if (file.size > MAX_IMPORT_BYTES) { addToast('File is too large (max 5 MB)', 'error'); return; }
@@ -489,18 +509,23 @@ export default function App() {
               {groups.every((g) => g.entries.length === 0) ? (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-20 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
                   {hasFilters ? (
-                    <div className="flex flex-col items-center gap-3">
-                      <span>No titles in your list match{query ? <> “<b style={{ color: 'var(--text-primary)' }}>{query.trim()}</b>”</> : ' these filters'}.</span>
+                    // Watchlist search is for finding what you already have: one line, no suggestions,
+                    // just a shortcut to look the title up on Discover if it isn't in the list yet.
+                    <p>
+                      Not in your list{query.trim() ? <>: “<b style={{ color: 'var(--text-primary)' }}>{query.trim()}</b>”</> : ' with these filters'}.
                       {freeText(parsedQuery) && (
-                        <button
-                          onClick={() => { setActiveTab('discover'); setDiscoverQuery(freeText(parsedQuery)); }}
-                          className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white"
-                          style={{ background: 'var(--accent-purple)' }}
-                        >
-                          <Compass className="h-3.5 w-3.5" /> Search “{freeText(parsedQuery)}” on Discover
-                        </button>
+                        <>
+                          {' '}
+                          <button
+                            onClick={() => { setActiveTab('discover'); setDiscoverQuery(freeText(parsedQuery)); }}
+                            className="font-semibold underline-offset-2 hover:underline"
+                            style={{ color: 'var(--accent-purple)' }}
+                          >
+                            Find it on Discover →
+                          </button>
+                        </>
                       )}
-                    </div>
+                    </p>
                   ) : 'No entries yet. Click "+ Add" or explore the Discover tab.'}
                 </motion.div>
               ) : (
@@ -550,6 +575,7 @@ export default function App() {
       />
 
       <AddModal
+        onPasteList={openPasteList}
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onSave={handleSave}
@@ -586,13 +612,15 @@ export default function App() {
         region={region}
         onExport={handleExport}
         onImport={() => { setSettingsOpen(false); importRef.current?.click(); }}
+        onPasteList={() => openPasteList()}
       />
 
       <ExternalImportDialog
-        file={externalFile}
-        onCancel={() => setExternalFile(null)}
+        source={importSource}
+        onCancel={() => setImportSource(null)}
+        existing={state.entries}
         onImport={(items) => {
-          setExternalFile(null);
+          setImportSource(null);
           const imported: WatchlistState = {
             entries: items.map((i) => i.entry),
             meta: Object.fromEntries(items.map((i) => [i.entry.id, i.meta])),

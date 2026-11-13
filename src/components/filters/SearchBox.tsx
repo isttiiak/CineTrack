@@ -52,7 +52,7 @@ export const SearchBox = forwardRef<HTMLInputElement, Props>(function SearchBox(
             if (value) onChange(''); else (e.target as HTMLInputElement).blur();
           }
         }}
-        placeholder={mode === 'watchlist' ? 'Search your list… try "korean thriller" or is:watched' : 'Search any movie or show, or paste an IMDb link…'}
+        placeholder={mode === 'watchlist' ? 'Search your list…' : 'Search movies, shows, people or paste a link…'}
         aria-label={mode === 'watchlist' ? 'Search your watchlist' : 'Search movies and TV shows'}
         aria-describedby={showTips ? 'search-tips' : undefined}
         autoComplete="off"

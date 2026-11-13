@@ -5,6 +5,11 @@ export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      // Input-based variants: phones "hover" on tap, so hover-only UI must not show there.
+      screens: {
+        mouse: { raw: '(hover: hover) and (pointer: fine)' },
+        touch: { raw: '(hover: none), (pointer: coarse)' },
+      },
       fontFamily: {
         display: ['Syne', 'sans-serif'],
         body: ['DM Sans', 'sans-serif'],

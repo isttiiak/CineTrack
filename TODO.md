@@ -83,6 +83,11 @@ The `VITE_FIREBASE_*` values are public by design. These settings stop other sit
       Share → CineTrack. The add dialog should open.
 - [ ] **Letterboxd import:** Letterboxd → Settings → Data → **Export your data** → in CineTrack open
       Settings → Import → choose the `.zip`.
+- [ ] **Bookmarklet:** on a computer, open Settings → Quick add, drag **+ CineTrack** to the
+      bookmarks bar (it points at the site you dragged it from, so do this on the live site, not
+      localhost), then click it on an IMDb page.
+- [ ] **Phone check:** on an iPhone (or SE-sized screen) open Watchlist, Discover, a title's details,
+      Settings and Analytics. Each Discover card should show exactly one Add/Edit button.
 
 ## 7. Open-source housekeeping *(optional)*
 

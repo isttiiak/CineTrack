@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { tmdb, TMDB_IMG } from '../lib/tmdb';
 import { getDetails, itemFromDetails, findByImdb, type TmdbKind } from '../lib/titleData';
 import { parseTitleLink } from '../lib/links';
+import { searchDiscover } from '../lib/discoverSearch';
 
 export { TMDB_IMG };
 
@@ -17,6 +18,8 @@ export interface TMDBItem {
   overview: string;
   genre_ids: number[];
   original_language: string;
+  popularity?: number;
+  vote_count?: number;
 }
 
 export interface TMDBDetails {
@@ -89,6 +92,8 @@ export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [fromLink, setFromLink] = useState(false);
+  const [reasons, setReasons] = useState<Record<number, string>>({});
+  const [correctedTo, setCorrectedTo] = useState<string | undefined>();
 
   useEffect(() => {
     // Ignore responses from superseded queries so a slow older search can't overwrite newer results.
@@ -108,11 +113,20 @@ export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string) {
         return;
       }
 
-      const path = trimmed.length > 1
-        ? 'search/multi'
-        : ({ trending: 'trending/all/week', movies: 'movie/popular', tv: 'tv/popular' } as Record<DiscoverTab, string>)[tab];
+      // Searching: relevance + popularity ranking, typo recovery, people, filters (lib/discoverSearch).
+      if (trimmed.length > 1) {
+        searchDiscover(trimmed, controller.signal)
+          .then((r) => {
+            if (cancelled) return;
+            setItems(r.items); setReasons(r.reasons); setCorrectedTo(r.correctedTo);
+            setFromLink(false); setLoading(false);
+          })
+          .catch((err) => { if (err?.name !== 'AbortError' && !cancelled) { setLoading(false); setError(true); } });
+        return;
+      }
+
+      const path = ({ trending: 'trending/all/week', movies: 'movie/popular', tv: 'tv/popular' } as Record<DiscoverTab, string>)[tab];
       const params: Record<string, string> = { language: 'en-US' };
-      if (trimmed.length > 1) params.query = trimmed;
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       tmdb<any>(path, params, controller.signal)
@@ -129,6 +143,7 @@ export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string) {
                 : (tab === 'movies' ? 'movie' : 'tv'),
             })) as TMDBItem[];
           setItems(results);
+          setReasons({}); setCorrectedTo(undefined);
           setFromLink(false);
           setLoading(false);
         })
@@ -148,5 +163,5 @@ export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string) {
     };
   }, [tab, searchQuery]);
 
-  return { items, loading, error, fromLink };
+  return { items, loading, error, fromLink, reasons, correctedTo };
 }
