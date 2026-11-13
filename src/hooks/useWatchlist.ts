@@ -8,12 +8,15 @@ import { normalizeState, withAllSections } from '../lib/schema';
 import { findDuplicate } from '../lib/duplicates';
 import { mergeWatchlist, sameContent } from '../lib/merge';
 import { subscribeUserWatchlist } from '../lib/firestore';
+import { buildJsonExport, buildLetterboxdCsv, buildSpreadsheetCsv, stateFromTitles } from '../lib/exporters';
+import { downloadText } from '../lib/download';
+
+export type ExportFormat = 'json' | 'csv' | 'letterboxd-watched' | 'letterboxd-watchlist';
 
 const LS_KEY = 'cinetrack_state_v1';
 const LS_BASE_KEY = 'cinetrack_base_v1';   // last cloud version this device saw (merge ancestor)
 const LS_UID_KEY = 'cinetrack_last_uid';
 const uuid = () => crypto.randomUUID();
-const EXPORT_VERSION = 1;
 
 export type ImportMode = 'merge' | 'replace';
 export interface ImportResult { ok: boolean; added: number; skipped: number; error?: string }
@@ -273,17 +276,25 @@ export function useWatchlist(uid: string | null) {
     mutate((s) => ({ ...s, entries: s.entries.map((e) => e.id === id ? { ...e, posterUrl } : e) }));
   }, [mutate]);
 
-  const exportJSON = useCallback(() => {
-    const payload = { app: 'cinetrack', version: EXPORT_VERSION, exportedAt: new Date().toISOString(), data: stateRef.current };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `cinetrack-export-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);   // Firefox ignores clicks on detached anchors
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);   // revoking synchronously can cancel the download
+  /** Downloads the list in the chosen format; returns how many titles went into the file. */
+  const exportData = useCallback((format: ExportFormat = 'json'): number => {
+    const state = stateRef.current;
+    const date = new Date().toISOString().slice(0, 10);
+    switch (format) {
+      case 'csv':
+        downloadText(buildSpreadsheetCsv(state), `cinetrack-${date}.csv`, 'text/csv');
+        return state.entries.length;
+      case 'letterboxd-watched':
+      case 'letterboxd-watchlist': {
+        const which = format === 'letterboxd-watched' ? 'watched' : 'watchlist';
+        const { csv, count } = buildLetterboxdCsv(state, which);
+        downloadText(csv, `cinetrack-letterboxd-${which}-${date}.csv`, 'text/csv');
+        return count;
+      }
+      default:
+        downloadText(JSON.stringify(buildJsonExport(state, { source: window.location.origin }), null, 2), `cinetrack-backup-${date}.json`, 'application/json');
+        return state.entries.length;
+    }
   }, []);
 
   /** Parses an export file (current envelope, legacy raw state, or a bare entries array) without applying it. */
@@ -291,7 +302,12 @@ export function useWatchlist(uid: string | null) {
     try {
       let raw = JSON.parse(json);
       if (Array.isArray(raw)) raw = { entries: raw };
-      if (raw && typeof raw === 'object' && 'data' in raw && raw.app === 'cinetrack') raw = raw.data;
+      if (raw && typeof raw === 'object' && raw.app === 'cinetrack') {
+        // Version 2 files carry the exact state in `data` (lossless); a file with only the
+        // readable `titles` (hand-edited or made by another tool) is rebuilt from those.
+        if (raw.data && typeof raw.data === 'object') raw = raw.data;
+        else if (Array.isArray(raw.titles)) raw = stateFromTitles(raw.titles);
+      }
       const parsed = normalizeState(raw);
       return parsed && parsed.entries.length > 0 ? parsed : null;
     } catch {
@@ -319,7 +335,7 @@ export function useWatchlist(uid: string | null) {
     state, initialised, cloudError, retrySync,
     addEntry, updateEntry, deleteEntry, deleteEntries,
     setStatus, setStatuses, setMeta, setProgress, reorderSections,
-    updatePoster, exportJSON, parseImport, applyImport,
+    updatePoster, exportData, parseImport, applyImport,
     forceSync,
     flush: cloud.flush, lastSync: cloud.lastSync, syncStatus: cloud.status,
   };

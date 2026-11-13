@@ -54,6 +54,7 @@ src/
     titleData.ts               TMDB details/ratings/providers, id resolution, matching
     tmdb.ts                    client for /api/tmdb      links.ts  IMDb/TMDB link parsing
     csvImport.ts importMatch.ts  external import + pasted lists → candidates → TMDB matching
+    exporters.ts download.ts     export formats (JSON v2, spreadsheet CSV, Letterboxd CSV)
     progress.ts ics.ts analytics.ts utils.ts
   types/index.ts        MovieEntry, WatchMeta, WatchlistState, …
 firestore.rules         Security rules (deploy separately, see TODO.md)
@@ -141,6 +142,13 @@ prefix server keys with `VITE_`, which would ship them in the bundle). `.env.loc
   handled by `sharedTextFrom` (links, Letterboxd slugs, cleaned page titles).
 - Import: CineTrack JSON (merge/replace), Letterboxd ZIP/CSV, IMDb CSV, pasted lists — all go
   through match + review (`ExternalImportDialog`), which flags titles already in the list.
+- Export (`lib/exporters.ts`): **JSON backup v2** = `{ app, version: 2, exportedAt, source,
+  summary, titles[], data }` — `titles` are readable self-contained records (details + your data,
+  ids, links, `publicRating {value, source}`), `data` is the exact state for lossless restore.
+  Import prefers `data`, falls back to `titles`, still reads v1 (`data` only). **Spreadsheet CSV**
+  (UTF-8 BOM, formula-safe cells) re-imports with status/rating/date/TMDB id intact.
+  **Letterboxd CSV** (films only): watched (Rating10, WatchedDate, Review) and watchlist.
+  Change the format → bump `EXPORT_VERSION` and keep older versions importable.
 - Analytics (`lib/stats.ts`, `ProfilePage`): period picker (all time / year), insights, watched,
   time watched (film vs series), weekly streaks, backlog + time to clear at your pace, monthly
   bars, day heatmap, rating histogram, you vs the crowd (IMDb/TMDB), genres with your avg

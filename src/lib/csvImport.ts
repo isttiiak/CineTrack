@@ -18,7 +18,7 @@ export interface ImportCandidate {
 
 export type ExportKind =
   | 'letterboxd-watched' | 'letterboxd-ratings' | 'letterboxd-diary' | 'letterboxd-watchlist'
-  | 'imdb' | 'generic';
+  | 'imdb' | 'cinetrack' | 'generic';
 
 /** RFC 4180 CSV: quoted fields, escaped quotes (""), commas and newlines inside quotes, CRLF or LF. */
 export function parseCsv(text: string): string[][] {
@@ -59,6 +59,7 @@ export function detectKind(headers: string[], fileName = ''): ExportKind {
     return 'letterboxd-watched';
   }
   if (has('const') || h.some((x) => x === 'your rating' || x === 'title type')) return 'imdb';
+  if (has('title', 'status', 'my rating', 'tmdb id')) return 'cinetrack';
   return 'generic';
 }
 
@@ -120,6 +121,22 @@ export function candidatesFrom(rows: string[][], fileName = ''): { kind: ExportK
         status: rating !== undefined || /rating/.test(fileName.toLowerCase()) ? 'watched' : 'plan',
         rating,
         watchedOn: isoDate(get(row, 'date rated')),
+      });
+    } else if (kind === 'cinetrack') {
+      // Our own spreadsheet export: keep status, rating, date and the exact TMDB id.
+      const title = get(row, 'title');
+      if (!title) continue;
+      const tmdb = parseInt(get(row, 'tmdb id') ?? '', 10);
+      const type: MediaType = /series/i.test(get(row, 'type') ?? '') ? 'Series' : 'Film';
+      const status = (get(row, 'status') ?? '').toLowerCase();
+      out.push({
+        key: Number.isFinite(tmdb) ? `tmdb:${type}/${tmdb}` : `${title.toLowerCase()}|${get(row, 'year') ?? ''}`,
+        title, year: get(row, 'year') ?? '', type, source: 'csv',
+        imdbId: get(row, 'imdb id')?.match(/tt\d+/)?.[0],
+        ...(Number.isFinite(tmdb) ? { tmdbRef: { kind: type === 'Series' ? 'tv' as const : 'movie' as const, id: tmdb } } : {}),
+        status: status.startsWith('watched') ? 'watched' : status.startsWith('watching') ? 'watching' : 'plan',
+        rating: ratingOf(get(row, 'my rating'), 10),
+        watchedOn: isoDate(get(row, 'watched on')),
       });
     } else {
       const title = get(row, 'title', 'name', 'film', 'movie');

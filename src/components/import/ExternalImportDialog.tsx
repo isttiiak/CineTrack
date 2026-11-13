@@ -21,7 +21,7 @@ interface Props {
 
 const SOURCE: Record<string, string> = {
   'letterboxd-watched': 'Letterboxd', 'letterboxd-ratings': 'Letterboxd', 'letterboxd-diary': 'Letterboxd',
-  'letterboxd-watchlist': 'Letterboxd', imdb: 'IMDb', generic: 'CSV',
+  'letterboxd-watchlist': 'Letterboxd', imdb: 'IMDb', cinetrack: 'CineTrack CSV', generic: 'CSV',
 };
 const STATUS_LABEL = { plan: 'Plan', watching: 'Watching', watched: 'Watched' } as const;
 
