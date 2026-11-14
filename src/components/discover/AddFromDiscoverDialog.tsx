@@ -11,6 +11,7 @@ import { formatWatchDate } from '@/lib/watchDate';
 import { TMDB_IMG, type TMDBItem } from '@/hooks/useTMDBDiscover';
 import { PLATFORMS, SECTIONS } from '@/lib/utils';
 import { getDetails, suggestPlatform, type RegionProviders } from '@/lib/titleData';
+import { suggestedSection } from '@/lib/sections';
 import { useRatings } from '@/hooks/useRatings';
 import { RatingsRow } from '@/components/ratings/RatingsRow';
 import { WhereToWatch } from '@/components/ratings/WhereToWatch';
@@ -47,6 +48,8 @@ export function AddFromDiscoverDialog({ item, sections, region, myServices, onCa
   const [platform, setPlatform] = useState<WatchPlatform>('');
   const [section, setSection] = useState('General');
   const [platformTouched, setPlatformTouched] = useState(false);
+  const [sectionTouched, setSectionTouched] = useState(false);
+  const [suggested, setSuggested] = useState<string | null>(null);   // e.g. 'Marvel', from TMDB's production companies
   const [providers, setProviders] = useState<RegionProviders | undefined>();
   const [providersLoading, setProvidersLoading] = useState(false);
   const { ratings, loading: ratingsLoading } = useRatings(item?.media_type ?? 'movie', item?.id, !!item);
@@ -54,14 +57,18 @@ export function AddFromDiscoverDialog({ item, sections, region, myServices, onCa
   // Fresh defaults each time a new title is opened.
   useEffect(() => {
     if (!item) return;
-    setStatus('plan'); setWatchedOn(''); setRating(undefined); setPlatform(''); setPlatformTouched(false);
+    setStatus('plan'); setWatchedOn(''); setRating(undefined); setPlatform(''); setPlatformTouched(false); setSectionTouched(false); setSuggested(null);
     setSection(defaultSectionFor(item));
     setProviders(undefined);
     let active = true;
     setProvidersLoading(true);
     // Same cached request the add uses afterwards for country/runtime/IMDb id.
     getDetails(item.media_type, item.id)
-      .then((d) => { if (active) setProviders(d['watch/providers']?.results?.[region]); })
+      .then((d) => {
+        if (!active) return;
+        setProviders(d['watch/providers']?.results?.[region]);
+        setSuggested(suggestedSection(d));
+      })
       .catch(() => {})
       .finally(() => { if (active) setProvidersLoading(false); });
     return () => { active = false; };
@@ -78,6 +85,8 @@ export function AddFromDiscoverDialog({ item, sections, region, myServices, onCa
   const year = (item.release_date ?? item.first_air_date ?? '').slice(0, 4);
   // Not out yet: it can only be planned. (You can't have watched it.)
   const unreleased = isUnreleased(item);
+  // The user's own pick wins; otherwise a suggestion (Marvel) beats the media-type default.
+  const chosenSection = sectionTouched ? section : suggested ?? section;
   const sectionOptions = [...new Set([...SECTIONS, ...sections])];
 
   const confirm = () => onConfirm(item, {
@@ -85,7 +94,7 @@ export function AddFromDiscoverDialog({ item, sections, region, myServices, onCa
     watchedOn: status === 'watched' && watchedOn ? watchedOn : undefined,
     personalRating: status !== 'plan' ? rating : undefined,
     watchPlatform: platform || undefined,
-    section,
+    section: chosenSection,
   });
 
   return (
@@ -187,7 +196,7 @@ export function AddFromDiscoverDialog({ item, sections, region, myServices, onCa
               </div>
               <div className="grid gap-1.5">
                 <Label>Section</Label>
-                <Select value={section} onValueChange={setSection}>
+                <Select value={chosenSection} onValueChange={(v) => { setSectionTouched(true); setSection(v); }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {sectionOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}

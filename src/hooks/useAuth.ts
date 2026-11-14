@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getRedirectResult, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut as firebaseSignOut } from 'firebase/auth';
+import { deleteUser, getRedirectResult, onAuthStateChanged, reauthenticateWithPopup, signInWithPopup, signInWithRedirect, signOut as firebaseSignOut } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
 import type { UserProfile } from '../types';
@@ -59,5 +59,27 @@ export function useAuth() {
 
   const signOut = () => firebaseSignOut(auth);
 
-  return { user, loading, signIn, signOut };
+  /**
+   * Deleting an account needs a recent sign-in. Call this *before* deleting any data: it asks
+   * Google again (pop-up) when the last sign-in is older than a few minutes. Resolves 'resign'
+   * where a pop-up isn't possible (iOS home-screen app): the user must sign out and in again.
+   */
+  const confirmRecentSignIn = async (): Promise<'ok' | 'resign'> => {
+    const current = auth.currentUser;
+    if (!current) throw new Error('Not signed in');
+    const last = Date.parse(current.metadata.lastSignInTime ?? '');
+    if (Number.isFinite(last) && Date.now() - last < 4 * 60_000) return 'ok';
+    if (isIosStandalone()) return 'resign';
+    await reauthenticateWithPopup(current, googleProvider);
+    return 'ok';
+  };
+
+  /** Deletes the sign-in record (name, email, photo link) from Firebase Authentication. */
+  const deleteAccount = async (): Promise<void> => {
+    const current = auth.currentUser;
+    if (!current) throw new Error('Not signed in');
+    await deleteUser(current);
+  };
+
+  return { user, loading, signIn, signOut, confirmRecentSignIn, deleteAccount };
 }

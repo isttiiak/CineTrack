@@ -10,40 +10,21 @@ Tick them off as you go. Items marked *(optional)* can wait.
 - [x] Firestore security rules published (`firestore.rules`)
 - [x] Firebase **Authorized domains** reviewed: `localhost`, the two Firebase domains and the Vercel domain: the right set
 - [x] LICENSE (MIT), CI workflow, privacy note, platform rename and data migration
+- [x] Browser API key restricted to the websites (item 1), Dependabot alerts enabled
+- [x] Consent banner for EU/EEA/UK/CH, delete options and account deletion, full-page Settings, Marvel section
 
 ---
 
-## 1. Restrict the browser API key to your websites
+## 1. GitHub settings *(a few minutes)*
 
-The `VITE_FIREBASE_*` values are public by design. This setting stops other websites from using
-your Firebase API key. The key list page doesn't show the option; you have to open the key.
-
-1. Google Cloud Console → **APIs & Services → Credentials**
-   (<https://console.cloud.google.com/apis/credentials>), with your Firebase project selected.
-2. Under **API Keys**, click the **name** of the key: *Browser key (auto created by Firebase)*.
-   (Don't click "Show key", which only reveals the value.)
-3. Find **Application restrictions** and choose **Websites**.
-4. Under **Website restrictions**, click **Add** and add each of these (replace the project id with yours):
-   - `https://cine-track-silk.vercel.app/*` (your live site; add any custom domain too)
-   - `https://<your-project-id>.firebaseapp.com/*` (the Google sign-in popup runs here)
-   - `https://<your-project-id>.web.app/*`
-   - `http://localhost:5173/*` and `http://localhost:4173/*` (local development and preview)
-5. **API restrictions** is already set (it showed "25 APIs", Firebase's default list). Leave it.
-6. Click **Save**. It can take up to 5 minutes to apply.
-7. Test: on the live site, sign in with Google and change something (the header should say
-   "Synced"). If sign-in fails with an "API key not valid / referrer blocked" message, one of the
-   referrers above is missing; add it. To undo, set Application restrictions back to **None**.
-
-## 2. GitHub settings *(a few minutes)*
-
-- [ ] *(Dependabot version updates are configured in `.github/dependabot.yml`.)* Settings → **Code security**: enable **Dependabot alerts**, **Dependabot security updates**,
-      **Secret scanning** and **Push protection**.
+- [x] Dependabot alerts and security updates enabled (version updates are in `.github/dependabot.yml`)
+- [ ] Settings → **Code security**: enable **Secret scanning** and **Push protection** if not already on.
 - [ ] After the first CI run has finished on `main`: Settings → **Branches** → add a rule for
       `main` → **Require a pull request before merging** and **Require status checks to pass**
       → select **Lint, test, build**.
 - [ ] Settings → General → under **Pull Requests**, tick **Automatically delete head branches**.
 
-## 3. Check the live site after deploying
+## 2. Check the live site after deploying
 
 - [ ] **Discover loads** (titles and posters appear). If it's blank, open
       `https://cine-track-silk.vercel.app/api/tmdb?path=trending/all/week` in a tab: JSON means
@@ -54,6 +35,14 @@ your Firebase API key. The key list page doesn't show the option; you have to op
 - [ ] **Google sign-in works** (popup). The Content-Security-Policy in `vercel.json` is strict. If
       sign-in fails, open DevTools → Console, look for "Refused to … Content Security Policy",
       and add that origin to `vercel.json` (or ask Claude).
+- [ ] **After the PWA update (first deploy only):** installed copies and open tabs still run the old worker;
+      one refresh (two on the very first load) moves them to the new version. If an install looks stuck,
+      Settings → App & offline → *Clear offline cache & reload*.
+- [ ] **Consent banner:** open the live site through a VPN in the EU/UK (or DevTools → Application → clear storage,
+      then set `localStorage.cinetrack_region = '1'`): the banner should appear, nothing should load from
+      googletagmanager until you click Allow. `https://cine-track-silk.vercel.app/api/region` should return your country.
+- [ ] **Delete account (use a throw-away Google account):** Settings → Delete data → Delete account. Check in
+      Firebase Console that the user is gone from Authentication and `users/{uid}/data/*` from Firestore.
 - [ ] **iPhone home-screen app:** add the site to the Home Screen, open it, and sign in (it uses a redirect).
 - [ ] **Two devices:** change different titles on a phone and a laptop at the same time; after a few
       seconds both should show both changes.
@@ -67,7 +56,7 @@ your Firebase API key. The key list page doesn't show the option; you have to op
 - [ ] **Phone check:** on an iPhone (or SE-sized screen) open Watchlist, Discover, a title's details,
       Settings and Analytics. Each Discover card should show exactly one Add/Edit button.
 
-## 4. Later *(not urgent)*
+## 3. Later *(not urgent)*
 
 ### App Check (blocks scripts that reuse your Firebase config)
 
@@ -83,13 +72,8 @@ Deferred on purpose. The app already supports it: it turns on as soon as the sit
 
 ### Other ideas
 
-- [ ] **Consent banner for EU/UK visitors.** Analytics is on by default with an opt-out switch
-      (Settings → Privacy) and respects Do Not Track. If you want to be strict about EU/UK
-      cookie-consent rules, ask Claude to add an opt-in prompt for those regions.
 - [ ] **Language filter.** The home page filters by *country*. Language (e.g. Bengali vs Hindi,
       both India) needs a new field plus a lookup for existing titles; ask Claude if you want it.
-- [ ] **"Delete my account" button** in Settings (removes the cloud list and sign-in record). Today
-      deletion is by request, as described in PRIVACY.md.
 - [ ] **AI features** (Groq): needs a server-side key with per-user limits; see the discussion in chat.
 
 ## Known and accepted (reviewed 2026-11-13)

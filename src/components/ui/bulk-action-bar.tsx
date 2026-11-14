@@ -1,15 +1,20 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckSquare, Trash2, Eye, Clock, Bookmark, X } from 'lucide-react';
+import { CheckSquare, Trash2, Eye, Clock, Bookmark, X, FolderInput } from 'lucide-react';
 import type { WatchStatus } from '@/types';
+import { SECTIONS, SECTION_COLORS, SECTION_EMOJIS } from '@/lib/utils';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './dropdown-menu';
 
 interface Props {
   count: number;
+  sections: string[];                      // the user's own sections, offered next to the built-in ones
   onStatusChange: (status: WatchStatus) => void;
+  onMove: (section: string) => void;
   onDelete: () => void;
   onClear: () => void;
 }
 
-export function BulkActionBar({ count, onStatusChange, onDelete, onClear }: Props) {
+export function BulkActionBar({ count, sections, onStatusChange, onMove, onDelete, onClear }: Props) {
+  const sectionOptions = [...new Set([...SECTIONS, ...sections])];
   return (
     <AnimatePresence>
       {count > 0 && (
@@ -63,6 +68,29 @@ export function BulkActionBar({ count, onStatusChange, onDelete, onClear }: Prop
             <Eye className="h-3.5 w-3.5" />
             Watched
           </button>
+
+          <div className="w-px h-5" style={{ background: 'var(--border-subtle)' }} />
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors hover:bg-[var(--bg-hover)]"
+                style={{ color: 'var(--text-secondary)' }}
+                title="Move to a section"
+              >
+                <FolderInput className="h-3.5 w-3.5" />
+                Move
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="center" side="top" className="z-[60] max-h-72 overflow-y-auto">
+              {sectionOptions.map((s) => (
+                <DropdownMenuItem key={s} onSelect={() => onMove(s)}>
+                  <span>{SECTION_EMOJIS[s] ?? '🎬'}</span>
+                  <span style={{ color: SECTION_COLORS[s] ?? 'var(--text-secondary)' }}>{s}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <div className="w-px h-5" style={{ background: 'var(--border-subtle)' }} />
 

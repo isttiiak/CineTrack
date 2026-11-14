@@ -10,6 +10,8 @@ import { useCursorGlow } from '@/hooks/useCursorGlow';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { usePreferences } from '@/hooks/usePreferences';
 import { Header } from '@/components/layout/Header';
+import { PwaStatus } from '@/components/layout/PwaStatus';
+import { ConsentBanner } from '@/components/layout/ConsentBanner';
 import { AuthBanner } from '@/components/auth/AuthBanner';
 import { FilterBar } from '@/components/filters/FilterBar';
 import { SearchBox } from '@/components/filters/SearchBox';
@@ -25,13 +27,14 @@ import type { ImportSource } from '@/components/import/ExternalImportDialog';
 import { ToastContainer } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { SECTION_COLORS, SECTION_EMOJIS, cn } from '@/lib/utils';
+import { wipeLocalDataAndReload } from '@/lib/localData';
 import { defaultRegion } from '@/lib/titleData';
 import { parseTitleLink, sharedTextFrom } from '@/lib/links';
 import { countryOptions, hasCountry } from '@/lib/countries';
 import type { FilterState, MovieEntry, WatchMeta, WatchStatus, ViewMode, WatchlistState } from '@/types';
 
 // Code-split: these load when first needed, which keeps the first paint small.
-const SettingsPanel = lazy(() => import('@/components/settings/SettingsPanel').then((m) => ({ default: m.SettingsPanel })));
+const SettingsPage = lazy(() => import('@/components/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 const ProfilePage = lazy(() => import('@/components/profile/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 const DiscoverPage = lazy(() => import('@/components/discover/DiscoverPage').then((m) => ({ default: m.DiscoverPage })));
 const UpcomingPage = lazy(() => import('@/components/upcoming/UpcomingPage').then((m) => ({ default: m.UpcomingPage })));
@@ -59,12 +62,12 @@ const SORTERS: Record<string, (a: MovieEntry, b: MovieEntry) => number> = {
 };
 
 export default function App() {
-  const { user, loading, signIn, signOut } = useAuth();
+  const { user, loading, signIn, signOut, confirmRecentSignIn, deleteAccount } = useAuth();
   const uid = user?.uid ?? null;
   const {
     state, initialised, cloudError, retrySync,
-    addEntry, updateEntry, deleteEntries,
-    setStatus, setStatuses, setMeta, setProgress, reorderSections, updatePoster,
+    addEntry, updateEntry, deleteEntries, deleteAllEntries, eraseCloudData,
+    setStatus, setStatuses, moveToSection, setMeta, setProgress, reorderSections, updatePoster,
     exportData, parseImport, applyImport, forceSync,
     flush, lastSync, syncStatus,
   } = useWatchlist(uid);
@@ -72,7 +75,7 @@ export default function App() {
   const { toasts, addToast, removeToast } = useToast();
   const { glowRef, pulse } = useCursorGlow();
   const [view, setView] = useLocalStorage<ViewMode>('cinetrack_view', 'grid');
-  const { prefs, setPref } = usePreferences();
+  const { prefs, setPref, resetPrefs } = usePreferences();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const [discoverQuery, setDiscoverQuery] = useState('');
@@ -93,8 +96,7 @@ export default function App() {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const importRef = useRef<HTMLInputElement>(null);
-  // Heavy panels load on first use. These two stay mounted afterwards so their close animation still plays.
-  const settingsSeen = useRef(false);
+  // The import dialog loads on first use and stays mounted afterwards so its close animation still plays.
   const importSeen = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -106,6 +108,13 @@ export default function App() {
   // shared title; an IMDb/TMDB link opens its add dialog straight away.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    // App shortcuts (manifest.json) open a tab directly: /?tab=discover
+    const tab = params.get('tab');
+    if (tab === 'discover' || tab === 'upcoming') {
+      window.history.replaceState(null, '', window.location.pathname);
+      setActiveTab(tab);
+      return;
+    }
     const shared = sharedTextFrom(params);
     if (!shared) return;
     window.history.replaceState(null, '', window.location.pathname);
@@ -219,6 +228,44 @@ export default function App() {
     pulse();
   };
 
+  // ── Deleting data (Settings → Delete data) ──────────────────────────────
+  const handleSelectToDelete = () => {
+    setSettingsOpen(false);
+    setActiveTab('watchlist');
+    setSelectMode(true);
+    addToast('Tap the titles to delete, then choose Delete', 'info');
+  };
+
+  const handleDeleteAll = () => {
+    const n = deleteAllEntries();
+    track('watchlist_entry_deleted', { count: n });
+    setDrawerId(null);
+    exitSelect();
+    addToast(`${n} ${n === 1 ? 'title' : 'titles'} deleted`, 'info');
+    pulse();
+  };
+
+  /** Resolves with a message to show when something went wrong (nothing is left half-deleted that can't be retried). */
+  const handleDeleteAccount = async (): Promise<string | null> => {
+    try {
+      // Google first: the sign-in must be recent, and nothing should be deleted if that fails.
+      if (await confirmRecentSignIn() === 'resign') {
+        return 'For security, Google needs a fresh sign-in first. Sign out, sign in again, then delete your account right away.';
+      }
+      await eraseCloudData();       // list + profile in Firestore (sync is halted so nothing recreates them)
+      await deleteAccount();        // the sign-in record
+      await wipeLocalDataAndReload('everything');
+      return null;
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return 'Cancelled. Nothing was deleted.';
+      if (code === 'auth/requires-recent-login') return 'Your list and profile are deleted, but Google needs a fresh sign-in to remove the account itself. Sign out, sign in again and delete the account once more.';
+      if ((err as Error).message === 'offline' || code === 'unavailable') return 'You are offline. Nothing was deleted; try again when you are connected.';
+      console.error('Account deletion failed:', err);
+      return 'Something went wrong and the account could not be fully deleted. Check your connection and try again; deleting again is safe.';
+    }
+  };
+
   // ── Import / export / sync ──────────────────────────────────────────────
   const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -278,6 +325,14 @@ export default function App() {
     });
   };
   const exitSelect = () => { setSelectMode(false); setSelectedIds(new Set()); };
+
+  const handleBulkMove = (section: string) => {
+    const n = selectedIds.size;
+    moveToSection([...selectedIds], section);
+    addToast(`${n} ${n === 1 ? 'title' : 'titles'} moved to ${section}`, 'success');
+    setSelectedIds(new Set());
+    pulse();
+  };
 
   const handleBulkStatus = (status: WatchStatus) => {
     setStatuses([...selectedIds], status);
@@ -628,25 +683,33 @@ export default function App() {
         onCancel={() => setPendingDelete(null)}
       />
 
-      {(settingsSeen.current ||= settingsOpen) && (
-      <Suspense fallback={null}>
-      <SettingsPanel
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        prefs={prefs}
-        onPrefChange={setPref}
-        view={view}
-        onViewChange={setView}
-        sections={navSections}
-        onReorderSections={handleReorder}
-        entryCount={state.entries.length}
-        region={region}
-        onExport={handleExport}
-        onImport={() => { setSettingsOpen(false); importRef.current?.click(); }}
-        onPasteList={() => openPasteList()}
-      />
-      </Suspense>
-      )}
+      <AnimatePresence>
+        {settingsOpen && (
+          <Suspense fallback={null}>
+            <SettingsPage
+              key="settings"
+              onClose={() => setSettingsOpen(false)}
+              prefs={prefs}
+              onPrefChange={setPref}
+              onResetPrefs={() => { resetPrefs(); setView('grid'); addToast('Display settings reset', 'info'); }}
+              view={view}
+              onViewChange={setView}
+              sections={navSections}
+              onReorderSections={handleReorder}
+              entryCount={state.entries.length}
+              region={region}
+              user={user}
+              onExport={handleExport}
+              onImport={() => { setSettingsOpen(false); importRef.current?.click(); }}
+              onPasteList={() => openPasteList()}
+              onSelectToDelete={handleSelectToDelete}
+              onDeleteAllTitles={handleDeleteAll}
+              onEraseThisBrowser={() => wipeLocalDataAndReload('keep-empty-list')}
+              onDeleteAccount={handleDeleteAccount}
+            />
+          </Suspense>
+        )}
+      </AnimatePresence>
 
       {(importSeen.current ||= importSource !== null) && (
       <Suspense fallback={null}>
@@ -679,6 +742,8 @@ export default function App() {
       />
 
       <ToastContainer toasts={toasts} onRemove={removeToast} />
+      <PwaStatus />
+      <ConsentBanner />
 
       <AnimatePresence>
         {profileOpen && (
@@ -692,7 +757,9 @@ export default function App() {
 
       <BulkActionBar
         count={selectedIds.size}
+        sections={state.sectionOrder}
         onStatusChange={handleBulkStatus}
+        onMove={handleBulkMove}
         onDelete={() => setPendingDelete([...selectedIds])}
         onClear={exitSelect}
       />

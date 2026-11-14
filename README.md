@@ -30,7 +30,7 @@ A personal movie and TV series watchlist tracker. Works instantly as a guest, or
 - The Add form suggests TMDB matches as you type and fills in everything
 - **Paste a list**: one title per line from notes or chats, matched and reviewed before adding
 - Paste a link or a list **anywhere** in the app
-- **Bookmarklet** (Settings): click "+ CineTrack" on any IMDb, TMDB or Letterboxd page
+- **Bookmarklet** (Settings → Import & export): click "+ CineTrack" on any IMDb, TMDB or Letterboxd page
 - Android: Share → CineTrack; imports from Letterboxd and IMDb
 
 ### Analytics
@@ -61,8 +61,10 @@ A personal movie and TV series watchlist tracker. Works instantly as a guest, or
 - Guest mode (no sign-in) or Google sign-in with Firestore sync. Edits from several devices are merged field by field.
 
 ### App
-- Installable PWA. On Android, **Share → CineTrack** from the IMDb app (or any link) opens that title ready to add.
-- Settings: theme, layout, cursor glow, grouping, card details, section order, country, your services, backup
+- Installable PWA that works offline (your list, the app and posters you have seen). On Android, **Share → CineTrack** from the IMDb app (or any link) opens that title ready to add.
+- Full-page Settings: layout, cursor glow, grouping, card details, section order, country, your services, backup, install, privacy choice
+- **Delete options**: selected titles, all titles, erase this browser, or delete your account with every piece of data
+- Sections include Marvel; the bulk bar can move titles between sections
 - One dark, cinematic theme (near-black with a pink accent), fully responsive
 
 ---
@@ -179,7 +181,9 @@ new third-party script, image host or API, add its origin to the CSP there.
 - **iPhone / iPad** — Open in Safari → Share button → "Add to Home Screen"
 - **Android** — Open in Chrome → three-dot menu → "Add to Home Screen" or "Install app"
 
-The app opens fullscreen with no browser bar, just like a native app.
+The app opens fullscreen with no browser bar, just like a native app. Settings → App & offline shows the right steps for your device.
+
+The service worker only exists in a production build. To try the PWA locally: `npm run build && npm run preview` (http://localhost:4173), not `npm run dev`.
 
 ---
 

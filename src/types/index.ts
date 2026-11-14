@@ -17,6 +17,7 @@ export type Section =
   | 'Crime & Gangster'
   | 'Racing'
   | 'Christopher Nolan'
+  | 'Marvel'
   | 'World Cinema'
   | 'TV Series'
   | 'Animation & Family'

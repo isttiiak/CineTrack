@@ -1,6 +1,6 @@
 # Privacy
 
-*Last updated: 2026-11-13*
+*Last updated: 2026-11-15*
 
 CineTrack is a personal watchlist app. It is built to keep your list yours: it works without an
 account, it has no ads, and it doesn't sell or share your data. This page says exactly what is
@@ -40,9 +40,14 @@ location derived from your IP address. This is processed by Google under
 
 You are in control:
 
-- Turn it off any time in **Settings → Privacy**.
+- **EU/EEA, UK and Switzerland: nothing is collected unless you click Allow** in the banner. Elsewhere it
+  is on by default and you can turn it off. Either way, change your mind any time in **Settings → Privacy**;
+  turning it off stops collection and removes the Google Analytics cookie (`_ga…`).
+- Where you are is decided by the hosting provider's country header (derived from your IP address by
+  Vercel; the app never sees the address). If that is unavailable, your browser's time zone is used.
 - Nothing is collected if your browser sends **Do Not Track** or **Global Privacy Control**.
 - Nothing is collected if the deployment has no Analytics configured.
+- These statistics are anonymous and can't be linked to your account, so there is nothing to delete on that side.
 
 ## Other services your browser or the server talks to
 
@@ -59,20 +64,23 @@ Your ratings, notes, watch status, dates and saved links are **not** sent to TMD
 ## Your choices
 
 - **Export** your data any time from Settings → Data (JSON, CSV).
-- **Delete local data**: clear your browser's site data (or sign out, if you are signed in).
-- **Delete cloud data**: open an issue at
-  [github.com/isttiiak/CineTrack/issues](https://github.com/isttiiak/CineTrack/issues) (without
-  including personal details) or contact the operator of the deployment you use, and the
-  Firestore documents and sign-in record will be removed.
+- **Delete titles**: Settings → Delete data: the ones you select, or all of them (your account stays).
+- **Delete local data**: Settings → Delete data → *Erase everything in this browser* (or clear your
+  browser's site data; signing out also clears the signed-in list from the device).
+- **Delete your account and all data**: Settings → Delete data → *Delete account*. It permanently removes
+  your list and profile record from Firestore, your sign-in record (name, email address, photo link) from
+  Firebase Authentication, and everything CineTrack stored on that device. Google may ask you to sign in
+  again first. You can download a backup beforehand. (If the app is unavailable, contact the operator.)
 - Remove the app's access to your Google account at
   [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
 
 ## For people running their own deployment
 
-You decide whether Analytics is on (set or leave out `VITE_FIREBASE_MEASUREMENT_ID`). If you
-have visitors from the EU, UK or other regions with consent rules for analytics cookies and
-identifiers, you may need to ask for consent before collecting; this app provides an opt-out
-switch and respects Do Not Track, but not a consent prompt. This page is not legal advice.
+You decide whether Analytics is on (set or leave out `VITE_FIREBASE_MEASUREMENT_ID`). The app asks
+for opt-in consent from visitors in the EU/EEA, UK and Switzerland, using the `x-vercel-ip-country`
+header (`api/region.ts`); on another host that header is missing, so it falls back to the time zone and
+asks whenever it can't tell. Other regions with consent rules (for example Brazil, parts of Asia) are
+not treated specially. This page is not legal advice.
 
 ## Changes
 

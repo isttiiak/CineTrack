@@ -4,6 +4,31 @@ All notable changes to CineTrack. Dates are `YYYY-MM-DD`. Versions follow
 [Semantic Versioning](https://semver.org/). Earlier history: see the
 [v1.0.0 release](https://github.com/isttiiak/CineTrack/releases/tag/v1.0.0).
 
+## [Unreleased]
+
+### Added
+
+- **Settings is now a full page** with a side menu (Display, Streaming, Import & export, Privacy, App & offline,
+  Delete data, About) instead of a narrow drawer.
+- **Delete data** (Settings): delete selected titles (jumps to multi-select), delete all titles (keeps the
+  account), erase everything in this browser (guests), and **delete account and all data** (signed in: cloud
+  list, profile, the sign-in record, and everything on the device). The last three need typing DELETE and
+  offer a backup download first.
+- **Consent banner for the EU/EEA, UK and Switzerland**: usage statistics are opt-in there (nothing is
+  collected until you say yes) and stay opt-out elsewhere. Region comes from `/api/region` (the host's
+  country header); the time zone is only a fallback. Do Not Track / Global Privacy Control still win.
+- **Marvel section**, preselected when adding a Marvel title from Discover (detected from TMDB production
+  companies), plus a bulk **Move to section** action in the multi-select bar.
+- PWA: install button and iPhone instructions (Settings → App & offline), a "new version" reload prompt,
+  an offline notice, app shortcuts (Discover, Upcoming), maskable and Apple touch icons.
+
+### Fixed
+
+- **Invisible Cancel button** in the delete dialog (and other `text-base` text): a stray `base` colour in the
+  Tailwind config also generated `text-base` as a near-black text colour.
+- PWA offline support: posters, Google Fonts and TMDB/ratings answers are now cached, the new service worker
+  takes over at once so a refresh always gives the newest version, and a missing `favicon.ico` 404 is gone.
+
 ## [1.2.2] - 2026-11-13
 
 Dependency updates only; no change to how the app works.

@@ -28,16 +28,18 @@ api/                    Vercel Functions (files starting with _ are shared code,
                         Relative imports here MUST end in .js (Vercel runs native ES modules); `npm run check:api` verifies it
   tmdb.ts  _tmdb.ts       TMDB proxy: allowlisted paths/params, adds the key server-side
   ratings.ts _ratings.ts  IMDb/RT/Metacritic/Letterboxd ratings via MDBList, OMDb fallback
+  region.ts _region.ts    country from Vercel's x-vercel-ip-country header → does this visitor need consent?
 src/
   App.tsx               Tabs (Watchlist / Discover / Upcoming), toolbar, dialogs, wiring
   components/
     discover/           DiscoverPage, DiscoverCard, AddFromDiscoverDialog
     filters/            SearchBox (tab-row search), FilterBar (dropdown filters + sort)
     import/             ExternalImportDialog (Letterboxd / IMDb CSV & ZIP)
-    layout/             Header, UserProfile
+    layout/             Header, UserProfile, PwaStatus (offline chip, "new version" prompt), ConsentBanner
     profile/            ProfilePage (Analytics)
     ratings/            RatingsRow, WhereToWatch
-    settings/           SettingsPanel
+    settings/           SettingsPage (full page: Display, Streaming, Import & export, Privacy, App & offline,
+                        Delete data, About)
     upcoming/           UpcomingPage
     watchlist/          EntryCard (grid), EntryRow (list), EntryDrawer (details), AddModal, PosterThumb, StatusBadge
     ui/                 Radix-based primitives, toast, dialogs, HighlightText, WatchDateField
@@ -60,6 +62,10 @@ src/
     watchDate.ts                 "watched on" as YYYY / YYYY-MM / YYYY-MM-DD: parse, format, clamp to the past
     recommend.ts                 "For you" scoring (seed weights, taste profile, quality, variety)
     discoverFeeds.ts             Coming soon feed + isUnreleased()
+    consent.ts                   analytics consent: region requirement, stored choice, useConsentVersion
+    pwa.ts                       service-worker registration, install prompt, update nudge, online state, cache reset
+    localData.ts                 storage keys, wipeLocalDataAndReload / applyPendingWipe (delete-everything)
+    sections.ts                  Marvel detection (TMDB production companies) → suggested section
     progress.ts ics.ts analytics.ts utils.ts
   types/index.ts        MovieEntry, WatchMeta, WatchlistState, …
 firestore.rules         Security rules (deploy separately, see TODO.md)
@@ -88,7 +94,10 @@ WatchlistState { entries[], meta: Record<id, WatchMeta>, sectionOrder[], lastMod
 
 `cinetrack_state_v1` list cache / guest data · `cinetrack_base_v1` last cloud version seen (merge
 base) · `cinetrack_last_uid` · `cinetrack_prefs` display prefs · `cinetrack_theme` ·
-`cinetrack_view` · `cinetrack_ratings_v1` ratings cache (7 days).
+`cinetrack_view` · `cinetrack_ratings_v1` ratings cache (7 days) · `cinetrack_analytics` (`on`/`off`,
+the visitor's usage-statistics choice) · `cinetrack_region` (last `/api/region` answer) ·
+`cinetrack_banner_dismissed_until` · `cinetrack_wipe_pending` (transient, see below).
+Everything CineTrack stores starts with `cinetrack_`; keep it that way, the erase function relies on it.
 
 ## Sync (read before touching useWatchlist / useFirestore / merge)
 
@@ -135,6 +144,9 @@ prefix server keys with `VITE_`, which would ship them in the bundle). `.env.loc
   `year>2015`, `status:`/`is:watched`, `type:`/`is:series`, `genre:`, `country:`, `section:`,
   `platform:`, `rating>8`, `my>=7`, `is:rated`, `has:notes|link|date|progress`, `"exact phrase"`;
   title highlighting; `/` or ⌘K focuses; no results → offer the same search on Discover.
+- Sections: built-in list in `SECTIONS` (utils.ts) incl. **Marvel**; the Discover add dialog preselects Marvel
+  for titles whose TMDB production companies start with "Marvel" (`lib/sections.ts`) unless the user picked a
+  section; the bulk bar's **Move** changes the section of the selection.
 - Duplicates (`lib/duplicates.ts`): strict = same IMDb id / TMDB id+type / normalized title+type
   with compatible years ("Part Two" = "Part 2" = "Part II"). Add form uses `findSimilar` (also
   other type, spacing, typos) and TMDB suggestions; Discover cards show in-list status + Edit.
@@ -172,7 +184,13 @@ prefix server keys with `VITE_`, which would ship them in the bundle). `.env.loc
   time watched (film vs series), weekly streaks, backlog + time to clear at your pace, monthly
   bars, day heatmap, rating histogram, you vs the crowd (IMDb/TMDB), genres with your avg
   rating, decades, countries, platforms, section completion.
-- PWA with Android share target (`public/manifest.json` → `?url=` → Discover).
+- PWA (`vite-plugin-pwa`, `public/manifest.json`): the service worker exists only in production builds, so test
+  with `npm run build && npm run preview`, never `npm run dev`. It precaches the app shell and caches posters
+  (CacheFirst, opaque, 150 max), Google Fonts and `/api/tmdb` + `/api/ratings` (NetworkFirst) at runtime. The new
+  worker activates immediately (`skipWaiting`); open tabs get a "Reload" nudge (`PwaStatus`) instead of a forced
+  reload. A service worker's `fetch()` is governed by CSP `connect-src`, so any origin added to a runtime cache
+  must also be in `connect-src` (not only `img-src`/`font-src`). App shortcuts use `/?tab=discover|upcoming`.
+  Android share target: `manifest.json` → `?url=` → Discover.
 
 ## Conventions
 
@@ -181,6 +199,18 @@ prefix server keys with `VITE_`, which would ship them in the bundle). `.env.loc
 - Auto "watched on" date: only for one-tap status changes (`setStatuses`, progress); forms keep an
   empty date (= unknown).
 - Analytics: `track(event, params)` from `lib/analytics.ts`; no titles, notes or links in params.
+  **Consent**: in the EU/EEA, UK and Switzerland nothing is collected until the visitor clicks Allow
+  (`lib/consent.ts`, `ConsentBanner`); elsewhere it is on with an opt-out. One stored value (`cinetrack_analytics`)
+  serves both the banner and Settings → Privacy. Until the region is known, nothing is collected.
+- Deleting data (Settings → Delete data): delete-all is an ordinary `mutate` (syncs like any edit). Erase /
+  account deletion go through `wipeLocalDataAndReload`: it only sets a flag; `applyPendingWipe()` (first line
+  of `main.tsx`) removes the `cinetrack_*` keys on the next load, so late writes from the dying page can't
+  bring data back. It keeps `cinetrack_analytics` on purpose (a privacy choice must survive an erase). Account
+  deletion order: `confirmRecentSignIn` (Google pop-up) → `eraseCloudData` (halts sync, deletes both Firestore
+  docs) → `deleteAccount` (Auth record) → wipe. Never delete the cloud docs without halting sync first, or a
+  queued save recreates them.
+- Tailwind: never add a colour named `base` (or any size keyword: `sm`, `lg`, …) to `theme.extend.colors`:
+  `text-base` would become a text colour and collide with the font size (this made dialog Cancel buttons invisible).
 - New third-party origins must be added to the CSP in `vercel.json`.
 - Dark only: there is no light theme. Colours come from tokens in `index.css` (`--accent` pink #d43795,
   `--accent-text` for small text on dark, `--accent-gradient`, `--accent-fg` for text on it, `--status-*`, `--viz-*`); use Tailwind `brand`
