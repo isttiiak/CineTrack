@@ -123,7 +123,7 @@ function SectionItem({ section }: { section: string }) {
 
 const cardStyle = { background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)' } as const;
 
-function Card({ title, description, children, danger }: { title?: string; description?: ReactNode; children: ReactNode; danger?: boolean }) {
+function Card({ title, description, children, danger }: { title?: string; description?: ReactNode; children?: ReactNode; danger?: boolean }) {
   return (
     <section className="mb-4 rounded-2xl border p-2 sm:p-3" style={danger ? { ...cardStyle, borderColor: 'rgb(239 68 68 / 0.3)' } : cardStyle}>
       {(title || description) && (
@@ -447,6 +447,7 @@ function PrivacyTab() {
           <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--text-primary)]">Read the full privacy note</a>
         </p>
       </Card>
+      <Card title="AI search" description="Only when you click “Ask AI” in Discover, the words you typed are sent to Groq (via this app's server) to be turned into filters. Your list, notes and account details are never sent. The app keeps a daily counter per account (a date and a number), removed when you delete your account." />
       <Card title="Usage statistics">
         {!analyticsConfigured ? (
           <p className="px-3 pb-3 text-sm" style={{ color: 'var(--text-secondary)' }}>This copy of the app doesn't collect usage statistics.</p>

@@ -36,6 +36,30 @@ service cloud.firestore {
         && request.resource.data.avatar.size() <= 2000;
     }
 
+    // AI search usage counter. api/ai.ts writes it *as the signed-in user* (their ID token), so these
+    // rules are the real limit: the count can only go up by one per write, only for today's UTC day,
+    // and never above the cap; a new day starts again at 1. (The function's own daily limit,
+    // AI_DAILY_LIMIT, is lower than this cap.) Deletable so "Delete my account" removes it too.
+    function today() {
+      return string(request.time.year()) + '-' + string(request.time.month()) + '-' + string(request.time.day());
+    }
+    match /users/{userId}/data/aiUsage {
+      allow read, delete: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && request.resource.data.keys().hasOnly(['day', 'count'])
+        && request.resource.data.day == today()
+        && request.resource.data.count == 1;
+      allow update: if isOwner(userId)
+        && request.resource.data.keys().hasOnly(['day', 'count'])
+        && request.resource.data.day == today()
+        && (
+          (resource.data.day == today()
+            && request.resource.data.count == resource.data.count + 1
+            && request.resource.data.count <= 100)
+          || (resource.data.day != today() && request.resource.data.count == 1)
+        );
+    }
+
     // Everything else is denied by default.
   }
 }

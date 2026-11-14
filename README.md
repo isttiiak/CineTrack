@@ -26,6 +26,7 @@ A personal movie and TV series watchlist tracker. Works instantly as a guest, or
 - Bulk select, duplicate detection, stats (hours watched, heatmap, genres, platforms)
 
 ### Adding titles
+- **Ask AI** (signed in): describe what you want ("scary Korean movies from the 2010s", "like Oldboy but newer"); the titles always come from TMDB, AI only reads your request
 - Search Discover (or paste an IMDb / TMDB link) and add with status, date, rating and platform. Search a director, actor, studio or franchise ("nolan", "marvel", "star wars") to see all their titles
 - The Add form suggests TMDB matches as you type and fills in everything
 - **Paste a list**: one title per line from notes or chats, matched and reviewed before adding

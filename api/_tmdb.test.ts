@@ -16,6 +16,10 @@ describe('buildTmdbUrl', () => {
     expect(buildTmdbUrl(new URL('http://x/api/tmdb?path=search/company&query=marvel'))).not.toBeNull();
     expect(buildTmdbUrl(new URL('http://x/api/tmdb?path=search/collection&query=star%20wars'))).not.toBeNull();
     expect(buildTmdbUrl(new URL('http://x/api/tmdb?path=collection/10'))).not.toBeNull();
+    // AI search filters
+    expect(buildTmdbUrl(new URL('http://x/api/tmdb?path=search/person&query=nolan'))).not.toBeNull();
+    expect(buildTmdbUrl(new URL('http://x/api/tmdb?path=search/keyword&query=time%20travel'))).not.toBeNull();
+    expect(buildTmdbUrl(new URL('http://x/api/tmdb?path=discover/movie&with_genres=27,53&with_origin_country=KR&with_original_language=ko&with_people=525&with_keywords=4565|9951&vote_average.gte=7.5'))).not.toBeNull();
     expect(buildTmdbUrl(new URL('http://x/api/tmdb?path=discover/movie&with_companies=420|7505&sort_by=popularity.desc&vote_count.gte=200'))).not.toBeNull();
   });
 
@@ -30,11 +34,17 @@ describe('buildTmdbUrl', () => {
       'path=discover/movie&sort_by=revenue.desc',
       'path=discover/movie&primary_release_date.gte=tomorrow',
       'path=discover/person',
-      'path=discover/movie&with_keywords=1',
+      'path=discover/movie&with_keywords=a',
+      'path=discover/movie&with_keywords=1;2',
+      'path=discover/movie&with_genres=18|27',          // genres are AND-ed with a comma only
+      'path=discover/movie&with_people=1|2',
+      'path=discover/movie&with_origin_country=kr',
+      'path=discover/movie&with_original_language=korean',
+      'path=discover/movie&vote_average.gte=high',
       'path=person/525',                         // only the credits endpoint
       'path=person/525/images',
       'path=person/525/combined_credits/../../account',
-      'path=search/person&query=x',
+      'path=search/tv&query=x&include_adult=true',
       'path=collection/10/images',
       'path=discover/movie&with_companies=420;drop',
       'path=discover/movie&with_companies=a',

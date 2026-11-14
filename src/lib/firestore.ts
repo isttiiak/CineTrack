@@ -49,8 +49,8 @@ export async function saveUserProfile(profile: UserProfile): Promise<void> {
 }
 
 /**
- * Permanently deletes everything stored for this account in Firestore: the list and the profile
- * record. One atomic batch, so it's all or nothing. Needs a connection: the promise only settles
+ * Permanently deletes everything stored for this account in Firestore: the list, the profile
+ * record and the AI usage counter. One atomic batch, so it's all or nothing. Needs a connection: the promise only settles
  * once the server has confirmed. (The sign-in record in Firebase Authentication is deleted
  * separately, see useAuth.)
  */
@@ -58,5 +58,6 @@ export async function deleteUserCloudData(uid: string): Promise<void> {
   const batch = writeBatch(db);
   batch.delete(watchlistRef(uid));
   batch.delete(doc(db, 'users', uid, 'data', 'profile'));
+  batch.delete(doc(db, 'users', uid, 'data', 'aiUsage'));     // AI search usage counter (a day and a number)
   await batch.commit();
 }

@@ -536,6 +536,8 @@ export default function App() {
               openFirstResult={shareIntent}
               onOpenedFirstResult={() => setShareIntent(false)}
               onEdit={openEdit}
+              signedIn={!!user}
+              onSignIn={handleSignIn}
               initialTab={discoverStart}
               onAdd={(entryData, metaData) => {
                 addEntry(entryData, metaData);

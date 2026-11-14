@@ -8,6 +8,8 @@ import { findDuplicate } from '@/lib/duplicates';
 import { getRatings, TMDB_GENRES } from '@/lib/titleData';
 import { AddFromDiscoverDialog, type DiscoverAddChoice } from './AddFromDiscoverDialog';
 import { DiscoverCard } from './DiscoverCard';
+import { AiAsk } from './AiAsk';
+import { useAiSearch } from '@/hooks/useAiSearch';
 import { releaseDate, releaseGroupLabel } from '@/lib/discoverFeeds';
 import type { DiscoverGroup } from '@/lib/discoverSearch';
 
@@ -22,6 +24,8 @@ interface Props {
   onOpenedFirstResult: () => void;
   onAdd: (entry: Omit<MovieEntry, 'id' | 'isCustom'>, meta: Partial<WatchMeta>) => void;
   onEdit: (entry: MovieEntry) => void;
+  signedIn: boolean;         // AI search is for signed-in users
+  onSignIn: () => void;
   initialTab?: Tab;           // e.g. 'soon' when arriving from the Upcoming tab
 }
 
@@ -47,13 +51,14 @@ function groupByRelease(items: TMDBItem[]): [string, TMDBItem[]][] {
 
 const GRID = 'grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6';
 
-export function DiscoverPage({ existingEntries, meta, sections, search, region, myServices, openFirstResult, onOpenedFirstResult, onAdd, onEdit, initialTab = 'trending' }: Props) {
+export function DiscoverPage({ existingEntries, meta, sections, search, region, myServices, openFirstResult, onOpenedFirstResult, onAdd, onEdit, signedIn, onSignIn, initialTab = 'trending' }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const listTab: DiscoverTab = tab === 'foryou' ? 'trending' : tab;
   const isSearching = search.trim().length > 1;
   const showForYou = tab === 'foryou' && !isSearching;
   const { items, loading, error, fromLink, reasons, correctedTo, groups } = useTMDBDiscover(listTab, search);
   const { recs, loading: recsLoading, hasSeeds, seedTitles } = useRecommendations(existingEntries, meta, showForYou);
+  const ai = useAiSearch(search);
   const [pendingItem, setPendingItem] = useState<TMDBItem | null>(null);
   const [addState, setAddState] = useState<Record<number, 'loading' | 'done'>>({});
 
@@ -182,6 +187,19 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
           ))}
         </div>
       )}
+
+      {isSearching && !fromLink && <AiAsk ai={ai} signedIn={signedIn} onSignIn={onSignIn} />}
+      {isSearching && ai.status === 'done' && ai.result && (
+        ai.result.items.length > 0
+          ? <GroupSection
+              group={{ id: 'ai', title: ai.summary || 'AI results', subtitle: ['✨ AI', ...ai.result.chips].join(' · '), items: ai.result.items }}
+              renderCard={card}
+            />
+          : <p className="mb-6 text-sm" style={{ color: 'var(--text-secondary)' }}>{ai.message ?? 'AI found nothing for that. Try other words, or see the regular results below.'}</p>
+      )}
+      {isSearching && ai.status === 'done' && ai.result?.notes.length ? (
+        <p className="-mt-4 mb-6 text-xs" style={{ color: 'var(--text-muted)' }}>{ai.result.notes.join(' · ')}</p>
+      ) : null}
 
       {isSearching && !loading && !error && groups.map((g) => (
         <GroupSection key={g.id} group={g} renderCard={card} />
