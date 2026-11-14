@@ -15,7 +15,7 @@ const ALLOWED_PATHS: RegExp[] = [
   /^find\/tt\d{5,10}$/,
   /^discover\/(movie|tv)$/,           // "Coming soon", and a studio's titles
   /^person\/\d{1,10}\/combined_credits$/,   // Discover search: a person's filmography
-  /^search\/(company|collection)$/,   // Discover search: studios ("marvel") and franchises ("star wars")
+  /^search\/(company|collection|person|keyword)$/,   // Discover search: studios, franchises, people; AI search: names → ids
   /^collection\/\d{1,10}$/,           // the films of a franchise
 ];
 
@@ -39,6 +39,13 @@ const ALLOWED_PARAMS: Record<string, RegExp> = {
   region: /^[A-Z]{2}$/,
   'vote_count.gte': /^\d{1,6}$/,
   with_companies: /^\d{1,8}(\|\d{1,8}){0,5}$/,   // one or several studios (| = any of them)
+  // AI search turns a request into these filters (src/lib/aiSearch.ts); every value is validated.
+  with_genres: /^\d{1,6}(,\d{1,6}){0,3}$/,          // , = all of them
+  with_people: /^\d{1,8}(,\d{1,8}){0,3}$/,
+  with_keywords: /^\d{1,8}(\|\d{1,8}){0,4}$/,
+  with_origin_country: /^[A-Z]{2}$/,
+  with_original_language: /^[a-z]{2,3}$/,
+  'vote_average.gte': /^\d{1,2}(\.\d)?$/,
 };
 
 /** Builds the upstream TMDB URL, or returns null when the request isn't allowed. */

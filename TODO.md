@@ -24,7 +24,19 @@ Tick them off as you go. Items marked *(optional)* can wait.
       → select **Lint, test, build**.
 - [ ] Settings → General → under **Pull Requests**, tick **Automatically delete head branches**.
 
-## 2. Check the live site after deploying
+## 2. AI search setup *(needed before the Ask AI button works)*
+
+- [ ] Create a free key at <https://console.groq.com/keys>.
+- [ ] Vercel → Project → Settings → Environment Variables: add `GROQ_API_KEY` (all environments), redeploy.
+      Optional: `GROQ_MODEL` (default `llama-3.1-8b-instant`; check the console for current free models) and
+      `AI_DAILY_LIMIT` (default 20 per user per UTC day, the rules cap it at 100). For local testing put the same in `.env.local`.
+- [ ] **Publish the updated `firestore.rules`** (Firebase Console → Firestore → Rules, or `firebase deploy --only firestore:rules`).
+      Without it, Ask AI answers "unavailable" (the usage counter can't be written).
+- [ ] Test while signed in: Discover → type "scary korean movies from the 2010s" → **Ask AI**. You should see
+      "Korean horror films…" with chips and "19 of 20 AI searches left today". Try the same query again: no allowance is used.
+- [ ] Check the Groq console for usage; if you hit the free tier's limits, users see "AI search is busy" and the regular search still works.
+
+## 3. Check the live site after deploying
 
 - [ ] **Discover loads** (titles and posters appear). If it's blank, open
       `https://cine-track-silk.vercel.app/api/tmdb?path=trending/all/week` in a tab: JSON means
@@ -56,7 +68,7 @@ Tick them off as you go. Items marked *(optional)* can wait.
 - [ ] **Phone check:** on an iPhone (or SE-sized screen) open Watchlist, Discover, a title's details,
       Settings and Analytics. Each Discover card should show exactly one Add/Edit button.
 
-## 3. Later *(not urgent)*
+## 4. Later *(not urgent)*
 
 ### App Check (blocks scripts that reuse your Firebase config)
 

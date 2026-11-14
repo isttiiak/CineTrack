@@ -27,6 +27,10 @@ All notable changes to CineTrack. Dates are `YYYY-MM-DD`. Versions follow
   ("marvel", "pixar", "a24", "star wars", "the avengers") shows its titles. Groups show a dozen titles with
   "Show all" and can be added from directly.
 
+- **AI search** (Discover → Ask AI, signed-in users, 20 a day): describe a movie or series in your own words;
+  a Groq model turns it into filters and TMDB supplies every result. New `/api/ai` function, `GROQ_API_KEY`,
+  and a usage counter in Firestore (publish the updated `firestore.rules`).
+
 ### Fixed
 
 - **Invisible Cancel button** in the delete dialog (and other `text-base` text): a stray `base` colour in the

@@ -29,6 +29,7 @@ api/                    Vercel Functions (files starting with _ are shared code,
   tmdb.ts  _tmdb.ts       TMDB proxy: allowlisted paths/params, adds the key server-side
   ratings.ts _ratings.ts  IMDb/RT/Metacritic/Letterboxd ratings via MDBList, OMDb fallback
   region.ts _region.ts    country from Vercel's x-vercel-ip-country header → does this visitor need consent?
+  ai.ts _ai.ts            POST /api/ai: Groq turns a request into a filter *plan* (never titles); signed-in only, daily quota
 src/
   App.tsx               Tabs (Watchlist / Discover / Upcoming), toolbar, dialogs, wiring
   components/
@@ -51,6 +52,7 @@ src/
     merge.ts                   three-way merge of watchlist states (the sync algorithm)
     schema.ts                  normalizeState: sanitises ALL untrusted input (import, LS, Firestore)
     search.ts                  watchlist search: parse, filters, fuzzy match, ranking, highlight
+    aiSearch.ts                AI search client: fetchPlan (+7-day local cache) → executePlan (names → TMDB ids → discover)
     discoverSearch.ts          Discover search: relevance tiers + popularity, typo recovery, people
     stats.ts                   everything on the Analytics page (pure, tested)
     duplicates.ts              findDuplicate (strict) / findSimilar (Add-form warning)
@@ -117,13 +119,14 @@ Everything CineTrack stores starts with `cinetrack_`; keep it that way, the eras
 |---|---|---|
 | TMDB | `/api/tmdb?path=…` only (never call api.themoviedb.org from the browser) | Allowlist in `api/_tmdb.ts`; add paths/params there. Non-commercial terms; attribution in Settings → About |
 | Watch providers | TMDB `append_to_response=watch/providers` | Must be credited to **JustWatch** wherever shown |
+| Groq (AI search) | `/api/ai` only; the browser never sees the key | Free tier, shared by everyone; request text goes to Groq, so it is sent only when the user clicks **Ask AI**; see PRIVACY.md |
 | Ratings | `/api/ratings?tmdb=&type=` | MDBList preferred, OMDb fallback; ~1000 req/day per account shared by all users → CDN cache 1 day, device cache 7 days; app hides ratings without a key |
 | Posters | `https://image.tmdb.org/t/p/{w92,w185,w342,w500}` | `posterAt(url, size)` resizes |
 | Firebase | client SDK | Config is public by design; protection = rules + App Check + API key referrer restriction |
 
 Environment variables (`.env.example`): `VITE_FIREBASE_*` (public), `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY`
-(optional App Check), `TMDB_API_KEY`, `MDBLIST_API_KEY`, `OMDB_API_KEY` (server-only, **never**
-prefix server keys with `VITE_`, which would ship them in the bundle). `.env.local` is gitignored.
+(optional App Check), `TMDB_API_KEY`, `MDBLIST_API_KEY`, `OMDB_API_KEY`, `GROQ_API_KEY` (+ optional `GROQ_MODEL`,
+`AI_DAILY_LIMIT`) (server-only, **never** prefix server keys with `VITE_`, which would ship them in the bundle). `.env.local` is gitignored.
 
 ## Features (where they live)
 
@@ -171,6 +174,18 @@ prefix server keys with `VITE_`, which would ship them in the bundle). `.env.loc
   seeds and counts against its genres), TMDB recommendations per seed, score = multi-seed affinity ×
   quality (Bayesian-damped votes) + genre fit + small popularity; drops listed/obscure/poorly reviewed
   titles; no seed fills more than 7 of the list; seeds without a tmdbId get one resolved.
+- **AI search** (Discover → "Ask AI", signed-in users): `api/_ai.ts` asks Groq (JSON mode, temperature 0) for a
+  plan `{type, genres, years, country, language, people, companies, keywords, minRating, sort, similarTo, summary}`;
+  `parsePlan` whitelists/clamps everything. The model **never names titles**: `lib/aiSearch.ts` resolves names to TMDB
+  ids (`search/person|company|keyword`) and runs `discover/*` (films/series have different genre ids; series have no
+  `with_people` → the person's credits are used; series without a genre like Horror use a keyword stand-in), plus
+  `{kind}/{id}/recommendations` for "like X". Chips show the interpretation. Only on click, never while typing.
+  Quota: the function writes `users/{uid}/data/aiUsage` **as the user** (their ID token, Firestore REST), so
+  Firestore verifies the token and `firestore.rules` enforce +1 per call, today's UTC day only, cap 100 (the function
+  stops at `AI_DAILY_LIMIT`, default 20). Cache hits (browser 7 days, server memory) cost nothing. Known limits: a
+  user can delete their own counter doc (needed for account deletion) so the quota is a guard, not a vault; enforcing
+  App Check on Firestore will block the server's REST write (then verify tokens with the Admin SDK instead).
+  Failure of any kind (limit, Groq down, rules not published) leaves the regular search untouched.
 - Upcoming: next episodes, premieres, releases, just aired, returning; `.ics` export.
 - Adding titles: Discover (+ dialog), Add form with TMDB suggestions, **paste a list** (one title
   per line; `candidatesFromText`), paste an IMDb/TMDB link or a list **anywhere** in the app,

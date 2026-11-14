@@ -8,6 +8,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { handleTmdbRequest } from './api/_tmdb.ts';
 import { handleRatingsRequest } from './api/_ratings.ts';
 import { handleRegionRequest } from './api/_region.ts';
+import { handleAiRequest } from './api/_ai.ts';
 
 /** Serves the /api functions locally (dev + preview) with the same code Vercel runs. */
 function apiRoutes(env: Record<string, string>): Plugin {
@@ -15,13 +16,25 @@ function apiRoutes(env: Record<string, string>): Plugin {
   const routes: Record<string, (r: Request) => Promise<Response>> = {
     '/api/tmdb': (r) => handleTmdbRequest(r, tmdbKey),
     '/api/ratings': (r) => handleRatingsRequest(r, { mdblist: env.MDBLIST_API_KEY, omdb: env.OMDB_API_KEY, tmdb: tmdbKey }),
+    '/api/ai': (r) => handleAiRequest(r, {
+      groqKey: env.GROQ_API_KEY, model: env.GROQ_MODEL,
+      projectId: env.FIREBASE_PROJECT_ID || env.VITE_FIREBASE_PROJECT_ID,
+      dailyLimit: parseInt(env.AI_DAILY_LIMIT ?? '', 10) || undefined,
+    }),
     '/api/region': async (r) => handleRegionRequest(r),   // dev: no country header, so the client falls back to the time zone
   };
   const middleware = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     const pathname = req.url?.split('?')[0] ?? '';
     const handler = routes[pathname];
     if (!handler) return next();
-    const response = await handler(new Request(new URL(req.url!, 'http://localhost'), { method: req.method }));
+    const hasBody = req.method === 'POST';
+    const chunks: Buffer[] = [];
+    if (hasBody) for await (const chunk of req) chunks.push(chunk as Buffer);
+    const headers = new Headers();
+    for (const [k, v] of Object.entries(req.headers)) if (typeof v === 'string') headers.set(k, v);
+    const response = await handler(new Request(new URL(req.url!, 'http://localhost'), {
+      method: req.method, headers, body: hasBody ? Buffer.concat(chunks) : undefined,
+    }));
     res.statusCode = response.status;
     response.headers.forEach((value, key) => res.setHeader(key, value));
     res.end(await response.text());
