@@ -53,7 +53,7 @@ You are in control:
 
 | Service | What it is used for | What it sees |
 |---|---|---|
-| TMDB (themoviedb.org) | Title data, posters, recommendations, streaming availability | The titles you search for, and titles in your list that need a poster or details (title, year, id), sent by the app's server so the API key stays private. Poster images load directly from TMDB, so TMDB also sees your IP address. |
+| TMDB (themoviedb.org) | Title data, posters, recommendations, streaming availability | The titles, people and studios you search for, and titles in your list that need a poster or details (title, year, id), sent by the app's server so the API key stays private. Poster images load directly from TMDB, so TMDB also sees your IP address. |
 | JustWatch (via TMDB) | "Where to watch" data | Nothing about you. |
 | MDBList / OMDb | IMDb, Rotten Tomatoes, Metacritic, Letterboxd ratings | Title ids, sent by the app's server. |
 | Google Fonts | The app's fonts | Your IP address when the page loads. |

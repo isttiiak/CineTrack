@@ -22,6 +22,11 @@ All notable changes to CineTrack. Dates are `YYYY-MM-DD`. Versions follow
 - PWA: install button and iPhone instructions (Settings → App & offline), a "new version" reload prompt,
   an offline notice, app shortcuts (Discover, Upcoming), maskable and Apple touch icons.
 
+- **Smarter Discover search**, no AI needed: searching a director, writer or actor ("nolan", "zendaya")
+  shows their whole filmography as a group above the normal results; searching a studio or franchise
+  ("marvel", "pixar", "a24", "star wars", "the avengers") shows its titles. Groups show a dozen titles with
+  "Show all" and can be added from directly.
+
 ### Fixed
 
 - **Invisible Cancel button** in the delete dialog (and other `text-base` text): a stray `base` colour in the

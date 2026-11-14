@@ -13,7 +13,10 @@ const ALLOWED_PATHS: RegExp[] = [
   /^(movie|tv)\/\d{1,10}$/,
   /^(movie|tv)\/\d{1,10}\/(recommendations|watch\/providers|external_ids)$/,
   /^find\/tt\d{5,10}$/,
-  /^discover\/(movie|tv)$/,           // "Coming soon": titles by release date and popularity
+  /^discover\/(movie|tv)$/,           // "Coming soon", and a studio's titles
+  /^person\/\d{1,10}\/combined_credits$/,   // Discover search: a person's filmography
+  /^search\/(company|collection)$/,   // Discover search: studios ("marvel") and franchises ("star wars")
+  /^collection\/\d{1,10}$/,           // the films of a franchise
 ];
 
 const APPENDABLE = '(external_ids|watch/providers|recommendations)';
@@ -35,6 +38,7 @@ const ALLOWED_PARAMS: Record<string, RegExp> = {
   with_release_type: /^[1-6](\|[1-6]){0,5}$/,
   region: /^[A-Z]{2}$/,
   'vote_count.gte': /^\d{1,6}$/,
+  with_companies: /^\d{1,8}(\|\d{1,8}){0,5}$/,   // one or several studios (| = any of them)
 };
 
 /** Builds the upstream TMDB URL, or returns null when the request isn't allowed. */

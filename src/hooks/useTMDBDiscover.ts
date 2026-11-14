@@ -3,7 +3,7 @@ import { tmdb, TMDB_IMG } from '../lib/tmdb';
 import { getDetails, itemFromDetails, findByImdb, type TmdbKind } from '../lib/titleData';
 import { parseTitleLink } from '../lib/links';
 import { fetchComingSoon } from '../lib/discoverFeeds';
-import { searchDiscover } from '../lib/discoverSearch';
+import { searchDiscover, type DiscoverGroup } from '../lib/discoverSearch';
 
 export { TMDB_IMG };
 
@@ -95,6 +95,7 @@ export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string) {
   const [fromLink, setFromLink] = useState(false);
   const [reasons, setReasons] = useState<Record<number, string>>({});
   const [correctedTo, setCorrectedTo] = useState<string | undefined>();
+  const [groups, setGroups] = useState<DiscoverGroup[]>([]);
 
   useEffect(() => {
     // Ignore responses from superseded queries so a slow older search can't overwrite newer results.
@@ -109,7 +110,7 @@ export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string) {
       // Pasting an IMDb/TMDB link finds that exact title.
       if (parseTitleLink(trimmed)) {
         resolveLinkItem(trimmed)
-          .then((item) => { if (!cancelled) { setItems(item ? [item] : []); setFromLink(true); setLoading(false); } })
+          .then((item) => { if (!cancelled) { setItems(item ? [item] : []); setGroups([]); setFromLink(true); setLoading(false); } })
           .catch(() => { if (!cancelled) { setLoading(false); setError(true); } });
         return;
       }
@@ -119,7 +120,7 @@ export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string) {
         searchDiscover(trimmed, controller.signal)
           .then((r) => {
             if (cancelled) return;
-            setItems(r.items); setReasons(r.reasons); setCorrectedTo(r.correctedTo);
+            setItems(r.items); setReasons(r.reasons); setCorrectedTo(r.correctedTo); setGroups(r.groups);
             setFromLink(false); setLoading(false);
           })
           .catch((err) => { if (err?.name !== 'AbortError' && !cancelled) { setLoading(false); setError(true); } });
@@ -129,7 +130,7 @@ export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string) {
       // Coming soon: the most anticipated unreleased films and series, soonest first.
       if (tab === 'soon') {
         fetchComingSoon(controller.signal)
-          .then((list) => { if (!cancelled) { setItems(list); setReasons({}); setCorrectedTo(undefined); setFromLink(false); setLoading(false); } })
+          .then((list) => { if (!cancelled) { setItems(list); setReasons({}); setCorrectedTo(undefined); setGroups([]); setFromLink(false); setLoading(false); } })
           .catch((err) => { if (err?.name !== 'AbortError' && !cancelled) { setLoading(false); setError(true); } });
         return;
       }
@@ -152,7 +153,7 @@ export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string) {
                 : (tab === 'movies' ? 'movie' : 'tv'),
             })) as TMDBItem[];
           setItems(results);
-          setReasons({}); setCorrectedTo(undefined);
+          setReasons({}); setCorrectedTo(undefined); setGroups([]);
           setFromLink(false);
           setLoading(false);
         })
@@ -172,5 +173,5 @@ export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string) {
     };
   }, [tab, searchQuery]);
 
-  return { items, loading, error, fromLink, reasons, correctedTo };
+  return { items, loading, error, fromLink, reasons, correctedTo, groups };
 }

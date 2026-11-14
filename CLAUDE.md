@@ -136,8 +136,13 @@ prefix server keys with `VITE_`, which would ship them in the bundle). `.env.loc
   **Discover** = explore: `lib/discoverSearch.ts` ranks by relevance tier (exact > starts with >
   all words > word prefixes > typo) then popularity (log popularity + log vote count); retries
   shortened words when TMDB finds little (TMDB has no fuzzy search) and reports "showing results
-  for …"; adds a searched person's known-for titles; supports `year:`, `is:series|film`,
-  `rating>`; empty results → one line + recommendations or trending.
+  for …"; supports `year:`, `is:series|film`, `rating>`; empty results → one line + recommendations or
+  trending. **Smart groups** (`DiscoverGroup`, shown above the normal results, never AI): a matched person →
+  filmography (`person/{id}/combined_credits`: Directing/Writing → director/writer credits with ≥100 votes;
+  otherwise main cast roles, no "Self"/talk shows, ≥300 votes), only when no title matches strongly or the
+  person is ≥3× as popular (`personShouldLead`); a studio → `discover/*?with_companies=` (exact company name;
+  all same-named entries are combined; `STUDIO_ALIASES` for Marvel's split catalogue); a franchise →
+  `collection/{id}` only when the *whole* name matches. Groups need ≥3 titles. The pickers are pure and tested.
 - Watchlist search (`lib/search.ts`, `SearchBox`): all words must match; accent/case/punctuation-insensitive;
   typo-tolerant (1 edit from 4 letters, 2 from 8; never for numbers); ranked (exact title > prefix
   > word > other fields > notes) unless an explicit sort is chosen; filters `year:2020-2024`,
