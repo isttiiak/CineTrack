@@ -7,15 +7,13 @@ import { SECTIONS, todayKey } from '../lib/utils';
 import { migratedStates, normalizeState, withAllSections } from '../lib/schema';
 import { findDuplicate } from '../lib/duplicates';
 import { mergeWatchlist, sameContent } from '../lib/merge';
-import { subscribeUserWatchlist } from '../lib/firestore';
+import { deleteUserCloudData, subscribeUserWatchlist } from '../lib/firestore';
+import { LS_BASE_KEY, LS_STATE_KEY as LS_KEY, LS_UID_KEY } from '../lib/localData';
 import { buildJsonExport, buildLetterboxdCsv, buildSpreadsheetCsv, stateFromTitles } from '../lib/exporters';
 import { downloadText } from '../lib/download';
 
 export type ExportFormat = 'json' | 'csv' | 'letterboxd-watched' | 'letterboxd-watchlist';
 
-const LS_KEY = 'cinetrack_state_v1';
-const LS_BASE_KEY = 'cinetrack_base_v1';   // last cloud version this device saw (merge ancestor)
-const LS_UID_KEY = 'cinetrack_last_uid';
 const uuid = () => crypto.randomUUID();
 
 export type ImportMode = 'merge' | 'replace';
@@ -244,6 +242,13 @@ export function useWatchlist(uid: string | null) {
 
   const deleteEntry = useCallback((id: string) => deleteEntries([id]), [deleteEntries]);
 
+  /** Removes every title (and its data) but keeps the account; synced like any other edit. Returns how many were removed. */
+  const deleteAllEntries = useCallback((): number => {
+    const count = stateRef.current.entries.length;
+    mutate((s) => ({ ...s, entries: [], meta: {} }));
+    return count;
+  }, [mutate]);
+
   const setStatuses = useCallback((ids: string[], status: WatchStatus) => {
     mutate((s) => {
       const meta = { ...s.meta };
@@ -253,6 +258,15 @@ export function useWatchlist(uid: string | null) {
   }, [mutate]);
 
   const setStatus = useCallback((id: string, status: WatchStatus) => setStatuses([id], status), [setStatuses]);
+
+  /** Moves titles to another section (bulk "Move"). */
+  const moveToSection = useCallback((ids: string[], section: Section) => {
+    const move = new Set(ids);
+    mutate((s) => {
+      const entries = s.entries.map((e) => (move.has(e.id) ? { ...e, section } : e));
+      return { ...s, entries, sectionOrder: withAllSections(s.sectionOrder, entries) };
+    });
+  }, [mutate]);
 
   const setMeta = useCallback((id: string, patch: Partial<WatchMeta>) => {
     mutate((s) => ({
@@ -329,7 +343,26 @@ export function useWatchlist(uid: string | null) {
     return { ok: true, added: merged.added, skipped: merged.skipped };
   }, [mutate]);
 
-  const { saveNow } = cloud;
+  const { saveNow, halt, resume } = cloud;
+
+  /**
+   * Permanently deletes this account's list and profile from the cloud. Sync is halted first so a
+   * queued save can't recreate the document, and resumed if the deletion fails.
+   */
+  const eraseCloudData = useCallback(async (): Promise<void> => {
+    if (!uid) return;
+    if (!navigator.onLine) throw new Error('offline');
+    await halt();
+    cloudReadyRef.current = false;
+    try {
+      await deleteUserCloudData(uid);
+    } catch (err) {
+      cloudReadyRef.current = true;
+      resume();
+      throw err;
+    }
+  }, [uid, halt, resume]);
+
   const forceSync = useCallback(async () => {
     if (!uid || !cloudReadyRef.current) throw new Error('Cloud data not loaded yet');
     await saveNow();
@@ -337,8 +370,8 @@ export function useWatchlist(uid: string | null) {
 
   return {
     state, initialised, cloudError, retrySync,
-    addEntry, updateEntry, deleteEntry, deleteEntries,
-    setStatus, setStatuses, setMeta, setProgress, reorderSections,
+    addEntry, updateEntry, deleteEntry, deleteEntries, deleteAllEntries, eraseCloudData,
+    setStatus, setStatuses, moveToSection, setMeta, setProgress, reorderSections,
     updatePoster, exportData, parseImport, applyImport,
     forceSync,
     flush: cloud.flush, lastSync: cloud.lastSync, syncStatus: cloud.status,

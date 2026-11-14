@@ -11,6 +11,12 @@ describe('buildTmdbUrl', () => {
     expect(buildTmdbUrl(new URL('http://x/api/tmdb?path=trending/all/week&language=en-US'))).not.toBeNull();
     expect(buildTmdbUrl(new URL('http://x/api/tmdb?path=discover/movie&sort_by=popularity.desc&primary_release_date.gte=2026-11-13&with_release_type=2|3'))?.href)
       .toContain('primary_release_date.gte=2026-11-13');
+    // Discover search: people, studios, franchises
+    expect(buildTmdbUrl(new URL('http://x/api/tmdb?path=person/525/combined_credits&language=en-US'))).not.toBeNull();
+    expect(buildTmdbUrl(new URL('http://x/api/tmdb?path=search/company&query=marvel'))).not.toBeNull();
+    expect(buildTmdbUrl(new URL('http://x/api/tmdb?path=search/collection&query=star%20wars'))).not.toBeNull();
+    expect(buildTmdbUrl(new URL('http://x/api/tmdb?path=collection/10'))).not.toBeNull();
+    expect(buildTmdbUrl(new URL('http://x/api/tmdb?path=discover/movie&with_companies=420|7505&sort_by=popularity.desc&vote_count.gte=200'))).not.toBeNull();
   });
 
   it('rejects other endpoints, traversal and unknown params', () => {
@@ -25,6 +31,13 @@ describe('buildTmdbUrl', () => {
       'path=discover/movie&primary_release_date.gte=tomorrow',
       'path=discover/person',
       'path=discover/movie&with_keywords=1',
+      'path=person/525',                         // only the credits endpoint
+      'path=person/525/images',
+      'path=person/525/combined_credits/../../account',
+      'path=search/person&query=x',
+      'path=collection/10/images',
+      'path=discover/movie&with_companies=420;drop',
+      'path=discover/movie&with_companies=a',
     ]) expect(buildTmdbUrl(new URL(`http://x/api/tmdb?${qs}`)), qs).toBeNull();
   });
 });

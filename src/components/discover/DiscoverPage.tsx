@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Film, Tv, TrendingUp, Sparkles, CalendarClock } from 'lucide-react';
+import { Film, Tv, TrendingUp, Sparkles, CalendarClock, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTMDBDiscover, fetchTMDBDetails, TMDB_IMG, type TMDBItem, type DiscoverTab } from '@/hooks/useTMDBDiscover';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import type { MovieEntry, WatchMeta } from '@/types';
@@ -9,6 +9,7 @@ import { getRatings, TMDB_GENRES } from '@/lib/titleData';
 import { AddFromDiscoverDialog, type DiscoverAddChoice } from './AddFromDiscoverDialog';
 import { DiscoverCard } from './DiscoverCard';
 import { releaseDate, releaseGroupLabel } from '@/lib/discoverFeeds';
+import type { DiscoverGroup } from '@/lib/discoverSearch';
 
 interface Props {
   existingEntries: MovieEntry[];
@@ -51,7 +52,7 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
   const listTab: DiscoverTab = tab === 'foryou' ? 'trending' : tab;
   const isSearching = search.trim().length > 1;
   const showForYou = tab === 'foryou' && !isSearching;
-  const { items, loading, error, fromLink, reasons, correctedTo } = useTMDBDiscover(listTab, search);
+  const { items, loading, error, fromLink, reasons, correctedTo, groups } = useTMDBDiscover(listTab, search);
   const { recs, loading: recsLoading, hasSeeds, seedTitles } = useRecommendations(existingEntries, meta, showForYou);
   const [pendingItem, setPendingItem] = useState<TMDBItem | null>(null);
   const [addState, setAddState] = useState<Record<number, 'loading' | 'done'>>({});
@@ -182,11 +183,16 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
         </div>
       )}
 
+      {isSearching && !loading && !error && groups.map((g) => (
+        <GroupSection key={g.id} group={g} renderCard={card} />
+      ))}
+
       {isSearching && !loading && items.length > 0 && (
         <p className="mb-4 text-xs" style={{ color: 'var(--text-muted)' }}>
           {fromLink ? 'Title from link'
             : correctedTo ? <>No exact match for “{search.trim()}”, showing results for <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>“{correctedTo}”</span></>
-            : <>Best matches first, then the most popular · <span className="opacity-70">tip: year:2024, is:series, rating&gt;7 or a person's name</span></>}
+            : groups.length > 0 ? <span className="font-semibold uppercase tracking-widest" style={{ color: 'var(--text-disabled)' }}>Other matches</span>
+            : <>Best matches first, then the most popular · <span className="opacity-70">tip: try a director, actor, studio or franchise (nolan, marvel, star wars), or year:2024, is:series, rating&gt;7</span></>}
         </p>
       )}
 
@@ -205,7 +211,7 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
         <>
           {error && muted('Could not load titles. Check your connection, or set TMDB_API_KEY on the server.')}
           {loading && !error && skeleton(isSearching ? 10 : 20)}
-          {!loading && !error && items.length === 0 && isSearching && (
+          {!loading && !error && items.length === 0 && groups.length === 0 && isSearching && (
             <NoResults
               text={fromLink ? 'No title found for that link.' : `Nothing found for “${search.trim()}”.`}
               entries={existingEntries} meta={meta} renderCard={card}
@@ -238,6 +244,36 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
         </>
       )}
     </div>
+  );
+}
+
+const GROUP_PREVIEW = 12;
+
+/** A person's work, a studio's titles or a franchise: the first dozen, with "Show all" for the rest. */
+function GroupSection({ group, renderCard }: { group: DiscoverGroup; renderCard: (item: TMDBItem) => React.ReactNode }) {
+  const [all, setAll] = useState(false);
+  const more = group.items.length - GROUP_PREVIEW;
+  const visible = all ? group.items : group.items.slice(0, GROUP_PREVIEW);
+  return (
+    <section className="mb-8" aria-label={group.title}>
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="truncate text-base font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'Syne, sans-serif' }}>{group.title}</h2>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{group.subtitle}</p>
+        </div>
+        {more > 0 && (
+          <button
+            onClick={() => setAll((v) => !v)}
+            aria-expanded={all}
+            className="flex flex-shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors hover:bg-[var(--bg-hover)]"
+            style={{ color: 'var(--accent-text)' }}
+          >
+            {all ? <>Show less <ChevronUp className="h-3.5 w-3.5" /></> : <>Show all {group.items.length} <ChevronDown className="h-3.5 w-3.5" /></>}
+          </button>
+        )}
+      </div>
+      <div className={GRID}>{visible.map((item) => renderCard(item))}</div>
+    </section>
   );
 }
 

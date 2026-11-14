@@ -23,12 +23,14 @@ export function useFirestore(uid: string | null, handlers: SyncHandlers) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dirtyRef = useRef(false);
   const inFlightRef = useRef<Promise<void> | null>(null);
+  const haltedRef = useRef(false);      // set while the account's cloud data is being deleted
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [status, setStatus] = useState<SyncStatus>(uid ? 'loading' : 'local');
 
   // A new account must never receive the previous account's queued write.
   useEffect(() => {
     dirtyRef.current = false;
+    haltedRef.current = false;
     if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
     setStatus(uid ? 'loading' : 'local');
     setLastSync(null);
@@ -38,7 +40,7 @@ export function useFirestore(uid: string | null, handlers: SyncHandlers) {
     if (!uid) return;
     // One save at a time: a second save waits, then sends whatever is newest.
     while (inFlightRef.current) await inFlightRef.current.catch(() => {});
-    if (!dirtyRef.current) return;
+    if (!dirtyRef.current || haltedRef.current) return;
     dirtyRef.current = false;
     setStatus('saving');
     const run = (async () => {
@@ -81,7 +83,7 @@ export function useFirestore(uid: string | null, handlers: SyncHandlers) {
   }, [write]);
 
   const requestSave = useCallback(() => {
-    if (!uid) return;
+    if (!uid || haltedRef.current) return;
     dirtyRef.current = true;
     setStatus('saving');
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -90,6 +92,7 @@ export function useFirestore(uid: string | null, handlers: SyncHandlers) {
 
   /** Saves now and rejects if the save fails (for the manual "Sync now" button). */
   const saveNow = useCallback(async () => {
+    if (haltedRef.current) return;
     if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
     dirtyRef.current = true;
     await write();
@@ -111,5 +114,17 @@ export function useFirestore(uid: string | null, handlers: SyncHandlers) {
     };
   }, [flush]);
 
-  return { load, requestSave, saveNow, flush, lastSync, status };
+  /**
+   * Stops all cloud writes (queued ones are dropped, a running one is awaited). Used while the
+   * account's data is deleted: a late save would otherwise recreate the document. Undo with `resume`.
+   */
+  const halt = useCallback(async () => {
+    haltedRef.current = true;
+    dirtyRef.current = false;
+    if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
+    while (inFlightRef.current) await inFlightRef.current.catch(() => {});
+  }, []);
+  const resume = useCallback(() => { haltedRef.current = false; }, []);
+
+  return { load, requestSave, saveNow, flush, halt, resume, lastSync, status };
 }

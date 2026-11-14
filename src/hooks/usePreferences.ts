@@ -29,5 +29,8 @@ export function usePreferences() {
     setStored((prev) => ({ ...(prev && typeof prev === 'object' ? prev : {}), [key]: value }));
   }, [setStored]);
 
-  return { prefs, setPref };
+  /** Back to the defaults (Settings → Display → Reset). */
+  const resetPrefs = useCallback(() => setStored({}), [setStored]);
+
+  return { prefs, setPref, resetPrefs };
 }

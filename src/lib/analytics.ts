@@ -1,17 +1,17 @@
 import type { Analytics } from 'firebase/analytics';
 import { app } from './firebase';
+import { analyticsOn, setConsentChoice } from './consent';
 
 /**
  * Firebase Analytics, loaded lazily and only when:
  *  - a measurement id is configured (forks without one send nothing),
  *  - the browser doesn't signal Do Not Track / Global Privacy Control, and
- *  - the user hasn't switched it off in Settings → Privacy.
+ *  - the visitor allows it: opt-in where consent is required (EU/EEA, UK, Switzerland), opt-out
+ *    everywhere else (lib/consent.ts; Settings → Privacy changes the same choice).
  * Event params never include titles, notes, links or other personal data (see PRIVACY.md).
  */
 type Loaded = { analytics: Analytics; logEvent: typeof import('firebase/analytics').logEvent };
 let instance: Promise<Loaded | null> | null = null;
-
-const PREF_KEY = 'cinetrack_analytics';   // 'off' when the user opted out
 
 /** True when this deployment has analytics configured at all. */
 export const analyticsConfigured = !!import.meta.env.VITE_FIREBASE_MEASUREMENT_ID;
@@ -22,16 +22,14 @@ export function browserOptedOut(): boolean {
   return nav.doNotTrack === '1' || nav.globalPrivacyControl === true;
 }
 
-/** The user's own choice (Settings → Privacy). On unless they switched it off. */
-export function analyticsPreference(): boolean {
-  try { return localStorage.getItem(PREF_KEY) !== 'off'; } catch { return true; }
-}
+/** Whether the visitor currently allows usage statistics (their choice, else the regional default). */
+export const analyticsPreference = analyticsOn;
 
-const allowed = () => analyticsConfigured && analyticsPreference() && !browserOptedOut();
+const allowed = () => analyticsConfigured && !browserOptedOut() && analyticsOn();
 
 function load() {
+  if (!allowed()) return Promise.resolve(null);
   instance ??= (async () => {
-    if (!allowed()) return null;
     const { getAnalytics, isSupported, logEvent } = await import('firebase/analytics');
     if (!(await isSupported())) return null;
     return { analytics: getAnalytics(app), logEvent };
@@ -39,20 +37,28 @@ function load() {
   return instance;
 }
 
+/** Google Analytics keeps its identifier in `_ga*` cookies; remove them when collection stops. */
+export function clearAnalyticsCookies() {
+  const hosts = [location.hostname, `.${location.hostname}`, `.${location.hostname.split('.').slice(-2).join('.')}`];
+  for (const part of document.cookie.split(';')) {
+    const name = part.split('=')[0].trim();
+    if (!/^_ga(_|$)/.test(name) && name !== '_gid') continue;
+    for (const domain of hosts) document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=${domain}`;
+    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+  }
+}
+
 /** Turns anonymous usage statistics on or off. Takes effect immediately and is remembered. */
 export function setAnalyticsEnabled(on: boolean): void {
-  try { localStorage.setItem(PREF_KEY, on ? 'on' : 'off'); } catch { /* private mode: applies to this session only */ }
+  setConsentChoice(on);
   const pending = instance;
-  if (on) { instance = null; return; }            // re-evaluated on the next event
-  // Off: stop an already-started Analytics session from sending anything further.
-  if (pending) {
-    void pending.then(async (a) => {
-      if (!a) return;
-      const { setAnalyticsCollectionEnabled } = await import('firebase/analytics');
-      setAnalyticsCollectionEnabled(a.analytics, false);
-    });
-  }
-  instance = Promise.resolve(null);
+  if (!pending) return;                           // nothing started yet: the next event re-evaluates
+  void pending.then(async (a) => {
+    if (!a) return;
+    const { setAnalyticsCollectionEnabled } = await import('firebase/analytics');
+    setAnalyticsCollectionEnabled(a.analytics, on);
+    if (!on) clearAnalyticsCookies();
+  });
 }
 
 export type AnalyticsEvent =

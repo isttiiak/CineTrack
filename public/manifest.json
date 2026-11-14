@@ -1,14 +1,27 @@
 {
+  "id": "/",
   "name": "CineTrack",
   "short_name": "CineTrack",
-  "description": "Your personal movie & series watchlist",
+  "description": "Your personal movie & TV watchlist",
+  "lang": "en",
+  "dir": "ltr",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
   "background_color": "#080a0e",
   "theme_color": "#080a0e",
+  "categories": ["entertainment", "lifestyle"],
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Discover", "short_name": "Discover", "description": "Browse trending titles", "url": "/?tab=discover", "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Upcoming", "short_name": "Upcoming", "description": "Next episodes and releases", "url": "/?tab=upcoming", "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
   ],
   "share_target": {
     "action": "/",

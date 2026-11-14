@@ -30,6 +30,7 @@ export interface TitleDetails {
   overview?: string;
   vote_average?: number;
   genres?: { id: number; name: string }[];
+  production_companies?: { id: number; name: string }[];
   status?: string;                          // e.g. "Returning Series", "Ended", "Released"
   number_of_episodes?: number;
   seasons?: SeasonInfo[];

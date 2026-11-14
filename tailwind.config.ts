@@ -17,7 +17,8 @@ export default {
       },
       colors: {
         brand: 'rgb(var(--accent-rgb) / <alpha-value>)',
-        base: 'var(--bg-base)',
+        // No `base` colour here: it would also generate `text-base` as a text *colour*, which collides
+        // with the font-size `text-base` and made text (e.g. the dialog Cancel button) near-black.
         surface: 'var(--bg-surface)',
         elevated: 'var(--bg-elevated)',
         hover: 'var(--bg-hover)',

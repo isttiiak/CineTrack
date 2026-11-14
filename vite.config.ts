@@ -7,6 +7,7 @@ import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { handleTmdbRequest } from './api/_tmdb.ts';
 import { handleRatingsRequest } from './api/_ratings.ts';
+import { handleRegionRequest } from './api/_region.ts';
 
 /** Serves the /api functions locally (dev + preview) with the same code Vercel runs. */
 function apiRoutes(env: Record<string, string>): Plugin {
@@ -14,6 +15,7 @@ function apiRoutes(env: Record<string, string>): Plugin {
   const routes: Record<string, (r: Request) => Promise<Response>> = {
     '/api/tmdb': (r) => handleTmdbRequest(r, tmdbKey),
     '/api/ratings': (r) => handleRatingsRequest(r, { mdblist: env.MDBLIST_API_KEY, omdb: env.OMDB_API_KEY, tmdb: tmdbKey }),
+    '/api/region': async (r) => handleRegionRequest(r),   // dev: no country header, so the client falls back to the time zone
   };
   const middleware = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     const pathname = req.url?.split('?')[0] ?? '';
@@ -44,19 +46,69 @@ function vercelHeaders(): Record<string, string> {
   return Object.fromEntries(all.map((h) => [h.key, h.value]));
 }
 
+const appVersion = (JSON.parse(readFileSync(path.resolve(import.meta.dirname, 'package.json'), 'utf8')) as { version: string }).version;
+
 export default defineConfig(({ mode }) => {
   // '' prefix: read server-only vars too. Nothing here is exposed to the client bundle.
   const env = loadEnv(mode, process.cwd(), '');
   return {
+    define: { __APP_VERSION__: JSON.stringify(appVersion) },
     plugins: [
       react(),
       apiRoutes(env),
       VitePWA({
-        registerType: 'autoUpdate',
-        manifest: false,
+        // The new service worker takes over at once (skipWaiting + clientsClaim), so a plain refresh
+        // always gives the newest version. Open tabs are *nudged* to reload, never reloaded under an
+        // unsaved note (src/lib/pwa.ts). The worker only exists in a production build: to test the
+        // PWA run `npm run build && npm run preview`.
+        registerType: 'prompt',
+        injectRegister: false,
+        manifest: false,                     // public/manifest.json
+        includeAssets: ['manifest.json', 'apple-touch-icon.png', 'icon-maskable-192.png', 'icon-maskable-512.png'],
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
           navigateFallbackDenylist: [/^\/api\//],
+          cleanupOutdatedCaches: true,
+          skipWaiting: true,
+          clientsClaim: true,
+          // Offline support beyond the app shell. Firestore traffic is never routed through here.
+          runtimeCaching: [
+            {
+              // Posters. TMDB sends no CORS headers, so these are opaque (status 0); keep the cache small.
+              urlPattern: ({ url }) => url.origin === 'https://image.tmdb.org',
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'tmdb-images',
+                expiration: { maxEntries: 150, maxAgeSeconds: 60 * 60 * 24 * 30, purgeOnQuotaError: true },
+                cacheableResponse: { statuses: [0, 200] },
+              },
+            },
+            {
+              urlPattern: ({ url }) => url.origin === 'https://fonts.googleapis.com',
+              handler: 'StaleWhileRevalidate',
+              options: { cacheName: 'google-fonts-css', cacheableResponse: { statuses: [0, 200] } },
+            },
+            {
+              urlPattern: ({ url }) => url.origin === 'https://fonts.gstatic.com',
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'google-fonts-files',
+                expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
+                cacheableResponse: { statuses: [0, 200] },
+              },
+            },
+            {
+              // Title details / ratings: fresh when online, last known copy when offline or slow.
+              urlPattern: ({ url, sameOrigin }) => sameOrigin && (url.pathname === '/api/tmdb' || url.pathname === '/api/ratings'),
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'cinetrack-api',
+                networkTimeoutSeconds: 6,
+                expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7, purgeOnQuotaError: true },
+                cacheableResponse: { statuses: [200] },
+              },
+            },
+          ],
         },
       }),
     ],

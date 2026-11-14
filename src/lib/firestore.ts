@@ -1,4 +1,4 @@
-import { doc, getDoc, onSnapshot, runTransaction, setDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, runTransaction, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import { migratedStates, normalizeState, stripUndefined } from './schema';
 import { mergeWatchlist, sameContent } from './merge';
@@ -46,4 +46,17 @@ export async function saveUserProfile(profile: UserProfile): Promise<void> {
   const ref = doc(db, 'users', profile.uid, 'data', 'profile');
   // Full overwrite (no merge) so fields from older versions, such as `email`, are removed.
   await setDoc(ref, { uid: profile.uid, name: profile.name, avatar: profile.avatar, updatedAt: new Date().toISOString() });
+}
+
+/**
+ * Permanently deletes everything stored for this account in Firestore: the list and the profile
+ * record. One atomic batch, so it's all or nothing. Needs a connection: the promise only settles
+ * once the server has confirmed. (The sign-in record in Firebase Authentication is deleted
+ * separately, see useAuth.)
+ */
+export async function deleteUserCloudData(uid: string): Promise<void> {
+  const batch = writeBatch(db);
+  batch.delete(watchlistRef(uid));
+  batch.delete(doc(db, 'users', uid, 'data', 'profile'));
+  await batch.commit();
 }
