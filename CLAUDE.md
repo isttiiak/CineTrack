@@ -29,7 +29,8 @@ api/                    Vercel Functions (files starting with _ are shared code,
   tmdb.ts  _tmdb.ts       TMDB proxy: allowlisted paths/params, adds the key server-side
   ratings.ts _ratings.ts  IMDb/RT/Metacritic/Letterboxd ratings via MDBList, OMDb fallback
   region.ts _region.ts    country from Vercel's x-vercel-ip-country header → does this visitor need consent?
-  ai.ts _ai.ts            POST /api/ai: Groq turns a request into a filter *plan* (never titles); signed-in only, daily quota
+  ai.ts _ai.ts            POST /api/ai {task, input}: the *shared key* path (signed-in only, daily allowance)
+  _aiTasks.ts _groq.ts    pure, shared with the browser: one prompt + input validator + output parser per task; Groq transport + model list
 src/
   App.tsx               Tabs (Watchlist / Discover / Upcoming), toolbar, dialogs, wiring
   components/
@@ -39,8 +40,8 @@ src/
     layout/             Header, UserProfile, PwaStatus (offline chip, "new version" prompt), ConsentBanner
     profile/            ProfilePage (Analytics)
     ratings/            RatingsRow, WhereToWatch
-    settings/           SettingsPage (full page: Display, Streaming, Import & export, Privacy, App & offline,
-                        Delete data, About)
+    settings/           SettingsPage (full page: Display, Streaming, Import & export, AI, Privacy, App & offline,
+                        Delete data, About), AiSettings (own key, model picker, test), parts.tsx / styles.ts (shared bits)
     upcoming/           UpcomingPage
     watchlist/          EntryCard (grid), EntryRow (list), EntryDrawer (details), AddModal, PosterThumb, StatusBadge
     ui/                 Radix-based primitives, toast, dialogs, HighlightText, WatchDateField
@@ -52,7 +53,9 @@ src/
     merge.ts                   three-way merge of watchlist states (the sync algorithm)
     schema.ts                  normalizeState: sanitises ALL untrusted input (import, LS, Firestore)
     search.ts                  watchlist search: parse, filters, fuzzy match, ranking, highlight
-    aiSearch.ts                AI search client: fetchPlan (+7-day local cache) → executePlan (names → TMDB ids → discover)
+    ai.ts                      AI client core: own key / model settings, runAiTask (own key → Groq directly, else /api/ai), local cache
+    aiSearch.ts                AI search: fetchPlan → executePlan (names → TMDB ids → discover)
+    aiFeatures.ts              what the AI features send (buildTonight, buildTasteStats) and how paste results become candidates
     discoverSearch.ts          Discover search: relevance tiers + popularity, typo recovery, people
     stats.ts                   everything on the Analytics page (pure, tested)
     duplicates.ts              findDuplicate (strict) / findSimilar (Add-form warning)
@@ -98,7 +101,8 @@ WatchlistState { entries[], meta: Record<id, WatchMeta>, sectionOrder[], lastMod
 base) · `cinetrack_last_uid` · `cinetrack_prefs` display prefs · `cinetrack_theme` ·
 `cinetrack_view` · `cinetrack_ratings_v1` ratings cache (7 days) · `cinetrack_analytics` (`on`/`off`,
 the visitor's usage-statistics choice) · `cinetrack_region` (last `/api/region` answer) ·
-`cinetrack_banner_dismissed_until` · `cinetrack_wipe_pending` (transient, see below).
+`cinetrack_banner_dismissed_until` · `cinetrack_ai_key` (the user's own Groq key) · `cinetrack_ai_model` ·
+`cinetrack_ai_cache` (7 days) · `cinetrack_wipe_pending` (transient, see below).
 Everything CineTrack stores starts with `cinetrack_`; keep it that way, the erase function relies on it.
 
 ## Sync (read before touching useWatchlist / useFirestore / merge)
@@ -174,7 +178,20 @@ Environment variables (`.env.example`): `VITE_FIREBASE_*` (public), `VITE_RECAPT
   seeds and counts against its genres), TMDB recommendations per seed, score = multi-seed affinity ×
   quality (Bayesian-damped votes) + genre fit + small popularity; drops listed/obscure/poorly reviewed
   titles; no seed fills more than 7 of the list; seeds without a tmdbId get one resolved.
-- **AI search** (Discover → "Ask AI", signed-in users): `api/_ai.ts` asks Groq (JSON mode, temperature 0) for a
+- **AI features**, all through `lib/ai.ts` `runAiTask(task, input)`: **search** (Discover "Ask AI"), **filter** (✨ in the
+  watchlist search box: a sentence → the list's own filter syntax, sanitized by token whitelist), **tonight** (pick up to
+  3 from the user's own Plan-to-Watch/Watching list; ids are checked against the list), **taste** (Analytics card, from
+  aggregate stats), **paste** ("Read with AI" in the paste dialog → candidates with status/rating/date → the normal
+  match-and-review step; a year is trusted only when written next to the title in the text, because models guess years).
+  Each task is one definition in `api/_aiTasks.ts` (prompt, `validate`, `parse`) used by both paths. Every AI button
+  respects the `aiFeatures` preference and runs only on click.
+  **Two ways to be served:** *own key* (Settings → AI): the browser calls Groq directly (`api.groq.com` is in the CSP
+  `connect-src`; Groq allows CORS), so the key never reaches our server, there is no allowance and no sign-in is needed;
+  the key lives in `localStorage` only (never Firestore, never synced, never in exports). *Shared*: `/api/ai` below.
+  The model picker lists `usableModels()` of the key's own `/models` (active, text, `json_mode`, no guard/speech models);
+  default `openai/gpt-oss-20b`; an own-key request tries the chosen model, then `DEFAULT_MODELS`; a chosen model that
+  disappears resets to the default. "Test AI" runs a real `filter` request.
+- **AI search** (Discover → "Ask AI"; the task details below): `api/_ai.ts` asks Groq (JSON mode, temperature 0) for a
   plan `{type, genres, years, country, language, people, companies, keywords, minRating, sort, similarTo, summary}`;
   `parsePlan` whitelists/clamps everything. The model **never names titles**: `lib/aiSearch.ts` resolves names to TMDB
   ids (`search/person|company|keyword`) and runs `discover/*` (films/series have different genre ids; series have no

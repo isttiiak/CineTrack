@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { findDuplicate, normalizeTitle } from '@/lib/duplicates';
-import { Film, Loader2, AlertTriangle } from 'lucide-react';
+import { Film, Loader2, AlertTriangle, Sparkles } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { STATUS_CONFIG } from '@/components/watchlist/StatusBadge';
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { candidatesFromText, readExportFile, type ExportKind, type ImportCandidate } from '@/lib/csvImport';
+import { AI_MESSAGES, AiSearchError, aiMode, runAiTask, useAiVersion } from '@/lib/ai';
+import { candidatesFromPaste } from '@/lib/aiFeatures';
+import { track } from '@/lib/analytics';
 import { matchCandidates, toEntry, type MatchResult, type MatchHit } from '@/lib/importMatch';
 import { MAX_ENTRIES } from '@/lib/schema';
 import { formatWatchDate } from '@/lib/watchDate';
@@ -18,6 +21,9 @@ interface Props {
   onCancel: () => void;
   onImport: (items: { entry: MovieEntry; meta: WatchMeta }[]) => void;
   existing: MovieEntry[];   // to flag titles already in the list
+  aiEnabled: boolean;       // the "AI features" preference
+  signedIn: boolean;
+  onOpenAiSettings: () => void;
 }
 
 const SOURCE: Record<string, string> = {
@@ -30,7 +36,8 @@ const STATUS_LABEL = { plan: 'Plan', watching: 'Watching', watched: 'Watched' } 
  * Imports a Letterboxd export (.zip or its CSVs) or an IMDb ratings/watchlist CSV: reads it, matches
  * every row to TMDB, then lets the user review uncertain matches before anything is added.
  */
-export function ExternalImportDialog({ source, onCancel, onImport, existing }: Props) {
+export function ExternalImportDialog({ source, onCancel, onImport, existing, aiEnabled, signedIn, onOpenAiSettings }: Props) {
+  useAiVersion();
   const file = source?.kind === 'file' ? source.file : null;
   const isText = source?.kind === 'text';
   const [phase, setPhase] = useState<'input' | 'reading' | 'matching' | 'review' | 'error'>('reading');
@@ -45,22 +52,26 @@ export function ExternalImportDialog({ source, onCancel, onImport, existing }: P
   const [results, setResults] = useState<MatchResult[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [error, setError] = useState('');
+  // "Read with AI": candidates the AI extracted from the pasted text (with status, rating and date when stated).
+  const [aiList, setAiList] = useState<ImportCandidate[] | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState('');
 
   // A pasted list starts at the text box (pre-filled with whatever was pasted).
   useEffect(() => {
     if (source?.kind !== 'text') return;
-    setText(source.text); setSubmitted(null); setPhase('input'); setStatusForAll('plan');
+    setText(source.text); setSubmitted(null); setPhase('input'); setStatusForAll('plan'); setAiList(null); setAiError('');
   }, [source]);
 
   useEffect(() => {
-    if (!file && submitted === null) return;
+    if (!file && submitted === null && !aiList) return;
     let cancelled = false;
     setPhase('reading'); setResults([]); setDone(0); setError('');
     (async () => {
       try {
         const { kinds, candidates } = file
           ? await readExportFile(file)
-          : { kinds: [] as ExportKind[], candidates: candidatesFromText(submitted ?? '') as ImportCandidate[] };
+          : { kinds: [] as ExportKind[], candidates: aiList ?? (candidatesFromText(submitted ?? '') as ImportCandidate[]) };
         if (cancelled) return;
         if (candidates.length === 0) {
           setError(file
@@ -82,7 +93,7 @@ export function ExternalImportDialog({ source, onCancel, onImport, existing }: P
       }
     })();
     return () => { cancelled = true; };
-  }, [file, submitted]);
+  }, [file, submitted, aiList]);
 
   const inList = (r: MatchResult) => !!r.hit && !!findDuplicate(existing, {
     title: r.hit.title, year: r.hit.year, type: r.hit.kind === 'tv' ? 'Series' : 'Film',
@@ -100,8 +111,24 @@ export function ExternalImportDialog({ source, onCancel, onImport, existing }: P
   const confirm = () => onImport(
     [...selected].map((i) => results[i]).filter((r): r is MatchResult & { hit: MatchHit } => !!r?.hit)
       // A pasted list has no status per line: use the one chosen for all.
-      .map((r) => toEntry(isText ? { ...r, candidate: { ...r.candidate, status: statusForAll } } : r)),
+      .map((r) => toEntry(isText && !aiList ? { ...r, candidate: { ...r.candidate, status: statusForAll } } : r)),
   );
+
+  const readWithAi = async () => {
+    setAiError('');
+    if (aiMode(signedIn) === 'none') { setAiError(AI_MESSAGES.signin); return; }
+    setAiBusy(true);
+    try {
+      const { result } = await runAiTask('paste', { text });
+      track('ai_search', { ok: result?.items.length ? 1 : 0 });
+      if (!result || result.items.length === 0) { setAiError('AI found no titles in that text. Try "Find titles" with one title per line.'); return; }
+      setAiList(candidatesFromPaste(result.items));
+    } catch (err) {
+      setAiError(AI_MESSAGES[err instanceof AiSearchError ? err.code : 'unavailable']);
+    } finally {
+      setAiBusy(false);
+    }
+  };
 
   if (!source) return null;
   const sourceName = [...new Set(kinds.map((k) => SOURCE[k]))].join(' + ') || 'file';
@@ -124,7 +151,7 @@ export function ExternalImportDialog({ source, onCancel, onImport, existing }: P
           <span className="block truncate text-[11px]" style={{ color: 'var(--text-muted)' }}>
             {listed && <span className="font-semibold text-amber-400">Already in your list · </span>}
             {differs ? <>From “{typed}”{r.candidate.year ? ` ${r.candidate.year}` : ''} · </> : null}
-            {STATUS_LABEL[isText ? statusForAll : r.candidate.status]}
+            {STATUS_LABEL[isText && !aiList ? statusForAll : r.candidate.status]}
             {r.candidate.rating !== undefined && <> · {r.candidate.rating}/10</>}
             {r.candidate.watchedOn && <> · {formatWatchDate(r.candidate.watchedOn)}</>}
           </span>
@@ -154,6 +181,12 @@ export function ExternalImportDialog({ source, onCancel, onImport, existing }: P
               className="font-mono text-xs"
             />
           )}
+          {phase === 'input' && aiEnabled && aiError && (
+            <p role="alert" className="mt-2 text-xs text-amber-400">
+              {aiError}{' '}
+              {aiMode(signedIn) === 'none' && <button className="font-semibold underline" onClick={() => { onCancel(); onOpenAiSettings(); }}>AI settings</button>}
+            </p>
+          )}
 
           {(phase === 'reading' || phase === 'matching') && (
             <div className="flex flex-col items-center gap-3 py-8 text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -181,7 +214,7 @@ export function ExternalImportDialog({ source, onCancel, onImport, existing }: P
                 {unmatched.length > 0 && <>, {unmatched.length} not found</>}.
                 Titles already in your list are skipped automatically.
               </p>
-              {isText && (
+              {isText && !aiList && (
                 <div className="flex flex-wrap items-center gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
                   Add all as
                   {(['plan', 'watching', 'watched'] as WatchStatus[]).map((st) => (
@@ -224,7 +257,15 @@ export function ExternalImportDialog({ source, onCancel, onImport, existing }: P
         <DialogFooter>
           <Button variant="ghost" onClick={onCancel}>Cancel</Button>
           {phase === 'input' ? (
-            <Button onClick={() => setSubmitted(text)} disabled={!text.trim()}>Find titles</Button>
+            <>
+              {aiEnabled && (
+                <Button variant="outline" onClick={() => void readWithAi()} disabled={text.trim().length < 3 || aiBusy}
+                  title="AI reads free-form text (&quot;watched Dune last month, loved it&quot;) and fills in status, rating and date. Sends the text to Groq.">
+                  {aiBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} Read with AI
+                </Button>
+              )}
+              <Button onClick={() => setSubmitted(text)} disabled={!text.trim()}>Find titles</Button>
+            </>
           ) : (
             <Button onClick={confirm} disabled={phase !== 'review' || selected.size === 0}>
               {isText ? 'Add' : 'Import'} {phase === 'review' ? selected.size : ''} titles

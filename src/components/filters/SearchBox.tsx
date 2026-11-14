@@ -1,5 +1,5 @@
 import { forwardRef, useState } from 'react';
-import { Search, X } from 'lucide-react';
+import { Loader2, Search, Sparkles, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -7,6 +7,8 @@ interface Props {
   onChange: (v: string) => void;
   mode: 'watchlist' | 'discover';
   matchCount?: number | null;     // watchlist: number of matches while searching
+  onAskAi?: () => void;           // watchlist: turn the sentence into filters with AI (button shown when set)
+  aiBusy?: boolean;
   className?: string;
 }
 
@@ -27,7 +29,7 @@ const WATCHLIST_TIPS: { label: string; insert: string }[] = [
  * The tab-row search box. On the watchlist it shows a cheat-sheet of filters while focused; on
  * Discover it searches TMDB (or resolves a pasted IMDb/TMDB link). Focus with "/" or ⌘K / Ctrl+K.
  */
-export const SearchBox = forwardRef<HTMLInputElement, Props>(function SearchBox({ value, onChange, mode, matchCount, className }, ref) {
+export const SearchBox = forwardRef<HTMLInputElement, Props>(function SearchBox({ value, onChange, mode, matchCount, onAskAi, aiBusy, className }, ref) {
   const [focused, setFocused] = useState(false);
   // The cheat-sheet shows on an empty box only, so it never covers results.
   const showTips = focused && mode === 'watchlist' && !value.trim();
@@ -57,10 +59,23 @@ export const SearchBox = forwardRef<HTMLInputElement, Props>(function SearchBox(
         aria-describedby={showTips ? 'search-tips' : undefined}
         autoComplete="off"
         spellCheck={false}
-        className="h-10 w-full rounded-xl border pl-9 pr-20 text-sm outline-none focus:ring-2 focus:ring-brand/40 [&::-webkit-search-cancel-button]:hidden"
+        className="h-10 w-full rounded-xl border pl-9 pr-28 text-sm outline-none focus:ring-2 focus:ring-brand/40 [&::-webkit-search-cancel-button]:hidden"
         style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}
       />
       <div className="absolute right-2.5 top-1/2 flex -translate-y-1/2 items-center gap-1.5">
+        {onAskAi && mode === 'watchlist' && value.trim().length >= 3 && (
+          <button
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={onAskAi}
+            disabled={aiBusy}
+            className="rounded p-0.5 transition-colors hover:text-[var(--text-primary)] disabled:opacity-60"
+            style={{ color: 'var(--accent-text)' }}
+            aria-label="Turn this sentence into filters with AI"
+            title="Ask AI to turn this into filters"
+          >
+            {aiBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          </button>
+        )}
         {value && matchCount != null && (
           <span className="font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>{matchCount} found</span>
         )}
