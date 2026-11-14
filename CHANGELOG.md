@@ -4,49 +4,40 @@ All notable changes to CineTrack. Dates are `YYYY-MM-DD`. Versions follow
 [Semantic Versioning](https://semver.org/). Earlier history: see the
 [v1.0.0 release](https://github.com/isttiiak/CineTrack/releases/tag/v1.0.0).
 
-## [Unreleased]
+## [1.3.0] - 2026-11-15
+
+AI search and four more AI features (bring your own free Groq key if you like), a full-page Settings with real delete options, a Discover search that understands directors, actors, studios and franchises, an opt-in consent banner for the EU/UK, a Marvel section, and an app that installs and works offline.
 
 ### Added
 
-- **Settings is now a full page** with a side menu (Display, Streaming, Import & export, Privacy, App & offline,
-  Delete data, About) instead of a narrow drawer.
-- **Delete data** (Settings): delete selected titles (jumps to multi-select), delete all titles (keeps the
-  account), erase everything in this browser (guests), and **delete account and all data** (signed in: cloud
-  list, profile, the sign-in record, and everything on the device). The last three need typing DELETE and
-  offer a backup download first.
-- **Consent banner for the EU/EEA, UK and Switzerland**: usage statistics are opt-in there (nothing is
-  collected until you say yes) and stay opt-out elsewhere. Region comes from `/api/region` (the host's
-  country header); the time zone is only a fallback. Do Not Track / Global Privacy Control still win.
-- **Marvel section**, preselected when adding a Marvel title from Discover (detected from TMDB production
-  companies), plus a bulk **Move to section** action in the multi-select bar.
-- PWA: install button and iPhone instructions (Settings → App & offline), a "new version" reload prompt,
-  an offline notice, app shortcuts (Discover, Upcoming), maskable and Apple touch icons.
+- **AI search**: in Discover, describe what you want ("scary Korean movies from the 2010s", "like Oldboy but newer") and press **Ask AI**. The model only turns your words into filters; every title comes from TMDB, so nothing is invented. Signed-in users get a small daily allowance (20 requests).
+- **Settings → AI**: add your own free Groq key and AI runs straight from your browser (the key never reaches CineTrack, no sign-in and no daily limit from us). Choose the model from the ones your key can use (safe default `openai/gpt-oss-20b`), test it, or switch every AI button off.
+- **More AI, all on click**: a ✨ button that turns a sentence into filters on your own list; **What should I watch tonight?** (up to three picks from your Plan to Watch); a **taste summary** on Analytics; and **Read with AI** for pasted text ("watched Dune last month, loved it 9/10" becomes status, rating and date, reviewed before anything is added).
+- **Smarter Discover search** (no AI): search a director, writer or actor ("nolan", "zendaya") for their whole filmography, or a studio or franchise ("marvel", "pixar", "a24", "star wars", "the avengers") for its titles, shown as a group above the normal results.
+- **Settings is a full page** with a side menu (Display, Streaming, Import & export, AI, Privacy, App & offline, Delete data, About).
+- **Delete data**: delete selected titles, delete all titles (keeps your account), erase everything in this browser, or **delete your account and all data** (cloud list, profile, sign-in record and everything on the device). The destructive ones ask you to type DELETE and offer a backup first.
+- **Consent banner for the EU/EEA, UK and Switzerland**: usage statistics are opt-in there. Region comes from the host's country header; Do Not Track and Global Privacy Control still win.
+- **Marvel section**, preselected when you add a Marvel title from Discover, plus a bulk **Move to section** action in the multi-select bar.
+- **App**: an Install button (and iPhone steps) in Settings, a "new version, reload" prompt, an offline notice, shortcuts to Discover and Upcoming, and maskable and Apple touch icons.
 
-- **Smarter Discover search**, no AI needed: searching a director, writer or actor ("nolan", "zendaya")
-  shows their whole filmography as a group above the normal results; searching a studio or franchise
-  ("marvel", "pixar", "a24", "star wars", "the avengers") shows its titles. Groups show a dozen titles with
-  "Show all" and can be added from directly.
+### Changed
 
-- **AI search** (Discover → Ask AI, signed-in users, 20 a day): describe a movie or series in your own words;
-  a Groq model turns it into filters and TMDB supplies every result. New `/api/ai` function, `GROQ_API_KEY`,
-  and a usage counter in Firestore (publish the updated `firestore.rules`).
-
-- **Settings → AI**: add your own Groq key (used straight from your browser, never sent to CineTrack, no sign-in or daily
-  limit needed), pick the model from the ones your key can use (safe default `openai/gpt-oss-20b`), test it, or switch
-  all AI buttons off.
-- AI features beyond search: a ✨ button that turns a sentence into filters on your own list, **What should I watch
-  tonight?** (picks from your Plan to Watch), a **taste summary** on Analytics, and **Read with AI** for pasted text
-  ("watched Dune last month, loved it 9/10" → status, rating and date, reviewed before anything is added).
+- **Works offline**: the app shell, your list, posters you have seen, fonts and title/ratings data are cached. A new version takes over at once, so a refresh always gives the newest one; open tabs get a "Reload" prompt instead of being reloaded under an unsaved note.
+- Usage statistics are now **opt-in** in the EU/EEA, UK and Switzerland (still opt-out elsewhere).
+- Searching a person now shows their filmography instead of three "known for" titles.
+- Privacy: Groq is a new third party for the AI features, and only receives what the button you click sends (listed in Settings → AI and in `PRIVACY.md`).
 
 ### Fixed
 
-- AI search: the default model (`llama-3.1-8b-instant`) had been retired by Groq, so every request failed. Models
-  are now a fallback list (`openai/gpt-oss-20b`, `qwen/qwen3.8-27b`), failures report Groq's status, and a request
-  is only counted after the model has answered.
-- **Invisible Cancel button** in the delete dialog (and other `text-base` text): a stray `base` colour in the
-  Tailwind config also generated `text-base` as a near-black text colour.
-- PWA offline support: posters, Google Fonts and TMDB/ratings answers are now cached, the new service worker
-  takes over at once so a refresh always gives the newest version, and a missing `favicon.ico` 404 is gone.
+- **Invisible Cancel button** in the delete dialog (and any other `text-base` text): a stray `base` colour in the Tailwind config also made `text-base` a near-black text colour.
+- Offline and install problems: a missing `favicon.ico` request, no caching of posters and fonts, and no maskable icon.
+
+### Upgrading (self-hosted)
+
+- **Publish the updated `firestore.rules`** (new `aiUsage` counter). Needed for the shared AI; no data migration.
+- Add `GROQ_API_KEY` in Vercel to enable the shared AI (optional: without it, AI works only with a user's own key). Optional `GROQ_MODEL` (comma separated, tried in order; default `openai/gpt-oss-20b,qwen/qwen3.8-27b`) and `AI_DAILY_LIMIT`.
+- New functions `/api/region` and `/api/ai`; `vercel.json` has a wider `connect-src` (Groq, TMDB images, Google Fonts for the service worker). Redeploying picks all of it up.
+- Installed copies and open tabs update after one or two refreshes. If one looks stuck: Settings → App & offline → *Clear offline cache & reload*.
 
 ## [1.2.2] - 2026-11-13
 
