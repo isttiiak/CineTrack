@@ -180,6 +180,11 @@ Environment variables (`.env.example`): `VITE_FIREBASE_*` (public), `VITE_RECAPT
   ids (`search/person|company|keyword`) and runs `discover/*` (films/series have different genre ids; series have no
   `with_people` → the person's credits are used; series without a genre like Horror use a keyword stand-in), plus
   `{kind}/{id}/recommendations` for "like X". Chips show the interpretation. Only on click, never while typing.
+  Models: `DEFAULT_MODELS` / `GROQ_MODEL` (comma separated) are tried in order; 404/400/503 from one moves to the next
+  (Groq retires models: the original default `llama-3.1-8b-instant` vanished). `reasoning_effort: low` is sent only to
+  gpt-oss models. The allowance is **read first and charged only after the model answered**, so a failed call costs
+  nothing (rules can't allow refunds without letting users refund themselves). Failures log `AI search: <model>
+  answered <status>` and return `{error, upstream: status}`.
   Quota: the function writes `users/{uid}/data/aiUsage` **as the user** (their ID token, Firestore REST), so
   Firestore verifies the token and `firestore.rules` enforce +1 per call, today's UTC day only, cap 100 (the function
   stops at `AI_DAILY_LIMIT`, default 20). Cache hits (browser 7 days, server memory) cost nothing. Known limits: a

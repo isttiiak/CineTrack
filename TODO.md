@@ -28,7 +28,9 @@ Tick them off as you go. Items marked *(optional)* can wait.
 
 - [ ] Create a free key at <https://console.groq.com/keys>.
 - [ ] Vercel → Project → Settings → Environment Variables: add `GROQ_API_KEY` (all environments), redeploy.
-      Optional: `GROQ_MODEL` (default `llama-3.1-8b-instant`; check the console for current free models) and
+      Optional: `GROQ_MODEL` (comma separated, tried in order; default `openai/gpt-oss-20b,qwen/qwen3.8-27b`.
+      Groq retires models without much notice: if Ask AI says "unavailable", check the Vercel function logs for
+      `AI search: <model> answered 404` and update this list from console.groq.com/docs/models) and
       `AI_DAILY_LIMIT` (default 20 per user per UTC day, the rules cap it at 100). For local testing put the same in `.env.local`.
 - [ ] **Publish the updated `firestore.rules`** (Firebase Console → Firestore → Rules, or `firebase deploy --only firestore:rules`).
       Without it, Ask AI answers "unavailable" (the usage counter can't be written).
