@@ -1,13 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, Calendar, Activity, Star, Film, Flame, Hourglass, Clock, Sparkles, Globe, MonitorPlay, Layers, Scale } from 'lucide-react';
+import { X, Calendar, Activity, Star, Film, Flame, Hourglass, Clock, Sparkles, Globe, MonitorPlay, Layers, Scale, Loader2, KeyRound } from 'lucide-react';
 import type { WatchlistState, UserProfile as UserProfileType } from '@/types';
-import { computeStats, fmtDuration, type Bar, type Period } from '@/lib/stats';
+import { computeStats, fmtDuration, type Bar, type Period, type Stats } from '@/lib/stats';
+import { AI_MESSAGES, AiSearchError, aiMode, runAiTask, useAiVersion } from '@/lib/ai';
+import { buildTasteStats } from '@/lib/aiFeatures';
+import { track } from '@/lib/analytics';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 interface Props {
   state: WatchlistState;
   user: UserProfileType | null;
+  aiEnabled: boolean;
+  onOpenAiSettings: () => void;
   onClose: () => void;
 }
 
@@ -163,7 +169,48 @@ function Split({ a, b }: { a: { label: string; value: number; text: string }; b:
   );
 }
 
-export function ProfilePage({ state, user, onClose }: Props) {
+/** A few sentences about the viewer's taste, written by AI from the numbers on this page (never a list of titles beyond the 9–10 rated ones). */
+function TasteCard({ stats, state, signedIn, onOpenAiSettings }: { stats: Stats; state: WatchlistState; signedIn: boolean; onOpenAiSettings: () => void }) {
+  useAiVersion();
+  const mode = aiMode(signedIn);
+  const taste = useMemo(() => buildTasteStats(stats, state), [stats, state]);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [text, setText] = useState('');
+  const [error, setError] = useState('');
+
+  const write = async () => {
+    if (!taste) return;
+    setStatus('loading'); setError('');
+    try {
+      const { result } = await runAiTask('taste', { stats: taste });
+      track('ai_search', { ok: result ? 1 : 0 });
+      if (!result) { setError('AI could not write a summary. Try again.'); setStatus('error'); return; }
+      setText(result.summary); setStatus('done');
+    } catch (err) {
+      setError(AI_MESSAGES[err instanceof AiSearchError ? err.code : 'unavailable']); setStatus('error');
+    }
+  };
+
+  return (
+    <Card title="Your taste, in words" icon={<Sparkles className="h-4 w-4" style={{ color: 'var(--accent-text)' }} />} className="mb-4"
+      right={status === 'done' ? <button onClick={write} className="text-xs font-semibold hover:underline" style={{ color: 'var(--accent-text)' }}>Write again</button> : undefined}>
+      {status === 'done' && <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }} aria-live="polite">{text}</p>}
+      {status !== 'done' && (
+        !taste ? <Empty>Mark a few titles watched (and rate some) and AI can describe your taste.</Empty> : (
+          <div className="flex flex-wrap items-center gap-3">
+            {mode === 'none'
+              ? <Button variant="outline" size="sm" onClick={onOpenAiSettings}><KeyRound className="h-3.5 w-3.5" /> Sign in or add your own key</Button>
+              : <Button size="sm" onClick={write} disabled={status === 'loading'}>{status === 'loading' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Write it</Button>}
+            <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Sends counts of your genres, decades and countries, your average rating and the titles you rated 9 or 10.</span>
+          </div>
+        )
+      )}
+      {status === 'error' && <p role="alert" className="mt-2 text-sm text-red-400">{error}</p>}
+    </Card>
+  );
+}
+
+export function ProfilePage({ state, user, aiEnabled, onOpenAiSettings, onClose }: Props) {
   const [period, setPeriod] = useState<Period>('all');
   const S = useMemo(() => computeStats(state, period), [state, period]);
   const periodLabel = period === 'all' ? 'all time' : period;
@@ -207,6 +254,8 @@ export function ProfilePage({ state, user, onClose }: Props) {
             </div>
           </div>
         )}
+
+        {aiEnabled && <TasteCard stats={S} state={state} signedIn={!!user} onOpenAiSettings={onOpenAiSettings} />}
 
         {S.insights.length > 0 && (
           <section className={cn(card, 'mb-4')} style={{ ...cardStyle, background: 'color-mix(in srgb, var(--accent) 7%, var(--bg-surface))' }}>

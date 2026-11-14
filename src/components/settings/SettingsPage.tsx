@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { motion, Reorder, useDragControls } from 'framer-motion';
 import {
   ArrowLeft, Download, Upload, FileJson, Sheet, GripVertical, LayoutGrid, Rows3, ListPlus, Bookmark, Palette, Tv,
-  Database, ShieldCheck, Smartphone, Trash2, Info, CheckSquare, Share, Plus, WifiOff, RefreshCw, Eraser,
+  Database, Sparkles, ShieldCheck, Smartphone, Trash2, Info, CheckSquare, Share, Plus, WifiOff, RefreshCw, Eraser,
 } from 'lucide-react';
 import type { Preferences } from '@/hooks/usePreferences';
 import type { UserProfile, ViewMode } from '@/types';
@@ -15,6 +15,9 @@ import { isIos, isStandalone, promptInstall, reloadForUpdate, resetOfflineCache,
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TypeConfirmDialog } from '@/components/ui/type-confirm-dialog';
 import { Button } from '@/components/ui/button';
+import { Card, Switch } from './parts';
+import { outlineBtn } from './styles';
+import { AiSettings } from './AiSettings';
 
 const REGIONS = ['US', 'GB', 'CA', 'AU', 'NZ', 'IE', 'IN', 'BD', 'PK', 'SG', 'MY', 'ID', 'PH', 'TH', 'JP', 'KR',
   'AE', 'SA', 'TR', 'DE', 'FR', 'ES', 'IT', 'NL', 'BE', 'SE', 'NO', 'DK', 'FI', 'PL', 'BR', 'MX', 'AR', 'ZA'];
@@ -26,11 +29,12 @@ const regionName = (code: string) => {
 const PRIVACY_URL = 'https://github.com/isttiiak/CineTrack/blob/main/PRIVACY.md';
 const REPO_URL = 'https://github.com/isttiiak/CineTrack';
 
-type TabId = 'display' | 'streaming' | 'data' | 'privacy' | 'app' | 'delete' | 'about';
+type TabId = 'display' | 'streaming' | 'data' | 'ai' | 'privacy' | 'app' | 'delete' | 'about';
 const TABS: { id: TabId; label: string; icon: typeof Palette; danger?: boolean }[] = [
   { id: 'display', label: 'Display', icon: Palette },
   { id: 'streaming', label: 'Streaming', icon: Tv },
   { id: 'data', label: 'Import & export', icon: Database },
+  { id: 'ai', label: 'AI', icon: Sparkles },
   { id: 'privacy', label: 'Privacy', icon: ShieldCheck },
   { id: 'app', label: 'App & offline', icon: Smartphone },
   { id: 'delete', label: 'Delete data', icon: Trash2, danger: true },
@@ -39,6 +43,7 @@ const TABS: { id: TabId; label: string; icon: typeof Palette; danger?: boolean }
 
 export interface SettingsPageProps {
   onClose: () => void;
+  initialTab?: 'ai';                        // open on a specific tab (e.g. from an "Add your own key" button)
   prefs: Preferences;
   onPrefChange: <K extends keyof Preferences>(key: K, value: Preferences[K]) => void;
   onResetPrefs: () => void;
@@ -62,27 +67,6 @@ export interface SettingsPageProps {
 }
 
 // ── Small building blocks ────────────────────────────────────────────────────
-
-function Switch({ checked, onChange, label, description, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: string; description?: string; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 disabled:opacity-50"
-    >
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{label}</span>
-        {description && <span className="mt-0.5 block text-xs" style={{ color: 'var(--text-muted)' }}>{description}</span>}
-      </span>
-      <span className="relative h-5 w-9 flex-shrink-0 rounded-full transition-colors" style={{ background: checked ? 'var(--accent)' : 'var(--bg-hover)' }}>
-        <span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform', checked ? 'translate-x-[18px]' : 'translate-x-0.5')} />
-      </span>
-    </button>
-  );
-}
 
 function Segmented<T extends string>({ value, options, onChange, label }: {
   value: T; onChange: (v: T) => void; label: string;
@@ -121,30 +105,12 @@ function SectionItem({ section }: { section: string }) {
   );
 }
 
-const cardStyle = { background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)' } as const;
-
-function Card({ title, description, children, danger }: { title?: string; description?: ReactNode; children?: ReactNode; danger?: boolean }) {
-  return (
-    <section className="mb-4 rounded-2xl border p-2 sm:p-3" style={danger ? { ...cardStyle, borderColor: 'rgb(239 68 68 / 0.3)' } : cardStyle}>
-      {(title || description) && (
-        <header className="px-3 pb-1 pt-2">
-          {title && <h2 className="text-sm font-bold" style={{ color: danger ? '#f87171' : 'var(--text-primary)' }}>{title}</h2>}
-          {description && <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>{description}</p>}
-        </header>
-      )}
-      {children}
-    </section>
-  );
-}
-
-const outlineBtn = 'flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50';
-
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 /** Full-page settings: a side menu (chips on phones) and one focused group of options at a time. */
 export function SettingsPage(props: SettingsPageProps) {
   const { onClose } = props;
-  const [tab, setTab] = useState<TabId>('display');
+  const [tab, setTab] = useState<TabId>(props.initialTab ?? 'display');
   const [dialog, setDialog] = useState<null | 'all' | 'account' | 'browser'>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -219,6 +185,7 @@ export function SettingsPage(props: SettingsPageProps) {
             {tab === 'display' && <DisplayTab {...props} />}
             {tab === 'streaming' && <StreamingTab {...props} />}
             {tab === 'data' && <DataTab {...props} />}
+            {tab === 'ai' && <AiSettings prefs={props.prefs} onPrefChange={props.onPrefChange} user={user} />}
             {tab === 'privacy' && <PrivacyTab />}
             {tab === 'app' && <AppTab />}
             {tab === 'delete' && <DeleteTab {...props} onAsk={setDialog} />}

@@ -36,6 +36,10 @@ Tick them off as you go. Items marked *(optional)* can wait.
       Without it, Ask AI answers "unavailable" (the usage counter can't be written).
 - [ ] Test while signed in: Discover → type "scary korean movies from the 2010s" → **Ask AI**. You should see
       "Korean horror films…" with chips and "19 of 20 AI searches left today". Try the same query again: no allowance is used.
+- [ ] Settings → AI: paste your own Groq key → **Save key** (it is checked against Groq), choose a model, press **Test AI**.
+      Then try each feature without signing in: Discover → Ask AI; the ✨ in the watchlist search box ("comedies i haven't
+      watched"); the Tonight button; Analytics → "Write it" (needs 3+ watched titles); Settings → Import → "Paste a list" →
+      "Read with AI". Remove the key afterwards to confirm the buttons fall back to "Sign in or add your own key".
 - [ ] Check the Groq console for usage; if you hit the free tier's limits, users see "AI search is busy" and the regular search still works.
 
 ## 3. Check the live site after deploying

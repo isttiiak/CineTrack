@@ -9,6 +9,7 @@ export interface Preferences {
   cursorGlow: boolean;        // mouse spotlight background effect
   region: string;             // ISO country for "where to watch"; '' = from the browser locale
   myServices: string[];       // streaming platforms the user has (highlighted, used to pre-fill Platform)
+  aiFeatures: boolean;        // show the AI buttons (Ask AI, Tonight, taste summary, read with AI)
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -18,6 +19,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   cursorGlow: true,
   region: '',
   myServices: [],
+  aiFeatures: true,
 };
 
 export function usePreferences() {

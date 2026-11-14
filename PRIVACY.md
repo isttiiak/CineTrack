@@ -56,7 +56,7 @@ You are in control:
 | TMDB (themoviedb.org) | Title data, posters, recommendations, streaming availability | The titles, people and studios you search for, and titles in your list that need a poster or details (title, year, id), sent by the app's server so the API key stays private. Poster images load directly from TMDB, so TMDB also sees your IP address. |
 | JustWatch (via TMDB) | "Where to watch" data | Nothing about you. |
 | MDBList / OMDb | IMDb, Rotten Tomatoes, Metacritic, Letterboxd ratings | Title ids, sent by the app's server. |
-| Groq (groq.com) | AI search, only when you click **Ask AI** | The text you typed in the search box, sent by the app's server (never your list, notes or account details). Groq processes it under [its own terms](https://groq.com/privacy-policy/). |
+| Groq (groq.com) | AI features, only when you click an AI button | **Ask AI** and the list filter: the sentence you typed. **Tonight**: your mood plus the titles, years, genres, lengths and public ratings of your Plan to Watch list. **Taste summary**: counts of your genres, decades and countries, your average rating and the titles you rated 9 or 10. **Read with AI**: the text you pasted. Never notes, links, account details or your key. With your own Groq key this goes straight from your browser to Groq; otherwise through the app's server with the shared key. Groq processes it under [its own terms](https://groq.com/privacy-policy/). |
 | Google Fonts | The app's fonts | Your IP address when the page loads. |
 | Vercel | Hosting and the server functions | Standard request logs (IP address, time, URL), as with any host. |
 
@@ -68,6 +68,7 @@ Your ratings, notes, watch status, dates and saved links are **not** sent to TMD
 - **Delete titles**: Settings → Delete data: the ones you select, or all of them (your account stays).
 - **Delete local data**: Settings → Delete data → *Erase everything in this browser* (or clear your
   browser's site data; signing out also clears the signed-in list from the device).
+- **Your own Groq key** (Settings → AI) is stored only in this browser's local storage: not in your account, not synced, not in backups, and sent only to Groq. Remove it in Settings, or with *Erase everything*. Turn all AI buttons off with *Show AI features*.
 - AI search keeps one small record per account in Firestore: today's date and how many AI searches you have used (no search text). It is removed with the rest when you delete your account.
 - **Delete your account and all data**: Settings → Delete data → *Delete account*. It permanently removes
   your list and profile record from Firestore, your sign-in record (name, email address, photo link) from

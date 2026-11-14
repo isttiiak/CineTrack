@@ -12,95 +12,18 @@ import type { TMDBItem } from '../hooks/useTMDBDiscover';
  * titles, so every result is a real TMDB title, and a bad plan just finds less.
  */
 
-/** Mirrors `AiPlan` in api/_ai.ts (the api folder is compiled separately, so the type is repeated). */
-export interface AiPlan {
-  type: 'movie' | 'tv' | 'any';
-  genres: string[];
-  yearFrom?: number;
-  yearTo?: number;
-  country?: string;
-  language?: string;
-  people: string[];
-  companies: string[];
-  keywords: string[];
-  minRating?: number;
-  sort: 'popularity' | 'rating' | 'newest' | 'oldest';
-  similarTo?: string;
-  summary: string;
-}
+export type { AiPlan } from '../../api/_aiTasks';
+import type { AiPlan } from '../../api/_aiTasks';
+import { runAiTask } from './ai';
 
-export type AiErrorCode = 'signin' | 'limit' | 'slow_down' | 'busy' | 'unavailable' | 'not_configured' | 'bad_query';
-export class AiSearchError extends Error {
-  code: AiErrorCode;
-  constructor(code: AiErrorCode) { super(code); this.code = code; }
-}
-
-export const AI_MESSAGES: Record<AiErrorCode, string> = {
-  signin: 'Sign in to use AI search.',
-  limit: 'You have used today\'s AI searches. They reset at midnight UTC; the regular search still works.',
-  slow_down: 'A few too many requests in a row. Wait a minute and try again.',
-  busy: 'AI search is busy right now. Try again shortly; the regular results below still work.',
-  unavailable: 'AI search is unavailable right now. The regular results below still work.',
-  not_configured: 'AI search is not set up on this copy of the app.',
-  bad_query: 'Describe what you want in a few words (3 to 200 characters).',
-};
-
-// ── Asking the server (with a small local cache) ─────────────────────────────
-
-const CACHE_KEY = 'cinetrack_ai_cache';
-const CACHE_TTL_MS = 7 * 86_400_000;
-const CACHE_MAX = 30;
-type CacheFile = Record<string, { plan: AiPlan | null; at: number }>;
-
-const cacheKey = (q: string) => q.toLowerCase().replace(/\s+/g, ' ').trim();
-function readCache(): CacheFile {
-  try { return JSON.parse(localStorage.getItem(CACHE_KEY) ?? '{}') as CacheFile; } catch { return {}; }
-}
-function writeCache(key: string, plan: AiPlan | null) {
-  try {
-    const file = readCache();
-    file[key] = { plan, at: Date.now() };
-    const fresh = Object.entries(file).filter(([, v]) => Date.now() - v.at < CACHE_TTL_MS).sort((a, b) => b[1].at - a[1].at).slice(0, CACHE_MAX);
-    localStorage.setItem(CACHE_KEY, JSON.stringify(Object.fromEntries(fresh)));
-  } catch { /* storage full or blocked: just no cache */ }
-}
+export { AiSearchError, AI_MESSAGES, type AiErrorCode } from './ai';
 
 export interface PlanResponse { plan: AiPlan | null; remaining: number | null; limit: number | null; cached: boolean }
 
-/** Asks the server for a plan. Repeats come from this browser's cache and cost nothing. */
+/** Asks for a plan (own key or shared AI, see lib/ai.ts). Repeats come from this browser's cache and cost nothing. */
 export async function fetchPlan(query: string, signal?: AbortSignal): Promise<PlanResponse> {
-  const { auth } = await import('./firebase');       // lazy: keeps this module free of Firebase for tests
-  const user = auth.currentUser;
-  if (!user) throw new AiSearchError('signin');
-  const key = cacheKey(query);
-  const hit = readCache()[key];
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return { plan: hit.plan, remaining: null, limit: null, cached: true };
-
-  let res: Response;
-  try {
-    const token = await user.getIdToken();
-    res = await fetch('/api/ai', {
-      method: 'POST',
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ query }),
-      signal,
-    });
-  } catch (err) {
-    if ((err as Error).name === 'AbortError') throw err;
-    throw new AiSearchError('unavailable');
-  }
-  const body = (await res.json().catch(() => ({}))) as { plan?: AiPlan | null; remaining?: number | null; limit?: number | null; error?: string };
-  if (!res.ok) {
-    if (res.status === 401) throw new AiSearchError('signin');
-    if (res.status === 429) throw new AiSearchError(body.error === 'slow_down' ? 'slow_down' : 'limit');
-    if (res.status === 409) throw new AiSearchError('busy');
-    if (res.status === 400) throw new AiSearchError('bad_query');
-    if (body.error === 'not_configured') throw new AiSearchError('not_configured');
-    throw new AiSearchError(res.status === 503 ? 'busy' : 'unavailable');
-  }
-  const plan = body.plan ?? null;
-  writeCache(key, plan);
-  return { plan, remaining: body.remaining ?? null, limit: body.limit ?? null, cached: false };
+  const r = await runAiTask('search', { query }, { signal });
+  return { plan: r.result, remaining: r.remaining, limit: r.limit, cached: r.cached };
 }
 
 // ── Running a plan against TMDB ─────────────────────────────────────────────

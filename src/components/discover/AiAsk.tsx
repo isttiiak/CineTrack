@@ -1,6 +1,7 @@
-import { Loader2, LogIn, Sparkles } from 'lucide-react';
+import { KeyRound, Loader2, LogIn, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { useAiSearch } from '@/hooks/useAiSearch';
+import type { AiMode } from '@/lib/ai';
 
 type Ai = ReturnType<typeof useAiSearch>;
 
@@ -8,7 +9,7 @@ type Ai = ReturnType<typeof useAiSearch>;
  * The "Ask AI" prompt shown under a Discover search. Idle: an invitation (or a sign-in prompt, since
  * AI search is for signed-in users). Loading / failed: one line. Results are drawn by DiscoverPage.
  */
-export function AiAsk({ ai, signedIn, onSignIn }: { ai: Ai; signedIn: boolean; onSignIn: () => void }) {
+export function AiAsk({ ai, mode, onSignIn, onOpenAiSettings }: { ai: Ai; mode: AiMode; onSignIn: () => void; onOpenAiSettings: () => void }) {
   const box = 'mb-5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-3 py-2.5 text-xs sm:text-sm';
   const style = { borderColor: 'var(--border-subtle)', background: 'color-mix(in srgb, var(--accent) 5%, var(--bg-surface))' };
   const icon = <Sparkles className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--accent-text)' }} />;
@@ -49,11 +50,16 @@ export function AiAsk({ ai, signedIn, onSignIn }: { ai: Ai; signedIn: boolean; o
       {icon}
       <span className="min-w-0 flex-1" style={{ color: 'var(--text-secondary)' }}>
         <b style={{ color: 'var(--text-primary)' }}>Ask AI</b> in your own words, e.g. “scary Korean movies from the 2010s”.
-        {ai.quota && <span style={{ color: 'var(--text-muted)' }}> {ai.quota.remaining} of {ai.quota.limit} left today.</span>}
+        {ai.quota && mode === 'shared' && <span style={{ color: 'var(--text-muted)' }}> {ai.quota.remaining} of {ai.quota.limit} left today.</span>}
       </span>
-      {signedIn
+      {mode !== 'none'
         ? <Button size="sm" onClick={ai.ask}><Sparkles className="h-3.5 w-3.5" /> Ask AI</Button>
-        : <Button size="sm" variant="outline" onClick={onSignIn}><LogIn className="h-3.5 w-3.5" /> Sign in to use</Button>}
+        : (
+          <span className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={onSignIn}><LogIn className="h-3.5 w-3.5" /> Sign in</Button>
+            <Button size="sm" variant="outline" onClick={onOpenAiSettings}><KeyRound className="h-3.5 w-3.5" /> Use my own key</Button>
+          </span>
+        )}
     </div>
   );
 }

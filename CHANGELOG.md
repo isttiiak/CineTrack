@@ -31,6 +31,13 @@ All notable changes to CineTrack. Dates are `YYYY-MM-DD`. Versions follow
   a Groq model turns it into filters and TMDB supplies every result. New `/api/ai` function, `GROQ_API_KEY`,
   and a usage counter in Firestore (publish the updated `firestore.rules`).
 
+- **Settings → AI**: add your own Groq key (used straight from your browser, never sent to CineTrack, no sign-in or daily
+  limit needed), pick the model from the ones your key can use (safe default `openai/gpt-oss-20b`), test it, or switch
+  all AI buttons off.
+- AI features beyond search: a ✨ button that turns a sentence into filters on your own list, **What should I watch
+  tonight?** (picks from your Plan to Watch), a **taste summary** on Analytics, and **Read with AI** for pasted text
+  ("watched Dune last month, loved it 9/10" → status, rating and date, reviewed before anything is added).
+
 ### Fixed
 
 - AI search: the default model (`llama-3.1-8b-instant`) had been retired by Groq, so every request failed. Models

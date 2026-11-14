@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Plus, ArrowUp, Compass, List, CheckSquare, LayoutGrid, Rows3, CalendarClock } from 'lucide-react';
+import { Plus, ArrowUp, Compass, List, CheckSquare, LayoutGrid, Rows3, CalendarClock, Moon } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { saveUserProfile } from '@/lib/firestore';
 import { track } from '@/lib/analytics';
@@ -28,6 +28,8 @@ import { ToastContainer } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { SECTION_COLORS, SECTION_EMOJIS, cn } from '@/lib/utils';
 import { wipeLocalDataAndReload } from '@/lib/localData';
+import { AI_MESSAGES, AiSearchError, aiMode, runAiTask } from '@/lib/ai';
+import { TonightDialog } from '@/components/watchlist/TonightDialog';
 import { defaultRegion } from '@/lib/titleData';
 import { parseTitleLink, sharedTextFrom } from '@/lib/links';
 import { countryOptions, hasCountry } from '@/lib/countries';
@@ -77,6 +79,9 @@ export default function App() {
   const [view, setView] = useLocalStorage<ViewMode>('cinetrack_view', 'grid');
   const { prefs, setPref, resetPrefs } = usePreferences();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'ai' | undefined>();
+  const [tonightOpen, setTonightOpen] = useState(false);
+  const [aiFilterBusy, setAiFilterBusy] = useState(false);
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const [discoverQuery, setDiscoverQuery] = useState('');
   const [shareIntent, setShareIntent] = useState(false);
@@ -90,6 +95,7 @@ export default function App() {
   const [pendingImport, setPendingImport] = useState<WatchlistState | null>(null);
   const [importSource, setImportSource] = useState<ImportSource | null>(null);
   const openPasteList = useCallback((text = '') => { setModalOpen(false); setSettingsOpen(false); setImportSource({ kind: 'text', text }); }, []);
+  const openAiSettings = useCallback(() => { setSettingsTab('ai'); setSettingsOpen(true); }, []);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('watchlist');
@@ -226,6 +232,25 @@ export default function App() {
     setSelectedIds(new Set());
     setPendingDelete(null);
     pulse();
+  };
+
+  // ── AI: the watchlist search box turns a sentence into the list's own filters ──
+  const handleAiFilter = async () => {
+    const text = filters.query.trim();
+    if (text.length < 3 || aiFilterBusy) return;
+    if (aiMode(!!user) === 'none') { addToast('Sign in, or add your own Groq key in Settings → AI, to use AI.', 'info'); openAiSettings(); return; }
+    setAiFilterBusy(true);
+    try {
+      const { result } = await runAiTask('filter', { query: text });
+      track('ai_search', { ok: result ? 1 : 0 });
+      if (!result) { addToast('AI could not turn that into a filter. Try other words.', 'info'); return; }
+      setFilters((f) => ({ ...f, query: result.query }));
+      addToast(`Showing: ${result.summary || result.query}`, 'success');
+    } catch (err) {
+      addToast(AI_MESSAGES[err instanceof AiSearchError ? err.code : 'unavailable'], 'error');
+    } finally {
+      setAiFilterBusy(false);
+    }
   };
 
   // ── Deleting data (Settings → Delete data) ──────────────────────────────
@@ -474,7 +499,7 @@ export default function App() {
           cloudError={cloudError}
           onSignIn={handleSignIn}
           onSignOut={handleSignOut}
-          onSettings={() => setSettingsOpen(true)}
+          onSettings={() => { setSettingsTab(undefined); setSettingsOpen(true); }}
           onProfile={() => setProfileOpen(true)}
           onForceSync={handleForceSync}
           onRetrySync={retrySync}
@@ -498,6 +523,8 @@ export default function App() {
                 value={activeTab === 'watchlist' ? query : discoverQuery}
                 onChange={(v) => activeTab === 'watchlist' ? setFilters((f) => ({ ...f, query: v })) : setDiscoverQuery(v)}
                 matchCount={activeTab === 'watchlist' && parsedQuery.hasCriteria ? groups.reduce((n, g) => n + g.entries.length, 0) : null}
+                onAskAi={prefs.aiFeatures ? handleAiFilter : undefined}
+                aiBusy={aiFilterBusy}
                 className="order-last w-full sm:order-none sm:w-auto sm:flex-1"
               />
             )}
@@ -517,6 +544,16 @@ export default function App() {
                 >
                   <CheckSquare className="h-3.5 w-3.5" /> <span className={selectMode ? '' : 'hidden min-[420px]:inline'}>{selectMode ? 'Done' : 'Select'}</span>
                 </button>
+                {prefs.aiFeatures && (
+                  <button
+                    onClick={() => setTonightOpen(true)}
+                    aria-label="What should I watch tonight?" title="What should I watch tonight?"
+                    className="flex h-9 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition-colors hover:bg-[var(--bg-hover)]"
+                    style={{ color: 'var(--text-muted)', borderColor: 'var(--border-subtle)' }}
+                  >
+                    <Moon className="h-3.5 w-3.5" /> <span className="hidden min-[420px]:inline">Tonight</span>
+                  </button>
+                )}
                 <Button onClick={openAdd} size="sm" className="h-9 gap-1.5">
                   <Plus className="h-4 w-4" /> Add
                 </Button>
@@ -537,7 +574,9 @@ export default function App() {
               onOpenedFirstResult={() => setShareIntent(false)}
               onEdit={openEdit}
               signedIn={!!user}
+              aiEnabled={prefs.aiFeatures}
               onSignIn={handleSignIn}
+              onOpenAiSettings={openAiSettings}
               initialTab={discoverStart}
               onAdd={(entryData, metaData) => {
                 addEntry(entryData, metaData);
@@ -674,6 +713,16 @@ export default function App() {
         sections={state.sectionOrder}
       />
 
+      <TonightDialog
+        open={tonightOpen}
+        onClose={() => setTonightOpen(false)}
+        state={state}
+        signedIn={!!user}
+        onOpenEntry={(id) => setDrawerId(id)}
+        onSignIn={handleSignIn}
+        onOpenAiSettings={openAiSettings}
+      />
+
       <ConfirmDialog
         open={pendingDelete !== null}
         title={pendingDelete?.length === 1
@@ -690,7 +739,8 @@ export default function App() {
           <Suspense fallback={null}>
             <SettingsPage
               key="settings"
-              onClose={() => setSettingsOpen(false)}
+              onClose={() => { setSettingsOpen(false); setSettingsTab(undefined); }}
+              initialTab={settingsTab}
               prefs={prefs}
               onPrefChange={setPref}
               onResetPrefs={() => { resetPrefs(); setView('grid'); addToast('Display settings reset', 'info'); }}
@@ -719,6 +769,9 @@ export default function App() {
         source={importSource}
         onCancel={() => setImportSource(null)}
         existing={state.entries}
+        aiEnabled={prefs.aiFeatures}
+        signedIn={!!user}
+        onOpenAiSettings={openAiSettings}
         onImport={(items) => {
           setImportSource(null);
           const imported: WatchlistState = {
@@ -750,7 +803,7 @@ export default function App() {
       <AnimatePresence>
         {profileOpen && (
           <Suspense fallback={null}>
-            <ProfilePage key="profile" state={state} user={user} onClose={() => setProfileOpen(false)} />
+            <ProfilePage key="profile" state={state} user={user} aiEnabled={prefs.aiFeatures} onOpenAiSettings={() => { setProfileOpen(false); openAiSettings(); }} onClose={() => setProfileOpen(false)} />
           </Suspense>
         )}
       </AnimatePresence>

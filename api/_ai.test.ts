@@ -94,7 +94,7 @@ describe('handleAiRequest', () => {
     const { fetchImpl, calls } = fakeNetwork({ doc: { day: utcDay(NOW), count: 2 } });
     const res = await ask('scary korean movies', fetchImpl);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ plan: expect.objectContaining({ genres: ['Horror'], country: 'KR' }), remaining: 2, limit: 5 });
+    expect(await res.json()).toMatchObject({ plan: expect.objectContaining({ genres: ['Horror'], country: 'KR' }), result: expect.objectContaining({ genres: ['Horror'] }), remaining: 2, limit: 5 });
     const patch = calls.find((c) => c.method === 'PATCH')!;
     expect(patch.url).toContain('/users/user123456/data/aiUsage?currentDocument.updateTime=');
     expect(JSON.parse(patch.body!).fields).toEqual({ day: { stringValue: '2026-11-15' }, count: { integerValue: '3' } });
@@ -222,6 +222,37 @@ describe('handleAiRequest', () => {
     expect((await ask({ nested: 1 }, fetchImpl)).status).toBe(400);
     expect((await ask('horror films', fetchImpl, { groqKey: undefined })).status).toBe(503);
     expect((await handleAiRequest(new Request('http://localhost/api/ai'), {})).status).toBe(405);
+  });
+
+  it('routes other tasks, validates their input and never caches ones that carry the user\'s list', async () => {
+    const cands = [{ i: 0, t: 'Paddington 2', y: '2017', g: 'Comedy', m: 104, k: 'film', r: 7.8 }, { i: 1, t: 'Heat', y: '1995', g: 'Crime', m: 170, k: 'film', r: 8.3 }];
+    const net = fakeNetwork({ doc: null, groq: () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ picks: [{ i: 0, why: 'Light and short' }, { i: 42, why: 'invented' }], note: '' }) } }] }), { status: 200 }) });
+    const call = () => handleAiRequest(
+      new Request('http://localhost/api/ai', { method: 'POST', headers: { authorization: `Bearer ${token()}` }, body: JSON.stringify({ task: 'tonight', input: { mood: 'light and funny', candidates: cands } }) }),
+      { groqKey: 'gsk_secret', projectId: PROJECT, dailyLimit: 5, fetchImpl: net.fetchImpl, now: () => NOW },
+    );
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { result: unknown }).result).toEqual({ picks: [{ i: 0, why: 'Light and short' }], note: '' });   // the invented id is dropped
+    await call();
+    expect(net.calls.filter((c) => c.url.includes('groq'))).toHaveLength(2);                                               // no cache for list data
+    expect(net.calls.filter((c) => c.method === 'PATCH')).toHaveLength(2);
+    const groq = JSON.parse(net.calls.find((c) => c.url.includes('groq'))!.body!);
+    expect(groq.messages[0].content).toContain('FROM THEIR OWN LIST');
+    expect(groq.max_tokens).toBe(800);
+  });
+
+  it('rejects an unknown task or unusable input before touching Firestore or Groq', async () => {
+    const net = fakeNetwork({ doc: null });
+    const post = (body: unknown) => handleAiRequest(
+      new Request('http://localhost/api/ai', { method: 'POST', headers: { authorization: `Bearer ${token()}` }, body: JSON.stringify(body) }),
+      { groqKey: 'gsk_secret', projectId: PROJECT, fetchImpl: net.fetchImpl, now: () => NOW },
+    );
+    expect((await post({ task: 'rm -rf', input: {} })).status).toBe(400);
+    expect((await post({ task: 'tonight', input: { mood: 'x', candidates: [] } })).status).toBe(400);
+    expect((await post({ task: 'taste', input: { stats: { total: 3, watched: 1 } } })).status).toBe(400);
+    expect((await post({ task: 'paste', input: { text: '' } })).status).toBe(400);
+    expect(net.calls).toHaveLength(0);
   });
 
   it('limits bursts from one account', async () => {
