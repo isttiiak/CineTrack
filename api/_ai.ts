@@ -163,33 +163,42 @@ export function uidFromToken(token: string, projectId: string, now: Date = new D
 
 interface FsDoc { fields?: { day?: { stringValue?: string }; count?: { integerValue?: string } }; updateTime?: string }
 
-/** Uses one request of the user's daily allowance. Throws QuotaError; resolves with how many are left. */
-export async function consumeQuota(
-  token: string, uid: string, projectId: string, limit: number, fetchImpl: typeof fetch, now: Date,
-): Promise<{ used: number; remaining: number }> {
-  const base = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents/users/${uid}/data/aiUsage`;
-  const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
-  const today = utcDay(now);
+interface QuotaReading { count: number; today: string; precondition: string }
 
+/**
+ * Step 1: proves the token is real (Firestore refuses it otherwise) and checks the allowance, without
+ * spending it. The allowance is only spent after the model has answered (`commitQuota`), so a failed
+ * call never costs the user anything.
+ */
+export async function readQuota(
+  token: string, uid: string, projectId: string, limit: number, fetchImpl: typeof fetch, now: Date,
+): Promise<QuotaReading> {
+  const today = utcDay(now);
   let res: Response;
-  try { res = await fetchImpl(base, { headers }); } catch { throw new QuotaError('unavailable'); }
+  try { res = await fetchImpl(quotaUrl(uid, projectId), { headers: quotaHeaders(token) }); } catch { throw new QuotaError('unavailable'); }
   let doc: FsDoc | null = null;
   if (res.status === 401) throw new QuotaError('unauthenticated');
   if (res.status === 403) throw new QuotaError('unavailable');      // rules not published yet, or App Check enforced
   if (res.status === 200) doc = (await res.json()) as FsDoc;
   else if (res.status !== 404) throw new QuotaError('unavailable');
 
-  const sameDay = doc?.fields?.day?.stringValue === today;
-  const count = sameDay ? parseInt(doc?.fields?.count?.integerValue ?? '0', 10) || 0 : 0;
+  const count = doc?.fields?.day?.stringValue === today ? parseInt(doc?.fields?.count?.integerValue ?? '0', 10) || 0 : 0;
   if (count >= limit) throw new QuotaError('limit');
-  const next = count + 1;
-
   // The precondition makes two simultaneous calls from one account race on the same version: one loses.
   const precondition = doc?.updateTime ? `currentDocument.updateTime=${encodeURIComponent(doc.updateTime)}` : 'currentDocument.exists=false';
+  return { count, today, precondition };
+}
+
+/** Step 2: spends one request. Resolves with how many are left. Throws QuotaError. */
+export async function commitQuota(
+  token: string, uid: string, projectId: string, limit: number, reading: QuotaReading, fetchImpl: typeof fetch,
+): Promise<{ used: number; remaining: number }> {
+  const next = reading.count + 1;
+  let res: Response;
   try {
-    res = await fetchImpl(`${base}?${precondition}`, {
-      method: 'PATCH', headers,
-      body: JSON.stringify({ fields: { day: { stringValue: today }, count: { integerValue: String(next) } } }),
+    res = await fetchImpl(`${quotaUrl(uid, projectId)}?${reading.precondition}`, {
+      method: 'PATCH', headers: quotaHeaders(token),
+      body: JSON.stringify({ fields: { day: { stringValue: reading.today }, count: { integerValue: String(next) } } }),
     });
   } catch { throw new QuotaError('unavailable'); }
   if (res.status === 401) throw new QuotaError('unauthenticated');
@@ -199,11 +208,17 @@ export async function consumeQuota(
   return { used: next, remaining: Math.max(0, limit - next) };
 }
 
+const quotaUrl = (uid: string, projectId: string) =>
+  `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents/users/${uid}/data/aiUsage`;
+const quotaHeaders = (token: string) => ({ authorization: `Bearer ${token}`, 'content-type': 'application/json' });
+
 // ── Request handler ─────────────────────────────────────────────────────────
 
 export interface AiDeps {
   groqKey?: string;
-  model?: string;
+  /** Models to try in order. Groq retires models without much notice, so a retired one must not take the feature down. */
+  models?: string[];
+
   projectId?: string;
   dailyLimit?: number;
   fetchImpl?: typeof fetch;
@@ -212,6 +227,23 @@ export interface AiDeps {
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'cache-control': 'private, no-store' } });
+
+export const DEFAULT_MODELS = ['openai/gpt-oss-20b', 'qwen/qwen3.8-27b'];
+
+/** Request body for one model. gpt-oss reasons first; "low" keeps it fast and leaves room for the JSON. */
+function groqBody(model: string, system: string, query: string) {
+  return JSON.stringify({
+    model,
+    temperature: 0,
+    max_tokens: 800,
+    response_format: { type: 'json_object' },
+    ...(model.startsWith('openai/gpt-oss') ? { reasoning_effort: 'low' } : {}),
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: JSON.stringify({ request: query }) },   // as data, never spliced into instructions
+    ],
+  });
+}
 
 const MAX_QUERY = 200;
 const normalizeQuery = (q: string) => q.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -250,39 +282,39 @@ export async function handleAiRequest(request: Request, deps: AiDeps): Promise<R
   if (recent.length >= BURST_MAX) return json(429, { error: 'slow_down' });
   burst.set(uid, [...recent, now.getTime()]);
 
-  let quota: { used: number; remaining: number };
+  let reading: QuotaReading;
   try {
-    quota = await consumeQuota(token, uid, deps.projectId, limit, fetchImpl, now);
+    reading = await readQuota(token, uid, deps.projectId, limit, fetchImpl, now);
   } catch (err) {
-    const reason = err instanceof QuotaError ? err.reason : 'unavailable';
-    if (reason === 'unauthenticated') return json(401, { error: 'signin' });
-    if (reason === 'limit') return json(429, { error: 'limit', limit });
-    if (reason === 'busy') return json(409, { error: 'busy' });
-    return json(503, { error: 'quota_unavailable' });
+    return quotaFailure(err, limit);
   }
 
-  let res: Response;
-  try {
-    res = await fetchImpl('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { authorization: `Bearer ${deps.groqKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model: deps.model || 'llama-3.1-8b-instant',
-        temperature: 0,
-        max_tokens: 400,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: systemPrompt(now) },
-          { role: 'user', content: JSON.stringify({ request: query }) },   // as data, never spliced into instructions
-        ],
-      }),
-      signal: AbortSignal.timeout(8000),
-    });
-  } catch {
-    return json(502, { error: 'unavailable', remaining: quota.remaining, limit });
+  // Ask the model. A model that no longer exists (404) or is gone from the account moves on to the next one.
+  const models = deps.models?.length ? deps.models : DEFAULT_MODELS;
+  let res: Response | null = null;
+  let upstream = 0;
+  for (const model of models) {
+    try {
+      res = await fetchImpl('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${deps.groqKey}`, 'content-type': 'application/json' },
+        body: groqBody(model, systemPrompt(now), query),
+        signal: AbortSignal.timeout(8000),
+      });
+    } catch {
+      upstream = 0; res = null; continue;                           // timeout or network error: try the next model
+    }
+    upstream = res.status;
+    if (res.status === 404 || res.status === 400 || res.status === 503) {
+      // Visible in the Vercel logs (never the key, the request or the token).
+      console.error(`AI search: ${model} answered ${res.status}`, (await res.clone().text().catch(() => '')).slice(0, 200));
+      res = null; continue;
+    }
+    break;
   }
-  if (res.status === 429) return json(503, { error: 'busy', remaining: quota.remaining, limit });   // Groq's own free-tier limit
-  if (!res.ok) return json(502, { error: 'unavailable', remaining: quota.remaining, limit });
+  if (!res) return json(502, { error: 'unavailable', upstream });
+  if (res.status === 429) return json(503, { error: 'busy', upstream: 429 });          // Groq's own free-tier limit
+  if (!res.ok) { console.error(`AI search: Groq answered ${res.status}`); return json(502, { error: 'unavailable', upstream: res.status }); }
 
   let plan: AiPlan | null = null;
   try {
@@ -290,7 +322,23 @@ export async function handleAiRequest(request: Request, deps: AiDeps): Promise<R
     plan = parsePlan(JSON.parse(data.choices?.[0]?.message?.content ?? 'null'), now);
   } catch { plan = null; }
 
+  // The model answered: now the request counts. (If this loses a race or hits the cap, the answer is withheld.)
+  let quota: { used: number; remaining: number };
+  try {
+    quota = await commitQuota(token, uid, deps.projectId, limit, reading, fetchImpl);
+  } catch (err) {
+    return quotaFailure(err, limit);
+  }
+
   if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value as string);
   cache.set(key, plan);
   return json(200, { plan, remaining: quota.remaining, limit });
+}
+
+function quotaFailure(err: unknown, limit: number): Response {
+  const reason = err instanceof QuotaError ? err.reason : 'unavailable';
+  if (reason === 'unauthenticated') return json(401, { error: 'signin' });
+  if (reason === 'limit') return json(429, { error: 'limit', limit });
+  if (reason === 'busy') return json(409, { error: 'busy' });
+  return json(503, { error: 'quota_unavailable' });
 }

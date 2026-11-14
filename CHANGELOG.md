@@ -33,6 +33,9 @@ All notable changes to CineTrack. Dates are `YYYY-MM-DD`. Versions follow
 
 ### Fixed
 
+- AI search: the default model (`llama-3.1-8b-instant`) had been retired by Groq, so every request failed. Models
+  are now a fallback list (`openai/gpt-oss-20b`, `qwen/qwen3.8-27b`), failures report Groq's status, and a request
+  is only counted after the model has answered.
 - **Invisible Cancel button** in the delete dialog (and other `text-base` text): a stray `base` colour in the
   Tailwind config also generated `text-base` as a near-black text colour.
 - PWA offline support: posters, Google Fonts and TMDB/ratings answers are now cached, the new service worker

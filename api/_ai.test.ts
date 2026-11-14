@@ -59,7 +59,7 @@ describe('uidFromToken', () => {
 });
 
 /** A fake Firestore (one usage document) + Groq behind a single fetch. */
-function fakeNetwork(opts: { doc?: { day: string; count: number } | null; firestoreStatus?: number; patchStatus?: number; groq?: () => Response } = {}) {
+function fakeNetwork(opts: { doc?: { day: string; count: number } | null; firestoreStatus?: number; patchStatus?: number; groq?: (body: { model: string }) => Response } = {}) {
   const calls: { url: string; method: string; body?: string }[] = [];
   const fetchImpl = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
     const u = String(url);
@@ -74,7 +74,7 @@ function fakeNetwork(opts: { doc?: { day: string; count: number } | null; firest
       return new Response('{}', { status: opts.patchStatus ?? 200 });
     }
     if (u.startsWith('https://api.groq.com')) {
-      return opts.groq?.() ?? new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ type: 'movie', genres: ['Horror'], country: 'KR', summary: 'Korean horror' }) } }] }), { status: 200 });
+      return opts.groq?.(JSON.parse(init?.body as string)) ?? new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ type: 'movie', genres: ['Horror'], country: 'KR', summary: 'Korean horror' }) } }] }), { status: 200 });
     }
     return new Response('?', { status: 500 });
   }) as unknown as typeof fetch;
@@ -144,12 +144,47 @@ describe('handleAiRequest', () => {
     expect((await ask('horror films', fakeNetwork({ doc: null, patchStatus: 403 }).fetchImpl)).status).toBe(429);
   });
 
-  it('degrades cleanly when Groq is rate-limited or down', async () => {
+  it('degrades cleanly when Groq is rate-limited or down, and never charges for it', async () => {
     const busy = fakeNetwork({ doc: null, groq: () => new Response('{}', { status: 429 }) });
-    expect((await ask('horror films', busy.fetchImpl)).status).toBe(503);
+    const r1 = await ask('horror films', busy.fetchImpl);
+    expect(r1.status).toBe(503);
+    expect(busy.calls.some((c) => c.method === 'PATCH')).toBe(false);          // nothing spent
+
     resetAiState();
     const down = fakeNetwork({ doc: null, groq: () => new Response('oops', { status: 500 }) });
-    expect((await ask('horror films', down.fetchImpl)).status).toBe(502);
+    const r2 = await ask('horror films', down.fetchImpl);
+    expect(r2.status).toBe(502);
+    expect(await r2.json()).toEqual({ error: 'unavailable', upstream: 500 });  // the cause is visible, the key and request are not
+    expect(down.calls.some((c) => c.method === 'PATCH')).toBe(false);
+  });
+
+  it('moves on to the next model when one has been retired, and spends one request', async () => {
+    const tried: string[] = [];
+    const net = fakeNetwork({ doc: null, groq: ({ model }) => { tried.push(model); return model === 'gone/model' ? new Response('{"error":{"message":"model not found"}}', { status: 404 }) : new Response(JSON.stringify({ choices: [{ message: { content: '{"genres":["Drama"],"summary":"Dramas"}' } }] }), { status: 200 }); } });
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await ask('some dramas', net.fetchImpl, { models: ['gone/model', 'openai/gpt-oss-20b'] });
+    spy.mockRestore();
+    expect(res.status).toBe(200);
+    expect(tried).toEqual(['gone/model', 'openai/gpt-oss-20b']);
+    expect(net.calls.filter((c) => c.method === 'PATCH')).toHaveLength(1);
+    expect(((await res.json()) as { plan: { genres: string[] } }).plan.genres).toEqual(['Drama']);
+  });
+
+  it('only charges once the model has answered (read, model, then write)', async () => {
+    const net = fakeNetwork({ doc: { day: utcDay(NOW), count: 1 } });
+    await ask('horror films', net.fetchImpl);
+    const order = net.calls.map((c) => (c.url.includes('groq') ? 'groq' : c.method));
+    expect(order).toEqual(['GET', 'groq', 'PATCH']);
+  });
+
+  it('asks gpt-oss for low reasoning effort (so the JSON fits) but not other models', async () => {
+    const seen: Record<string, unknown>[] = [];
+    const net = fakeNetwork({ doc: null, groq: (b) => { seen.push(b as never); return new Response('{"choices":[]}', { status: 200 }); } });
+    await ask('horror films', net.fetchImpl, { models: ['openai/gpt-oss-20b'] });
+    resetAiState();
+    await ask('horror films', net.fetchImpl, { models: ['qwen/qwen3.8-27b'] });
+    expect(seen[0]).toMatchObject({ model: 'openai/gpt-oss-20b', reasoning_effort: 'low', max_tokens: 800 });
+    expect(seen[1]).not.toHaveProperty('reasoning_effort');
   });
 
   it('returns a null plan for garbage or off-topic model output', async () => {

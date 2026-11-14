@@ -17,7 +17,7 @@ function apiRoutes(env: Record<string, string>): Plugin {
     '/api/tmdb': (r) => handleTmdbRequest(r, tmdbKey),
     '/api/ratings': (r) => handleRatingsRequest(r, { mdblist: env.MDBLIST_API_KEY, omdb: env.OMDB_API_KEY, tmdb: tmdbKey }),
     '/api/ai': (r) => handleAiRequest(r, {
-      groqKey: env.GROQ_API_KEY, model: env.GROQ_MODEL,
+      groqKey: env.GROQ_API_KEY, models: env.GROQ_MODEL?.split(',').map((m) => m.trim()).filter(Boolean),
       projectId: env.FIREBASE_PROJECT_ID || env.VITE_FIREBASE_PROJECT_ID,
       dailyLimit: parseInt(env.AI_DAILY_LIMIT ?? '', 10) || undefined,
     }),
