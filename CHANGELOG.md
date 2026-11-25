@@ -4,6 +4,12 @@ All notable changes to CineTrack. Dates are `YYYY-MM-DD`. Versions follow
 [Semantic Versioning](https://semver.org/). Earlier history: see the
 [v1.0.0 release](https://github.com/isttiiak/CineTrack/releases/tag/v1.0.0).
 
+## [Unreleased]
+
+### Security
+
+- **App Check can now be enforced on Firestore without breaking the shared-key AI features.** The browser sends its App Check token with the request to `/api/ai`, and the server passes it to Firestore for the usage counter. With enforcement on, a script that reuses the public Firebase settings can no longer read or write data, or use the shared Groq key. Nothing changes until the site key is set and enforcement is switched on; the rollout and rollback steps are in `TODO.md`.
+
 ## [1.3.1] - 2026-11-25
 
 A patch release that fixes Google sign-in in the iPhone home-screen app, confirmed working on an iPhone.

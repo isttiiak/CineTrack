@@ -206,8 +206,11 @@ Environment variables (`.env.example`): `VITE_FIREBASE_*` (public), `VITE_RECAPT
   Quota: the function writes `users/{uid}/data/aiUsage` **as the user** (their ID token, Firestore REST), so
   Firestore verifies the token and `firestore.rules` enforce +1 per call, today's UTC day only, cap 100 (the function
   stops at `AI_DAILY_LIMIT`, default 20). Cache hits (browser 7 days, server memory) cost nothing. Known limits: a
-  user can delete their own counter doc (needed for account deletion) so the quota is a guard, not a vault; enforcing
-  App Check on Firestore will block the server's REST write (then verify tokens with the Admin SDK instead).
+  user can delete their own counter doc (needed for account deletion) so the quota is a guard, not a vault; App Check
+  is compatible: the browser sends its App Check token in `X-Firebase-AppCheck` (`getAppCheckToken()` in `lib/firebase.ts`) and
+  `api/_ai.ts` forwards it, unverified and unlogged, to the two Firestore REST calls, so enforcing Cloud Firestore does not break
+  the shared key (and a script without a token can't use it). If Firestore ever stops accepting the forwarded token, the fallback is
+  the Admin SDK (service account) to verify tokens and own the counter; see TODO.md → App Check.
   Failure of any kind (limit, Groq down, rules not published) leaves the regular search untouched.
 - Upcoming: next episodes, premieres, releases, just aired, returning; `.ics` export.
 - Adding titles: Discover (+ dialog), Add form with TMDB suggestions, **paste a list** (one title

@@ -12,6 +12,11 @@
  * "one more per call, never above the cap, resets each UTC day". The shared Groq key is therefore never
  * reachable without a real account, and one account can't exceed its allowance. The allowance is read
  * first and spent only after the model has answered, so a failed call costs the user nothing.
+ *
+ * App Check: when it is enforced for Cloud Firestore, those REST calls need an App Check token too. The
+ * browser sends its own in the `X-Firebase-AppCheck` header and it is forwarded to Firestore (see
+ * `quotaHeaders`), so enforcement protects the shared Groq key as well: a script without a real app token
+ * gets a 403 from Firestore and never reaches the model.
  */
 
 import { DEFAULT_MODELS, callGroq } from './_groq.js';
@@ -48,7 +53,7 @@ export function uidFromToken(token: string, projectId: string, now: Date = new D
 
 interface FsDoc { fields?: { day?: { stringValue?: string }; count?: { integerValue?: string } }; updateTime?: string }
 
-interface QuotaReading { count: number; today: string; precondition: string }
+interface QuotaReading { count: number; today: string; precondition: string; appCheck?: string }
 
 /**
  * Step 1: proves the token is real (Firestore refuses it otherwise) and checks the allowance, without
@@ -56,14 +61,14 @@ interface QuotaReading { count: number; today: string; precondition: string }
  * call never costs the user anything.
  */
 export async function readQuota(
-  token: string, uid: string, projectId: string, limit: number, fetchImpl: typeof fetch, now: Date,
+  token: string, uid: string, projectId: string, limit: number, fetchImpl: typeof fetch, now: Date, appCheck?: string,
 ): Promise<QuotaReading> {
   const today = utcDay(now);
   let res: Response;
-  try { res = await fetchImpl(quotaUrl(uid, projectId), { headers: quotaHeaders(token) }); } catch { throw new QuotaError('unavailable'); }
+  try { res = await fetchImpl(quotaUrl(uid, projectId), { headers: quotaHeaders(token, appCheck) }); } catch { throw new QuotaError('unavailable'); }
   let doc: FsDoc | null = null;
   if (res.status === 401) throw new QuotaError('unauthenticated');
-  if (res.status === 403) throw new QuotaError('unavailable');      // rules not published yet, or App Check enforced
+  if (res.status === 403) throw new QuotaError('unavailable');      // rules not published yet, or App Check enforced and no valid token was forwarded
   if (res.status === 200) doc = (await res.json()) as FsDoc;
   else if (res.status !== 404) throw new QuotaError('unavailable');
 
@@ -71,7 +76,7 @@ export async function readQuota(
   if (count >= limit) throw new QuotaError('limit');
   // The precondition makes two simultaneous calls from one account race on the same version: one loses.
   const precondition = doc?.updateTime ? `currentDocument.updateTime=${encodeURIComponent(doc.updateTime)}` : 'currentDocument.exists=false';
-  return { count, today, precondition };
+  return { count, today, precondition, appCheck };
 }
 
 /** Step 2: spends one request. Resolves with how many are left. Throws QuotaError. */
@@ -82,7 +87,7 @@ export async function commitQuota(
   let res: Response;
   try {
     res = await fetchImpl(`${quotaUrl(uid, projectId)}?${reading.precondition}`, {
-      method: 'PATCH', headers: quotaHeaders(token),
+      method: 'PATCH', headers: quotaHeaders(token, reading.appCheck),
       body: JSON.stringify({ fields: { day: { stringValue: reading.today }, count: { integerValue: String(next) } } }),
     });
   } catch { throw new QuotaError('unavailable'); }
@@ -95,7 +100,20 @@ export async function commitQuota(
 
 const quotaUrl = (uid: string, projectId: string) =>
   `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents/users/${uid}/data/aiUsage`;
-const quotaHeaders = (token: string) => ({ authorization: `Bearer ${token}`, 'content-type': 'application/json' });
+/**
+ * `appCheck` is the App Check token the browser sent along. Firestore checks it itself when App Check is
+ * enforced for Cloud Firestore (a server has no App Check token of its own), so it is forwarded as-is and
+ * only to Firestore. It is not verified here and never logged or stored.
+ */
+const quotaHeaders = (token: string, appCheck?: string): Record<string, string> => ({
+  authorization: `Bearer ${token}`, 'content-type': 'application/json', ...(appCheck ? { 'x-firebase-appcheck': appCheck } : {}),
+});
+
+/** The App Check token from the request, if it at least looks like one (a JWT, bounded size). Otherwise nothing is forwarded. */
+export function appCheckFromRequest(request: Request): string | undefined {
+  const value = request.headers.get('x-firebase-appcheck')?.trim();
+  return value && value.length <= 4096 && /^[\w-]+\.[\w-]+\.[\w-]+$/.test(value) ? value : undefined;
+}
 
 // ── Request handler ─────────────────────────────────────────────────────────
 
@@ -161,7 +179,7 @@ export async function handleAiRequest(request: Request, deps: AiDeps): Promise<R
 
   let reading: QuotaReading;
   try {
-    reading = await readQuota(token, uid, deps.projectId, limit, fetchImpl, now);
+    reading = await readQuota(token, uid, deps.projectId, limit, fetchImpl, now, appCheckFromRequest(request));
   } catch (err) {
     return quotaFailure(err, limit);
   }
