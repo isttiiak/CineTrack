@@ -4,21 +4,19 @@ All notable changes to CineTrack. Dates are `YYYY-MM-DD`. Versions follow
 [Semantic Versioning](https://semver.org/). Earlier history: see the
 [v1.0.0 release](https://github.com/isttiiak/CineTrack/releases/tag/v1.0.0).
 
-## [Unreleased]
+## [1.3.1] - 2026-11-25
+
+A patch release that fixes Google sign-in in the iPhone home-screen app, confirmed working on an iPhone.
 
 ### Fixed
 
-- **Google sign-in in the iPhone home-screen app**: you came back signed out, with no message. Safari blocks the
-  storage Firebase's redirect sign-in shares with its helper on `firebaseapp.com`; the helper is now served from the
-  app's own domain (a `/__/auth/` rewrite, used only by the iOS home-screen app, see *Upgrading*). If a redirect
-  sign-in still comes back without a result, the app now says "Sign-in did not finish" instead of doing nothing.
-- The service worker no longer answers navigations to `/__/*` with the app shell.
+- **Google sign-in in the iPhone home-screen app.** After signing in at Google you came back signed out, with no message. Safari blocks the storage that Firebase's redirect sign-in shares with its helper on `firebaseapp.com`, so the result was lost. The helper is now served from the app's own domain (a `/__/auth/` rewrite), and only the iOS home-screen app uses it, so every other browser keeps the sign-in that already worked.
+- If a redirect sign-in still comes back without a result, the app now says "Sign-in did not finish. Please try again." instead of doing nothing.
+- The offline service worker no longer answers navigations to `/__/*` with the app shell (it would have intercepted the sign-in helper).
 
 ### Upgrading (self-hosted)
 
-- Add `https://<your app domain>/__/auth/handler` to the Google OAuth client's authorized redirect URIs, change the
-  `/__/auth/` rewrite in `vercel.json` to your own `<project>.firebaseapp.com`, then set `VITE_FIREBASE_AUTH_PROXY=true`.
-  Without the variable nothing changes.
+- Add `https://<your app domain>/__/auth/handler` to the Google OAuth client's authorized redirect URIs, change the `/__/auth/` rewrite in `vercel.json` to your own `<project>.firebaseapp.com`, then set `VITE_FIREBASE_AUTH_PROXY=true` (a build-time variable, so redeploy). Without the variable nothing changes.
 
 ## [1.3.0] - 2026-11-15
 
