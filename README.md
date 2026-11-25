@@ -148,8 +148,10 @@ Without a key the app simply hides those ratings.
      **Application restrictions: Websites**, listing your domains.
    - **App Check** (blocks scripts that reuse your config): create a reCAPTCHA Enterprise key, register it
      under Firebase Console → App Check, set `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY`, deploy, and once the
-     metrics show verified traffic, click **Enforce** for Firestore and Authentication. In `npm run dev`,
-     a debug token is printed to the console; register it under App Check → Manage debug tokens.
+     metrics show verified traffic (check every platform first, monitor mode blocks nothing), click **Enforce**
+     for Firestore. In `npm run dev`, a debug token is printed to the console; register it under App Check →
+     Manage debug tokens. The shared-key AI path forwards the browser's App Check token, so it keeps working.
+     Exact steps, rollout and rollback: [`TODO.md`](TODO.md).
 
 ### 4. Run
 

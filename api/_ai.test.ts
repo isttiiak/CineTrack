@@ -60,11 +60,11 @@ describe('uidFromToken', () => {
 
 /** A fake Firestore (one usage document) + Groq behind a single fetch. */
 function fakeNetwork(opts: { doc?: { day: string; count: number } | null; firestoreStatus?: number; patchStatus?: number; groq?: (body: { model: string }) => Response } = {}) {
-  const calls: { url: string; method: string; body?: string }[] = [];
+  const calls: { url: string; method: string; body?: string; headers: Record<string, string> }[] = [];
   const fetchImpl = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
     const u = String(url);
     const method = init?.method ?? 'GET';
-    calls.push({ url: u, method, body: init?.body as string | undefined });
+    calls.push({ url: u, method, body: init?.body as string | undefined, headers: (init?.headers ?? {}) as Record<string, string> });
     if (u.startsWith('https://firestore.googleapis.com')) {
       if (method === 'GET') {
         if (opts.firestoreStatus) return new Response('{}', { status: opts.firestoreStatus });
@@ -81,9 +81,9 @@ function fakeNetwork(opts: { doc?: { day: string; count: number } | null; firest
   return { fetchImpl, calls };
 }
 
-const ask = (query: unknown, fetchImpl: typeof fetch, over: Record<string, unknown> = {}, auth: string | null = `Bearer ${token()}`) =>
+const ask = (query: unknown, fetchImpl: typeof fetch, over: Record<string, unknown> = {}, auth: string | null = `Bearer ${token()}`, extraHeaders: Record<string, string> = {}) =>
   handleAiRequest(
-    new Request('http://localhost/api/ai', { method: 'POST', headers: auth ? { authorization: auth } : {}, body: JSON.stringify({ query }) }),
+    new Request('http://localhost/api/ai', { method: 'POST', headers: { ...(auth ? { authorization: auth } : {}), ...extraHeaders }, body: JSON.stringify({ query }) }),
     { groqKey: 'gsk_secret', projectId: PROJECT, dailyLimit: 5, fetchImpl, now: () => NOW, ...over },
   );
 
@@ -128,6 +128,21 @@ describe('handleAiRequest', () => {
     const forged = fakeNetwork({ firestoreStatus: 401 });                   // Firestore refuses a token it can't verify
     expect((await ask('horror films', forged.fetchImpl)).status).toBe(401);
     expect(forged.calls.some((c) => c.url.includes('groq'))).toBe(false);
+  });
+
+  it('forwards the browser\'s App Check token to Firestore (and only Firestore), when it looks like a token', async () => {
+    const appCheck = `${b64({ alg: 'RS256' })}.${b64({ iss: 'https://firebaseappcheck.googleapis.com/1' })}.sig`;
+    const net = fakeNetwork({ doc: { day: utcDay(NOW), count: 1 } });
+    expect((await ask('horror films', net.fetchImpl, {}, `Bearer ${token()}`, { 'x-firebase-appcheck': appCheck })).status).toBe(200);
+    const firestore = net.calls.filter((c) => c.url.startsWith('https://firestore.googleapis.com'));
+    expect(firestore).toHaveLength(2);                                            // the read and the write
+    for (const c of firestore) expect(c.headers['x-firebase-appcheck']).toBe(appCheck);
+    for (const c of net.calls.filter((c) => c.url.includes('groq'))) expect(c.headers['x-firebase-appcheck']).toBeUndefined();
+
+    resetAiState();
+    const junk = fakeNetwork({ doc: null });
+    await ask('horror films', junk.fetchImpl, {}, `Bearer ${token()}`, { 'x-firebase-appcheck': 'not a token with junk' });
+    expect(junk.calls.some((c) => 'x-firebase-appcheck' in c.headers)).toBe(false);
   });
 
   it('reports an unavailable quota (e.g. rules not published) instead of spending the key', async () => {

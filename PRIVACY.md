@@ -1,6 +1,6 @@
 # Privacy
 
-*Last updated: 2026-11-15*
+*Last updated: 2026-11-25*
 
 CineTrack is a personal watchlist app. It is built to keep your list yours: it works without an
 account, it has no ads, and it doesn't sell or share your data. This page says exactly what is
@@ -57,6 +57,7 @@ You are in control:
 | JustWatch (via TMDB) | "Where to watch" data | Nothing about you. |
 | MDBList / OMDb | IMDb, Rotten Tomatoes, Metacritic, Letterboxd ratings | Title ids, sent by the app's server. |
 | Groq (groq.com) | AI features, only when you click an AI button | **Ask AI** and the list filter: the sentence you typed. **Tonight**: your mood plus the titles, years, genres, lengths and public ratings of your Plan to Watch list. **Taste summary**: counts of your genres, decades and countries, your average rating and the titles you rated 9 or 10. **Read with AI**: the text you pasted. Never notes, links, account details or your key. With your own Groq key this goes straight from your browser to Groq; otherwise through the app's server with the shared key. Groq processes it under [its own terms](https://groq.com/privacy-policy/). |
+| Google reCAPTCHA Enterprise (Firebase App Check), only if the deployment turns it on | Proves to Firebase that requests come from the real app and not from a script reusing its public settings | Standard browser and device signals and your IP address, analysed by Google under [its privacy policy](https://policies.google.com/privacy). No titles or list data. The resulting App Check token is sent with your Firebase requests, and with an AI request to the app's server, which passes it on to Firestore only; it is not stored or logged. |
 | Google Fonts | The app's fonts | Your IP address when the page loads. |
 | Vercel | Hosting and the server functions | Standard request logs (IP address, time, URL), as with any host. |
 

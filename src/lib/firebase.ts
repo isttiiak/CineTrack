@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
+import { getToken, initializeAppCheck, ReCaptchaEnterpriseProvider, type AppCheck } from 'firebase/app-check';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { initializeFirestore } from 'firebase/firestore';
 import { chooseAuthDomain } from './authDomain';
@@ -27,16 +27,26 @@ export const app = initializeApp(firebaseConfig);
 // can't create accounts or write data directly. Optional: enabled when a site key is set.
 // After it reports healthy traffic, turn on enforcement in Firebase Console → App Check.
 const appCheckSiteKey = import.meta.env.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY;
+let appCheck: AppCheck | null = null;
 if (appCheckSiteKey) {
   if (import.meta.env.DEV) {
     // Localhost can't pass reCAPTCHA; register the printed debug token in the console instead.
     (self as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN: string | boolean }).FIREBASE_APPCHECK_DEBUG_TOKEN =
       import.meta.env.VITE_APPCHECK_DEBUG_TOKEN || true;
   }
-  initializeAppCheck(app, {
+  appCheck = initializeAppCheck(app, {
     provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
     isTokenAutoRefreshEnabled: true,
   });
+}
+
+/**
+ * A current App Check token, or null when App Check is off or the token can't be obtained. Sent to /api/ai,
+ * which forwards it to Firestore (that call is made by the server, so it has no token of its own).
+ */
+export async function getAppCheckToken(): Promise<string | null> {
+  if (!appCheck) return null;
+  try { return (await getToken(appCheck)).token || null; } catch { return null; }
 }
 
 export const auth = getAuth(app);

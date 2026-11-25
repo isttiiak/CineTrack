@@ -121,15 +121,16 @@ export async function runAiTask<K extends TaskName>(
     return { result: result as TaskRun<K>['result'], remaining: null, limit: null, mode: 'own', cached: false };
   }
 
-  const { auth } = await import('./firebase');            // lazy: keeps this module free of Firebase for tests
+  const { auth, getAppCheckToken } = await import('./firebase');            // lazy: keeps this module free of Firebase for tests
   const user = auth.currentUser;
   if (!user) throw new AiSearchError('signin');
   let res: Response;
   try {
-    const token = await user.getIdToken();
+    const [token, appCheck] = await Promise.all([user.getIdToken(), getAppCheckToken()]);
     res = await fetch('/api/ai', {
       method: 'POST',
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      // The App Check token is passed on to Firestore by the server (api/_ai.ts), so App Check can be enforced there.
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', ...(appCheck ? { 'x-firebase-appcheck': appCheck } : {}) },
       body: JSON.stringify({ task: name, input }),
       signal: opts.signal,
     });
