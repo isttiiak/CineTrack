@@ -47,16 +47,56 @@ function apiRoutes(env: Record<string, string>): Plugin {
 }
 
 /**
- * Security headers live in vercel.json (one source of truth). `vite preview` serves them too, so
- * the Content-Security-Policy can be tested locally against the production build. The dev server
- * doesn't get them: its HMR runtime needs inline scripts.
+ * Security headers live in vercel.json (one source of truth). `vite preview` serves them too, with the
+ * same per-path rules, so the Content-Security-Policy can be tested locally against the production
+ * build. The dev server doesn't get them: its HMR runtime needs inline scripts.
  */
-function vercelHeaders(): Record<string, string> {
+function vercelHeaderRules(): { test: RegExp; headers: Record<string, string> }[] {
   const config = JSON.parse(readFileSync(path.resolve(import.meta.dirname, 'vercel.json'), 'utf8')) as {
     headers?: { source: string; headers: { key: string; value: string }[] }[];
   };
-  const all = config.headers?.find((h) => h.source === '/(.*)')?.headers ?? [];
-  return Object.fromEntries(all.map((h) => [h.key, h.value]));
+  return (config.headers ?? []).map((rule) => ({
+    test: new RegExp(`^${rule.source}$`),         // vercel.json sources are regex-style paths
+    headers: Object.fromEntries(rule.headers.map((h) => [h.key, h.value])),
+  }));
+}
+
+function previewHeaders(): Plugin {
+  const rules = vercelHeaderRules();
+  return {
+    name: 'cinetrack-preview-headers',
+    configurePreviewServer: (server) => {
+      server.middlewares.use((req, res, next) => {
+        const pathname = req.url?.split('?')[0] ?? '/';
+        for (const rule of rules) if (rule.test.test(pathname)) for (const [k, v] of Object.entries(rule.headers)) res.setHeader(k, v);
+        next();
+      });
+    },
+  };
+}
+
+/**
+ * Local mirror of the vercel.json rewrite of `/__/auth/*` to <project>.firebaseapp.com (Firebase's
+ * sign-in helper pages, served from the app's own domain; see src/lib/authDomain.ts). Lets the
+ * same-origin sign-in be tried with `npm run dev` / `npm run preview`. Does nothing unless the
+ * configured auth domain is a firebaseapp.com / web.app host.
+ */
+function authHelperProxy(env: Record<string, string>): Plugin {
+  const upstream = env.VITE_FIREBASE_AUTH_DOMAIN;
+  const enabled = !!upstream && /\.(firebaseapp\.com|web\.app)$/.test(upstream);
+  const middleware = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+    if (!enabled || !req.url?.startsWith('/__/auth/')) return next();
+    const response = await fetch(`https://${upstream}${req.url}`, { method: req.method === 'POST' ? 'POST' : 'GET', redirect: 'manual' });
+    res.statusCode = response.status;
+    const type = response.headers.get('content-type');
+    if (type) res.setHeader('content-type', type);
+    res.end(Buffer.from(await response.arrayBuffer()));
+  };
+  return {
+    name: 'cinetrack-auth-helper-proxy',
+    configureServer: (server) => { server.middlewares.use(middleware); },
+    configurePreviewServer: (server) => { server.middlewares.use(middleware); },
+  };
 }
 
 const appVersion = (JSON.parse(readFileSync(path.resolve(import.meta.dirname, 'package.json'), 'utf8')) as { version: string }).version;
@@ -68,7 +108,9 @@ export default defineConfig(({ mode }) => {
     define: { __APP_VERSION__: JSON.stringify(appVersion) },
     plugins: [
       react(),
+      previewHeaders(),                // before the proxy: the proxied helper pages get their headers too
       apiRoutes(env),
+      authHelperProxy(env),
       VitePWA({
         // The new service worker takes over at once (skipWaiting + clientsClaim), so a plain refresh
         // always gives the newest version. Open tabs are *nudged* to reload, never reloaded under an
@@ -80,7 +122,9 @@ export default defineConfig(({ mode }) => {
         includeAssets: ['manifest.json', 'apple-touch-icon.png', 'icon-maskable-192.png', 'icon-maskable-512.png'],
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-          navigateFallbackDenylist: [/^\/api\//],
+          // Never answer these navigations with the app shell: /api/* is the functions, and /__/* is Firebase's
+          // sign-in helper (proxied from firebaseapp.com), whose pages must reach the network or sign-in breaks.
+          navigateFallbackDenylist: [/^\/api\//, /^\/__\//],
           cleanupOutdatedCaches: true,
           skipWaiting: true,
           clientsClaim: true,
@@ -141,9 +185,6 @@ export default defineConfig(({ mode }) => {
           },
         },
       },
-    },
-    preview: {
-      headers: vercelHeaders(),
     },
     test: {
       environment: 'node',

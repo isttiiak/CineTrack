@@ -2,24 +2,26 @@ import { useState, useEffect } from 'react';
 import { deleteUser, getRedirectResult, onAuthStateChanged, reauthenticateWithPopup, signInWithPopup, signInWithRedirect, signOut as firebaseSignOut } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
+import { isIosStandalone } from '../lib/pwa';
+import { markSignInPending, takeSignInPending } from '../lib/signInFlag';
 import type { UserProfile } from '../types';
 
-/** Pop-ups don't work in an iOS home-screen app, so it signs in with a full-page redirect instead. */
-function isIosStandalone(): boolean {
-  const nav = navigator as Navigator & { standalone?: boolean };
-  return nav.standalone === true
-    || (/iPad|iPhone|iPod/.test(navigator.userAgent) && window.matchMedia('(display-mode: standalone)').matches);
-}
+// Pop-ups don't work in an iOS home-screen app, so it signs in with a full-page redirect instead.
 
 const POPUP_UNSUPPORTED = new Set(['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment']);
 
 export function useAuth() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [signInFailed, setSignInFailed] = useState(false);
 
   useEffect(() => {
-    // Completes a redirect sign-in; the user itself arrives through onAuthStateChanged.
-    getRedirectResult(auth).catch((err) => console.error('Redirect sign-in failed:', err));
+    // Completes a redirect sign-in; the user itself arrives through onAuthStateChanged. Coming back from
+    // a redirect we started without a result, and not signed in, is a failure the user should hear about
+    // (the browser may have dropped the result; this used to look like nothing had happened).
+    getRedirectResult(auth)
+      .then((result) => { if (takeSignInPending() && !result && !auth.currentUser) setSignInFailed(true); })
+      .catch((err) => { takeSignInPending(); console.error('Redirect sign-in failed:', err); setSignInFailed(true); });
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser: User | null) => {
       if (firebaseUser) {
         setUser({
@@ -39,6 +41,7 @@ export function useAuth() {
   /** Resolves false when the user simply closed the popup; throws on real failures. */
   const signIn = async (): Promise<boolean> => {
     if (isIosStandalone()) {
+      markSignInPending();
       await signInWithRedirect(auth, googleProvider);   // navigates away; never resolves meaningfully
       return false;
     }
@@ -49,6 +52,7 @@ export function useAuth() {
       const code = (err as { code?: string }).code;
       if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return false;
       if (code && POPUP_UNSUPPORTED.has(code)) {
+        markSignInPending();
         await signInWithRedirect(auth, googleProvider);
         return false;
       }
@@ -81,5 +85,5 @@ export function useAuth() {
     await deleteUser(current);
   };
 
-  return { user, loading, signIn, signOut, confirmRecentSignIn, deleteAccount };
+  return { user, loading, signIn, signOut, confirmRecentSignIn, deleteAccount, signInFailed, ackSignInFailed: () => setSignInFailed(false) };
 }

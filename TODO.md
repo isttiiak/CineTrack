@@ -24,6 +24,22 @@ Tick them off as you go. Items marked *(optional)* can wait.
       → select **Lint, test, build**.
 - [ ] Settings → General → under **Pull Requests**, tick **Automatically delete head branches**.
 
+## 1b. iPhone home-screen sign-in *(do in this order; the app change is in the fix/ios-signin PR)*
+
+Why: Safari blocks the storage Firebase's redirect sign-in shares with `cinetrack-da621.firebaseapp.com`, so after Google
+the home-screen app comes back signed out. The fix serves that helper from your own domain.
+
+- [ ] **Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs → "Web client (auto created by Google
+      Service)"** → *Authorized redirect URIs* → **Add URI** `https://cine-track-silk.vercel.app/__/auth/handler`
+      (keep the existing `https://cinetrack-da621.firebaseapp.com/__/auth/handler`) → Save. Harmless until the next step.
+- [ ] Merge the PR (the `/__/auth/` rewrite goes live; nothing changes for anyone yet).
+- [ ] Vercel → Settings → Environment Variables → add **`VITE_FIREBASE_AUTH_PROXY` = `true`** for **Production** → Redeploy
+      (build-time variable, so a redeploy is required).
+- [ ] iPhone: open the home-screen app, close and reopen it twice (it updates itself), then **Sign in with Google**. If
+      the app still comes back signed out you now get "Sign-in did not finish"; tell Claude your iOS version.
+- [ ] Check on the live site that `https://cine-track-silk.vercel.app/__/auth/iframe` shows a blank page (not the app) and
+      that desktop sign-in still works.
+
 ## 2. AI search setup *(needed before the Ask AI button works)*
 
 - [ ] Create a free key at <https://console.groq.com/keys>.

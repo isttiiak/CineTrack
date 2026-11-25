@@ -2,10 +2,18 @@ import { initializeApp } from 'firebase/app';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { initializeFirestore } from 'firebase/firestore';
+import { chooseAuthDomain } from './authDomain';
+import { isIosStandalone } from './pwa';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  // The iOS home-screen app signs in through the app's own domain (see lib/authDomain.ts).
+  authDomain: chooseAuthDomain({
+    configured: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    proxyEnabled: import.meta.env.VITE_FIREBASE_AUTH_PROXY === 'true',
+    iosStandalone: isIosStandalone(),
+    host: window.location.host,
+  }),
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
