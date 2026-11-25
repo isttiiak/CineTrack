@@ -28,7 +28,7 @@ export function DiscoverCard({ item, inList, adding, reason, listStatus, onAdd, 
   const title = item.title ?? item.name ?? '';
   const year = (item.release_date ?? item.first_air_date ?? '').slice(0, 4);
   const rating = item.vote_average;
-  const { ref, seen } = useSeen<HTMLDivElement>();
+  const { ref, seen } = useSeen<HTMLDivElement>(500);      // 0.5 s in view: scrolling past a long list doesn't spend the ratings quota
   const { ratings, loading } = useRatings(item.media_type, item.id, seen);
 
   const label = adding
@@ -38,7 +38,6 @@ export function DiscoverCard({ item, inList, adding, reason, listStatus, onAdd, 
   return (
     <motion.div
       ref={ref}
-      layout
       className="group relative flex flex-col overflow-hidden rounded-xl border"
       style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)' }}
     >

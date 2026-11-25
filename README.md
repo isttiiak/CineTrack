@@ -46,7 +46,7 @@ A personal movie and TV series watchlist tracker. Works instantly as a guest, or
 - Posters, genres, runtime and IMDb links filled in automatically from TMDB
 
 ### Discover
-- Trending, popular movies, popular TV, **Coming soon**, and **For you**: recommendations weighted by how highly you rated things, favouring titles several of your favourites agree on, and ignoring titles you rated 4 or lower
+- Trending, **Movies** and **TV Shows** (new releases by default, or the last 5 years / all time), **Coming soon**, and **For you**: every tab keeps loading as you scroll (or press *Load more*), and you can hide titles already in your list. For you: recommendations weighted by how highly you rated things, favouring titles several of your favourites agree on, and ignoring titles you rated 4 or lower
 - Search any title, or **paste an IMDb / TMDB link** to jump to that exact title
 - Adding asks for status, watch date (optional), rating, platform and section, so already-watched titles can be logged properly
 

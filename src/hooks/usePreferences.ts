@@ -10,6 +10,7 @@ export interface Preferences {
   region: string;             // ISO country for "where to watch"; '' = from the browser locale
   myServices: string[];       // streaming platforms the user has (highlighted, used to pre-fill Platform)
   aiFeatures: boolean;        // show the AI buttons (Ask AI, Tonight, taste summary, read with AI)
+  hideListedInDiscover: boolean;   // leave titles already in the list out of the Discover feeds
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -20,6 +21,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   region: '',
   myServices: [],
   aiFeatures: true,
+  hideListedInDiscover: false,
 };
 
 export function usePreferences() {

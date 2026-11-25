@@ -11,7 +11,8 @@ import { DiscoverCard } from './DiscoverCard';
 import { AiAsk } from './AiAsk';
 import { useAiSearch } from '@/hooks/useAiSearch';
 import { aiMode, useAiVersion } from '@/lib/ai';
-import { releaseDate, releaseGroupLabel } from '@/lib/discoverFeeds';
+import { releaseDate, releaseGroupLabel, ERAS, eraStart, type Era } from '@/lib/discoverFeeds';
+import { LoadMore } from './LoadMore';
 import type { DiscoverGroup } from '@/lib/discoverSearch';
 
 interface Props {
@@ -30,6 +31,8 @@ interface Props {
   onSignIn: () => void;
   onOpenAiSettings: () => void;
   initialTab?: Tab;           // e.g. 'soon' when arriving from the Upcoming tab
+  hideListed: boolean;        // leave titles that are already in the list out of the feeds
+  onHideListedChange: (value: boolean) => void;
 }
 
 type Tab = DiscoverTab | 'foryou';
@@ -52,15 +55,20 @@ function groupByRelease(items: TMDBItem[]): [string, TMDBItem[]][] {
   return [...groups.entries()];
 }
 
+const REC_CHUNK = 18;
 const GRID = 'grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6';
 
-export function DiscoverPage({ existingEntries, meta, sections, search, region, myServices, openFirstResult, onOpenedFirstResult, onAdd, onEdit, signedIn, aiEnabled, onSignIn, onOpenAiSettings, initialTab = 'trending' }: Props) {
+export function DiscoverPage({ existingEntries, meta, sections, search, region, myServices, openFirstResult, onOpenedFirstResult, onAdd, onEdit, signedIn, aiEnabled, onSignIn, onOpenAiSettings, initialTab = 'trending', hideListed, onHideListedChange }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const listTab: DiscoverTab = tab === 'foryou' ? 'trending' : tab;
   const isSearching = search.trim().length > 1;
   const showForYou = tab === 'foryou' && !isSearching;
-  const { items, loading, error, fromLink, reasons, correctedTo, groups } = useTMDBDiscover(listTab, search);
+  const [era, setEra] = useState<Era>('recent');
+  const { items: fetched, loading, loadingMore, error, loadMoreError, hasMore, loadMore, fromLink, reasons, correctedTo, groups } = useTMDBDiscover(listTab, search, era);
   const { recs, loading: recsLoading, hasSeeds, seedTitles } = useRecommendations(existingEntries, meta, showForYou);
+  // "For you" is computed in one go; it is shown a chunk at a time so it scrolls like the other tabs.
+  const [recsShown, setRecsShown] = useState(REC_CHUNK);
+  useEffect(() => setRecsShown(REC_CHUNK), [recs]);
   const ai = useAiSearch(search);
   useAiVersion();                                   // the AI mode changes when a key is added or removed
   const aiAvailability = aiMode(signedIn);
@@ -74,6 +82,10 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
     imdbUrl: '',
     tmdbId: item.id,
   });
+
+  // Titles already in the list stay visible (marked "In list") unless the user hides them. Searching always shows everything.
+  const hiding = hideListed && !isSearching && !fromLink;
+  const items = hiding ? fetched.filter((i) => !findExisting(i)) : fetched;
 
   /** Opens the confirm dialog (status, watch date, rating…) instead of adding straight away. */
   function requestAdd(item: TMDBItem) {
@@ -193,6 +205,33 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
         </div>
       )}
 
+      {!isSearching && (
+        <div className="-mt-2 mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+          {(tab === 'movies' || tab === 'tv') && (
+            <div className="flex items-center gap-2">
+              <div role="group" aria-label="How recent" className="flex gap-1 rounded-lg p-0.5" style={{ background: 'var(--bg-elevated)' }}>
+                {ERAS.map((e) => (
+                  <button
+                    key={e.id} onClick={() => setEra(e.id)} aria-pressed={era === e.id}
+                    className="whitespace-nowrap rounded-md px-2.5 py-1 font-semibold transition-colors"
+                    style={{ background: era === e.id ? 'var(--bg-surface)' : 'transparent', color: era === e.id ? 'var(--text-primary)' : 'var(--text-muted)' }}
+                  >{e.label}</button>
+                ))}
+              </div>
+              <span style={{ color: 'var(--text-disabled)' }}>
+                {era === 'all' ? 'Most popular ever' : `${tab === 'movies' ? 'Released' : 'First aired'} since ${new Date(eraStart(tab, era) + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`}
+              </span>
+            </div>
+          )}
+          {tab !== 'foryou' && (
+            <label className="flex cursor-pointer items-center gap-1.5 select-none" style={{ color: 'var(--text-muted)' }}>
+              <input type="checkbox" checked={hideListed} onChange={(e) => onHideListedChange(e.target.checked)} className="h-3.5 w-3.5 accent-[var(--accent)]" />
+              Hide titles already in my list
+            </label>
+          )}
+        </div>
+      )}
+
       {isSearching && !fromLink && aiEnabled && <AiAsk ai={ai} mode={aiAvailability} onSignIn={onSignIn} onOpenAiSettings={onOpenAiSettings} />}
       {isSearching && aiEnabled && ai.status === 'done' && ai.result && (
         ai.result.items.length > 0
@@ -228,7 +267,12 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
               Picked from what you rated highest and watched recently: <span style={{ color: 'var(--text-secondary)' }}>{seedTitles.slice(0, 5).join(', ')}{seedTitles.length > 5 ? '…' : ''}</span>.
               Titles you rated 4 or lower are ignored.
             </p>
-            <div className={GRID}>{recs.map((r) => card(r.item, r.because))}</div>
+            <div className={GRID}>{recs.slice(0, recsShown).map((r) => card(r.item, r.because))}</div>
+            <LoadMore
+              hasMore={recsShown < recs.length} loading={false} error={false} count={recs.length}
+              onLoadMore={() => setRecsShown((n) => n + REC_CHUNK)}
+              endText="That's every pick we could match. Rate or watch more titles for better ones."
+            />
           </>
       ) : (
         <>
@@ -259,10 +303,15 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
               </motion.div>
             </AnimatePresence>
           )}
-          {!loading && !error && items.length > 0 && tab === 'soon' && !isSearching && (
-            <p className="mt-6 text-xs" style={{ color: 'var(--text-disabled)' }}>
-              The most anticipated releases of the next year. Dates are TMDB's earliest release date and can differ by country.
-            </p>
+          {!loading && !error && !fromLink && (items.length > 0 || hasMore) && (
+            <LoadMore
+              hasMore={hasMore} loading={loadingMore} error={loadMoreError} count={Math.max(items.length, hasMore ? 1 : 0)}
+              onLoadMore={loadMore}
+              skeleton={skeleton(6)}
+              endText={isSearching ? "That's all the matches for this search."
+                : tab === 'soon' ? 'That is every release we have dates for, about a year ahead. Dates are TMDB\'s earliest release date and can differ by country.'
+                : "That's the end of this list. Try another tab, or search for something specific."}
+            />
           )}
         </>
       )}

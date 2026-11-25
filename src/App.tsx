@@ -586,6 +586,8 @@ export default function App() {
               onSignIn={handleSignIn}
               onOpenAiSettings={openAiSettings}
               initialTab={discoverStart}
+              hideListed={prefs.hideListedInDiscover}
+              onHideListedChange={(v) => setPref('hideListedInDiscover', v)}
               onAdd={(entryData, metaData) => {
                 addEntry(entryData, metaData);
                 addToast(`Added to watchlist${metaData.status && metaData.status !== 'plan' ? ` as ${metaData.status}` : ''}`, 'success');
