@@ -4,6 +4,7 @@ import { getDetails, itemFromDetails, findByImdb, type TmdbKind } from '../lib/t
 import { parseTitleLink } from '../lib/links';
 import { fetchComingSoonPage, feedRequest, normalizeFeedItems, canLoadMore, mergePage, pullNextPage, type Era, type PageResult as BasePage } from '../lib/discoverFeeds';
 import { searchDiscover, searchDiscoverMore, type DiscoverGroup } from '../lib/discoverSearch';
+import { fetchTopPage } from '../lib/topList';
 
 export { TMDB_IMG };
 
@@ -29,7 +30,7 @@ export interface TMDBDetails {
   duration: string;
 }
 
-export type DiscoverTab = 'trending' | 'movies' | 'tv' | 'soon';
+export type DiscoverTab = 'trending' | 'movies' | 'tv' | 'soon' | 'top';
 
 const COUNTRY_CODES: Record<string, string> = {
   US: 'USA', GB: 'UK', FR: 'France', DE: 'Germany', JP: 'Japan',
@@ -88,7 +89,8 @@ export async function resolveLinkItem(text: string): Promise<TMDBItem | null> {
   return found ? itemFromDetails(await getDetails(found.kind, found.id), found.kind) : null;
 }
 
-type PageResult = BasePage<TMDBItem>;
+/** A page, plus labels for its titles when the list has them (the Top 250's ranks). */
+type PageResult = BasePage<TMDBItem> & { reasons?: Record<number, string> };
 
 /** Everything one Discover view needs to fetch its pages; created per (tab, era, search) and thrown away when they change. */
 interface Pager {
@@ -138,6 +140,7 @@ export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string, era: Era 
         .then((r) => {
           if (mine.cancelled) return;
           r.after?.();
+          if (r.reasons) setReasons(r.reasons);
           show(mergePage([], r.items));
           mine.more = r.more; mine.page = r.nextPage ?? 2;
           setHasMore(r.more); setLoading(false);
@@ -181,6 +184,13 @@ export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string, era: Era 
         return;
       }
 
+      // Top 250: IMDb's chart in rank order, a page at a time (lib/topList; the list itself is one cached request).
+      if (tab === 'top') {
+        const top = async (page: number, signal: AbortSignal): Promise<PageResult> => fetchTopPage(page, signal);
+        start(async (signal) => ({ ...(await top(1, signal)), after: () => reset() }), top);
+        return;
+      }
+
       // Trending / Movies / TV: lib/discoverFeeds `feedRequest`.
       const feed = async (page: number, signal: AbortSignal): Promise<PageResult> => {
         const req = feedRequest(tab, era, page);
@@ -207,8 +217,14 @@ export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string, era: Era 
     pager.busy = true;
     setLoadingMore(true); setLoadMoreError(false);
     try {
-      const r = await pullNextPage(itemsRef.current, pager.page, (p) => pager.fetchPage(p, pager.controller.signal));
+      const labels: Record<number, string> = {};
+      const r = await pullNextPage(itemsRef.current, pager.page, async (p) => {
+        const got = await pager.fetchPage(p, pager.controller.signal);
+        Object.assign(labels, got.reasons);
+        return got;
+      });
       if (pager.cancelled) return;
+      if (Object.keys(labels).length > 0) setReasons((prev) => ({ ...prev, ...labels }));
       pager.page = r.page;
       pager.more = r.more;
       if (r.items !== itemsRef.current) show(r.items);

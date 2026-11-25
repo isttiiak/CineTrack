@@ -6,6 +6,10 @@ All notable changes to CineTrack. Dates are `YYYY-MM-DD`. Versions follow
 
 ## [Unreleased]
 
+### Added
+
+- **Discover → Top 250.** IMDb's all-time top films in IMDb's own order, each card marked with its rank (`#12 on IMDb Top 250`). IMDb has no free API, so the chart is read from a public MDBList list that mirrors it, through a new `/api/toplist` function (cached for a day, so it costs only a few of the shared MDBList requests). It needs `MDBLIST_API_KEY`; `TOPLIST_IMDB250` can point it at another list. Each title is checked against its IMDb id, so a wrong id in the list can't show the wrong film. If MDBList is unavailable (for example its daily limit is used up) the tab says so and the rest of Discover is unaffected.
+
 ### Security
 
 - **App Check can now be enforced on Firestore without breaking the shared-key AI features.** The browser sends its App Check token with the request to `/api/ai`, and the server passes it to Firestore for the usage counter. With enforcement on, a script that reuses the public Firebase settings can no longer read or write data, or use the shared Groq key. Nothing changes until the site key is set and enforcement is switched on; the rollout and rollback steps are in `TODO.md`.

@@ -8,6 +8,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { handleTmdbRequest } from './api/_tmdb.ts';
 import { handleRatingsRequest } from './api/_ratings.ts';
 import { handleRegionRequest } from './api/_region.ts';
+import { handleTopListRequest } from './api/_toplist.ts';
 import { handleAiRequest } from './api/_ai.ts';
 
 /** Serves the /api functions locally (dev + preview) with the same code Vercel runs. */
@@ -21,6 +22,7 @@ function apiRoutes(env: Record<string, string>): Plugin {
       projectId: env.FIREBASE_PROJECT_ID || env.VITE_FIREBASE_PROJECT_ID,
       dailyLimit: parseInt(env.AI_DAILY_LIMIT ?? '', 10) || undefined,
     }),
+    '/api/toplist': (r) => handleTopListRequest(r, { mdblist: env.MDBLIST_API_KEY, list: env.TOPLIST_IMDB250 }),
     '/api/region': async (r) => handleRegionRequest(r),   // dev: no country header, so the client falls back to the time zone
   };
   const middleware = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {

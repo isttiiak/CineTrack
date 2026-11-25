@@ -169,6 +169,11 @@ it syncs once they can verify). Unenforce, then look at the *Invalid* numbers pe
       Trending / Movies / Coming soon on an iPhone and an Android phone: smooth scrolling, nothing jumping, *Load more* reachable.
       The lists are now windowed (only rows near the screen are rendered), so also watch for blank gaps during a fast fling and for rows
       shifting when ratings load.
+- [ ] **Check Discover → Top 250 on the deployed site.** It was built from MDBList's published API schema and tested with a stand-in list,
+      because the MDBList daily limit was used up while building: the real response has not been seen. Open the tab; you should get
+      250 films in rank order, with `#1 on IMDb Top 250` on the first card. If it says it can't load: the key's daily limit (resets
+      midnight UTC), the list was removed or renamed (set `TOPLIST_IMDB250` to another public list, e.g. from mdblist.com), or the
+      response differs from the schema (Vercel function log: `Top 250: …`).
 - [ ] **Watch the ratings quota** (MDBList ~1000 requests a day for everyone). Cards now fetch ratings only after half a second in view, but longer
       scrolling means more titles seen. If "ratings unavailable" starts showing up, batch the lookups or lower the cap.
 - [ ] **Remember the era** (New / Last 5 years / All time) per tab between visits; today it resets on reload.
