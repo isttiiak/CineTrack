@@ -12,6 +12,7 @@ Tick them off as you go. Items marked *(optional)* can wait.
 - [x] LICENSE (MIT), CI workflow, privacy note, platform rename and data migration
 - [x] Browser API key restricted to the websites (item 1), Dependabot alerts enabled
 - [x] Consent banner for EU/EEA/UK/CH, delete options and account deletion, full-page Settings, Marvel section
+- [x] iPhone home-screen Google sign-in (same-origin auth helper: redirect URI added, `VITE_FIREBASE_AUTH_PROXY=true`; v1.3.1)
 
 ---
 
@@ -23,22 +24,6 @@ Tick them off as you go. Items marked *(optional)* can wait.
       `main` → **Require a pull request before merging** and **Require status checks to pass**
       → select **Lint, test, build**.
 - [ ] Settings → General → under **Pull Requests**, tick **Automatically delete head branches**.
-
-## 1b. iPhone home-screen sign-in *(do in this order; the app change is in the fix/ios-signin PR)*
-
-Why: Safari blocks the storage Firebase's redirect sign-in shares with `cinetrack-da621.firebaseapp.com`, so after Google
-the home-screen app comes back signed out. The fix serves that helper from your own domain.
-
-- [ ] **Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs → "Web client (auto created by Google
-      Service)"** → *Authorized redirect URIs* → **Add URI** `https://cine-track-silk.vercel.app/__/auth/handler`
-      (keep the existing `https://cinetrack-da621.firebaseapp.com/__/auth/handler`) → Save. Harmless until the next step.
-- [ ] Merge the PR (the `/__/auth/` rewrite goes live; nothing changes for anyone yet).
-- [ ] Vercel → Settings → Environment Variables → add **`VITE_FIREBASE_AUTH_PROXY` = `true`** for **Production** → Redeploy
-      (build-time variable, so a redeploy is required).
-- [ ] iPhone: open the home-screen app, close and reopen it twice (it updates itself), then **Sign in with Google**. If
-      the app still comes back signed out you now get "Sign-in did not finish"; tell Claude your iOS version.
-- [ ] Check on the live site that `https://cine-track-silk.vercel.app/__/auth/iframe` shows a blank page (not the app) and
-      that desktop sign-in still works.
 
 ## 2. AI search setup *(needed before the Ask AI button works)*
 
@@ -77,7 +62,7 @@ the home-screen app comes back signed out. The fix serves that helper from your 
       googletagmanager until you click Allow. `https://cine-track-silk.vercel.app/api/region` should return your country.
 - [ ] **Delete account (use a throw-away Google account):** Settings → Delete data → Delete account. Check in
       Firebase Console that the user is gone from Authentication and `users/{uid}/data/*` from Firestore.
-- [ ] **iPhone home-screen app:** add the site to the Home Screen, open it, and sign in (it uses a redirect).
+- [x] **iPhone home-screen app:** add the site to the Home Screen, open it, and sign in (it uses a redirect).
 - [ ] **Two devices:** change different titles on a phone and a laptop at the same time; after a few
       seconds both should show both changes.
 - [ ] **Android share:** install the app (Chrome → Install app), then in the IMDb app open a title →
