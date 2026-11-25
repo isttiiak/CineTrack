@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { tmdb, TMDB_IMG } from '../lib/tmdb';
 import { getDetails, itemFromDetails, findByImdb, type TmdbKind } from '../lib/titleData';
 import { parseTitleLink } from '../lib/links';
-import { fetchComingSoon } from '../lib/discoverFeeds';
-import { searchDiscover, type DiscoverGroup } from '../lib/discoverSearch';
+import { fetchComingSoonPage, feedRequest, normalizeFeedItems, canLoadMore, mergePage, pullNextPage, type Era, type PageResult as BasePage } from '../lib/discoverFeeds';
+import { searchDiscover, searchDiscoverMore, type DiscoverGroup } from '../lib/discoverSearch';
 
 export { TMDB_IMG };
 
@@ -88,90 +88,138 @@ export async function resolveLinkItem(text: string): Promise<TMDBItem | null> {
   return found ? itemFromDetails(await getDetails(found.kind, found.id), found.kind) : null;
 }
 
-export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string) {
+type PageResult = BasePage<TMDBItem>;
+
+/** Everything one Discover view needs to fetch its pages; created per (tab, era, search) and thrown away when they change. */
+interface Pager {
+  cancelled: boolean;
+  busy: boolean;
+  page: number;               // the next page to fetch
+  more: boolean;
+  controller: AbortController;
+  fetchPage: (page: number, signal: AbortSignal) => Promise<PageResult>;
+}
+
+/**
+ * The list behind every Discover tab, a page at a time. The first page replaces the list; `loadMore`
+ * appends the next one without repeats (lib/discoverFeeds `mergePage`). Searching pages the plain title
+ * matches too. Responses from a superseded tab, era or query are ignored.
+ */
+export function useTMDBDiscover(tab: DiscoverTab, searchQuery: string, era: Era = 'recent') {
   const [items, setItems] = useState<TMDBItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [fromLink, setFromLink] = useState(false);
   const [reasons, setReasons] = useState<Record<number, string>>({});
   const [correctedTo, setCorrectedTo] = useState<string | undefined>();
   const [groups, setGroups] = useState<DiscoverGroup[]>([]);
+  const pagerRef = useRef<Pager | null>(null);
+  const itemsRef = useRef<TMDBItem[]>([]);          // what is shown, readable inside loadMore without a stale closure
+  const show = (list: TMDBItem[]) => { itemsRef.current = list; setItems(list); };
 
   useEffect(() => {
-    // Ignore responses from superseded queries so a slow older search can't overwrite newer results.
     const controller = new AbortController();
-    let cancelled = false;
     const trimmed = searchQuery.trim();
+    let pager: Pager | null = null;
+
+    const reset = (extra: { reasons?: Record<number, string>; correctedTo?: string; groups?: DiscoverGroup[]; fromLink?: boolean } = {}) => {
+      setReasons(extra.reasons ?? {}); setCorrectedTo(extra.correctedTo); setGroups(extra.groups ?? []); setFromLink(extra.fromLink ?? false);
+    };
+    const fail = (err: unknown) => { if ((err as Error)?.name !== 'AbortError' && pager && !pager.cancelled) { setLoading(false); setError(true); } };
+
+    const start = (fetchFirst: (signal: AbortSignal) => Promise<PageResult & { after?: () => void }>, fetchLater: Pager['fetchPage']) => {
+      pager = { cancelled: false, busy: false, page: 2, more: false, controller, fetchPage: fetchLater };
+      pagerRef.current = pager;
+      const mine = pager;
+      fetchFirst(controller.signal)
+        .then((r) => {
+          if (mine.cancelled) return;
+          r.after?.();
+          show(mergePage([], r.items));
+          mine.more = r.more; mine.page = r.nextPage ?? 2;
+          setHasMore(r.more); setLoading(false);
+        })
+        .catch(fail);
+    };
 
     const doFetch = () => {
-      setLoading(true);
-      setError(false);
+      setLoading(true); setError(false); setLoadMoreError(false); setLoadingMore(false); setHasMore(false);
 
       // Pasting an IMDb/TMDB link finds that exact title.
       if (parseTitleLink(trimmed)) {
+        pager = { cancelled: false, busy: false, page: 2, more: false, controller, fetchPage: async () => ({ items: [], more: false }) };
+        pagerRef.current = pager;
+        const mine = pager;
         resolveLinkItem(trimmed)
-          .then((item) => { if (!cancelled) { setItems(item ? [item] : []); setGroups([]); setFromLink(true); setLoading(false); } })
-          .catch(() => { if (!cancelled) { setLoading(false); setError(true); } });
+          .then((item) => { if (!mine.cancelled) { show(item ? [item] : []); reset({ fromLink: true }); setLoading(false); } })
+          .catch(fail);
         return;
       }
 
       // Searching: relevance + popularity ranking, typo recovery, people, filters (lib/discoverSearch).
       if (trimmed.length > 1) {
-        searchDiscover(trimmed, controller.signal)
-          .then((r) => {
-            if (cancelled) return;
-            setItems(r.items); setReasons(r.reasons); setCorrectedTo(r.correctedTo); setGroups(r.groups);
-            setFromLink(false); setLoading(false);
-          })
-          .catch((err) => { if (err?.name !== 'AbortError' && !cancelled) { setLoading(false); setError(true); } });
+        start(
+          async (signal) => {
+            const r = await searchDiscover(trimmed, signal);
+            return { items: r.items, more: !!r.hasMore, after: () => reset({ reasons: r.reasons, correctedTo: r.correctedTo, groups: r.groups }) };
+          },
+          async (page, signal) => { const r = await searchDiscoverMore(trimmed, page, signal); return { items: r.items, more: r.hasMore }; },
+        );
         return;
       }
 
-      // Coming soon: the most anticipated unreleased films and series, soonest first.
+      // Coming soon: the most anticipated unreleased films and series, a month per page, soonest first.
       if (tab === 'soon') {
-        fetchComingSoon(controller.signal)
-          .then((list) => { if (!cancelled) { setItems(list); setReasons({}); setCorrectedTo(undefined); setGroups([]); setFromLink(false); setLoading(false); } })
-          .catch((err) => { if (err?.name !== 'AbortError' && !cancelled) { setLoading(false); setError(true); } });
+        const soon = async (page: number, signal: AbortSignal): Promise<PageResult> => {
+          const r = await fetchComingSoonPage(page, signal);
+          return { items: r.items, more: r.nextPage !== null, nextPage: r.nextPage ?? undefined };
+        };
+        start(async (signal) => ({ ...(await soon(1, signal)), after: () => reset() }), soon);
         return;
       }
 
-      const path = ({ trending: 'trending/all/week', movies: 'movie/popular', tv: 'tv/popular' } as Record<Exclude<DiscoverTab, 'soon'>, string>)[tab];
-      const params: Record<string, string> = { language: 'en-US' };
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      tmdb<any>(path, params, controller.signal)
-        .then(data => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const results: TMDBItem[] = (data.results || [] as any[])
-            .filter((item: { media_type?: string; title?: string; name?: string }) =>
-              item.media_type !== 'person' && (item.title || item.name)
-            )
-            .map((item: { media_type?: string }) => ({
-              ...item,
-              media_type: (item.media_type === 'movie' || item.media_type === 'tv')
-                ? item.media_type
-                : (tab === 'movies' ? 'movie' : 'tv'),
-            })) as TMDBItem[];
-          setItems(results);
-          setReasons({}); setCorrectedTo(undefined); setGroups([]);
-          setFromLink(false);
-          setLoading(false);
-        })
-        .catch((err) => {
-          if (err?.name === 'AbortError') return;
-          setLoading(false); setError(true);
-        });
+      // Trending / Movies / TV: lib/discoverFeeds `feedRequest`.
+      const feed = async (page: number, signal: AbortSignal): Promise<PageResult> => {
+        const req = feedRequest(tab, era, page);
+        const data = await tmdb<{ results?: unknown; total_pages?: number }>(req.path, req.params, signal);
+        return { items: normalizeFeedItems(data.results, tab), more: canLoadMore(page, data.total_pages ?? 1) };
+      };
+      start(async (signal) => ({ ...(await feed(1, signal)), after: () => reset() }), feed);
     };
 
     const timer = trimmed.length > 1 ? setTimeout(doFetch, 350) : null;
     if (!timer) doFetch();
 
     return () => {
-      cancelled = true;
+      if (pager) pager.cancelled = true;
       controller.abort();
       if (timer) clearTimeout(timer);
     };
-  }, [tab, searchQuery]);
+  }, [tab, searchQuery, era]);
 
-  return { items, loading, error, fromLink, reasons, correctedTo, groups };
+  /** Fetches the next page and appends it. Does nothing while a page is in flight or when there are no more. */
+  const loadMore = useCallback(async () => {
+    const pager = pagerRef.current;
+    if (!pager || pager.cancelled || pager.busy || !pager.more) return;
+    pager.busy = true;
+    setLoadingMore(true); setLoadMoreError(false);
+    try {
+      const r = await pullNextPage(itemsRef.current, pager.page, (p) => pager.fetchPage(p, pager.controller.signal));
+      if (pager.cancelled) return;
+      pager.page = r.page;
+      pager.more = r.more;
+      if (r.items !== itemsRef.current) show(r.items);
+      setHasMore(r.more);
+    } catch (err) {
+      if ((err as Error)?.name !== 'AbortError' && !pager.cancelled) setLoadMoreError(true);
+    } finally {
+      pager.busy = false;
+      if (!pager.cancelled) setLoadingMore(false);
+    }
+  }, []);
+
+  return { items, loading, loadingMore, error, loadMoreError, hasMore, loadMore, fromLink, reasons, correctedTo, groups };
 }

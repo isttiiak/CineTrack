@@ -32,7 +32,7 @@ export function useRecommendations(entries: MovieEntry[], meta: Record<string, W
         return { seed, results: (data.results ?? []).map((item) => ({ ...item, media_type: kind }) as TMDBItem) };
       }));
       if (!active) return;
-      setRecs(rankRecommendations({ lists, entries, profile: tasteProfile(entries, meta) }));
+      setRecs(rankRecommendations({ lists, entries, profile: tasteProfile(entries, meta), limit: 60 }));
       setLoading(false);
     })();
     return () => { active = false; };

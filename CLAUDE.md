@@ -34,7 +34,7 @@ api/                    Vercel Functions (files starting with _ are shared code,
 src/
   App.tsx               Tabs (Watchlist / Discover / Upcoming), toolbar, dialogs, wiring
   components/
-    discover/           DiscoverPage, DiscoverCard, AddFromDiscoverDialog
+    discover/           DiscoverPage, DiscoverCard, AddFromDiscoverDialog, LoadMore (infinite scroll footer)
     filters/            SearchBox (tab-row search), FilterBar (dropdown filters + sort)
     import/             ExternalImportDialog (Letterboxd / IMDb CSV & ZIP)
     layout/             Header, UserProfile, PwaStatus (offline chip, "new version" prompt), ConsentBanner
@@ -66,7 +66,7 @@ src/
     countries.ts                 split/fold country text for the country filter, search and analytics
     watchDate.ts                 "watched on" as YYYY / YYYY-MM / YYYY-MM-DD: parse, format, clamp to the past
     recommend.ts                 "For you" scoring (seed weights, taste profile, quality, variety)
-    discoverFeeds.ts             Coming soon feed + isUnreleased()
+    discoverFeeds.ts             Discover feeds: paging (mergePage, pullNextPage), movie/TV eras, Coming soon pages, isUnreleased()
     authDomain.ts signInFlag.ts  which host serves Firebase's sign-in helper (own domain on the iOS home-screen app); "sign-in did not finish" flag
     consent.ts                   analytics consent: region requirement, stored choice, useConsentVersion
     pwa.ts                       service-worker registration, install prompt, update nudge, online state, cache reset
@@ -170,6 +170,18 @@ Environment variables (`.env.example`): `VITE_FIREBASE_*` (public), `VITE_RECAPT
   is for rarely-changed facts. Partial dates count in year/month totals but not the daily heatmap or
   streaks; Letterboxd export only gets full dates. Auto-enrichment resolves tmdbId and swaps TMDB
   score for the live IMDb rating.
+- Discover paging & freshness (`lib/discoverFeeds.ts`, `useTMDBDiscover`, `LoadMore`): every tab pages (infinite scroll via an
+  IntersectionObserver with a visible **Load more** fallback, skeletons, an end-of-list line). `mergePage` de-duplicates by media
+  type + id (TMDB lists shift while you scroll), `pullNextPage` fetches on when a page adds nothing new, `canLoadMore` caps at
+  `MAX_PAGES` (40; TMDB itself stops at 500). **Trending** = `trending/all/week` pages. **Movies / TV** are `discover/*` (`feedRequest`):
+  released/aired up to today, inside an era window, `popularity.desc`, with a vote floor. Eras (chips under the tabs): **New** (films
+  ~18 months, series ~30), **Last 5 years**, **All time**. The old `movie/popular` / `tv/popular` lists were mostly old titles
+  (TV page 1: 17 of 20 first aired before 2020). **Coming soon** pages by *date*: one 30-day window per page (`fetchComingSoonPage`,
+  14 pages), so the list stays in release order as it grows. **For you** is computed once (up to 60) and revealed 18 at a time.
+  **Search** pages the plain title matches (`searchDiscoverMore`, up to 5 pages; not after typo recovery). Preference
+  `hideListedInDiscover` (in `cinetrack_prefs`, toggle under the tabs) hides titles already in the list; they are otherwise
+  marked "In list". Cards load ratings only after 0.5 s in view (`useSeen(500)`), so scrolling fast doesn't spend the ratings quota.
+  Not used on purpose: TMDB's `region` param (no effect without a release type) and `air_date` (mixes in old long-running shows).
 - Discover: trending / for-you / **coming soon** / movies / TV, search or pasted IMDb/TMDB link, add
   dialog (status, optional date, rating, platform pre-filled from your services, section).
   Trending is TMDB attention-based, so unreleased blockbusters appear there; cards show

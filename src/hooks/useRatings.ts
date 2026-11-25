@@ -15,16 +15,26 @@ export function useRatings(kind: TmdbKind, id: number | null | undefined, enable
   return { ratings, loading };
 }
 
-/** True once the element has been on screen (stays true). */
-export function useSeen<T extends Element>() {
+/**
+ * True once the element has been on screen (stays true). With `dwellMs`, it must stay in view that long:
+ * flicking through a long list then doesn't fire a ratings request for every card that flew past
+ * (ratings come from a keyed API with a daily quota).
+ */
+export function useSeen<T extends Element>(dwellMs = 0) {
   const ref = useRef<T>(null);
   const [seen, setSeen] = useState(false);
   useEffect(() => {
     const el = ref.current;
     if (!el || seen) return;
-    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setSeen(true); io.disconnect(); } }, { rootMargin: '200px' });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const io = new IntersectionObserver(([e]) => {
+      if (timer) { clearTimeout(timer); timer = undefined; }
+      if (!e.isIntersecting) return;
+      if (dwellMs <= 0) { setSeen(true); io.disconnect(); return; }
+      timer = setTimeout(() => { setSeen(true); io.disconnect(); }, dwellMs);
+    }, { rootMargin: dwellMs > 0 ? '0px' : '200px' });
     io.observe(el);
-    return () => io.disconnect();
-  }, [seen]);
+    return () => { if (timer) clearTimeout(timer); io.disconnect(); };
+  }, [seen, dwellMs]);
   return { ref, seen };
 }

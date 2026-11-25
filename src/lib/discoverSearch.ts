@@ -28,7 +28,12 @@ export interface DiscoverResult {
   reasons: Record<number, string>;   // e.g. "Known for: Christopher Nolan"
   correctedTo?: string;              // set when results come from typo correction
   groups: DiscoverGroup[];
+  /** More pages of plain title matches exist (see searchDiscoverMore). False after typo recovery or a pasted-people result. */
+  hasMore?: boolean;
 }
+
+/** Search pages worth walking: TMDB orders matches by its own relevance, so later pages thin out fast. */
+export const MAX_SEARCH_PAGES = 5;
 
 interface RawItem extends TMDBItem { known_for?: RawItem[]; name?: string; popularity?: number; vote_count?: number; original_title?: string; original_name?: string }
 
@@ -203,11 +208,36 @@ const personTitle = (department: string | undefined, name: string) =>
 
 const isTitle = (i: RawItem) => (i.media_type === 'movie' || i.media_type === 'tv') && !!(i.title || i.name);
 
-async function fetchSearch(text: string, kind: 'movie' | 'tv' | null, year: string | null, signal?: AbortSignal): Promise<RawItem[]> {
+async function fetchSearchPage(text: string, kind: 'movie' | 'tv' | null, year: string | null, signal?: AbortSignal, page = 1): Promise<{ results: RawItem[]; totalPages: number }> {
   const params: Record<string, string> = { query: text, language: 'en-US' };
+  if (page > 1) params.page = String(page);
   if (kind && year) params[kind === 'tv' ? 'first_air_date_year' : 'year'] = year;
-  const data = await tmdb<{ results?: RawItem[] }>(kind ? `search/${kind}` : 'search/multi', params, signal);
-  return (data.results ?? []).map((r) => (kind ? { ...r, media_type: kind } : r));
+  const data = await tmdb<{ results?: RawItem[]; total_pages?: number }>(kind ? `search/${kind}` : 'search/multi', params, signal);
+  return { results: (data.results ?? []).map((r) => (kind ? { ...r, media_type: kind } : r)), totalPages: data.total_pages ?? 1 };
+}
+
+const fetchSearch = (text: string, kind: 'movie' | 'tv' | null, year: string | null, signal?: AbortSignal) =>
+  fetchSearchPage(text, kind, year, signal).then((r) => r.results);
+
+/** What the query's `type:` / `is:` and `year:` filters mean for the TMDB request. */
+function searchScope(input: string) {
+  const q = parseQuery(input);
+  const typeFilter = q.filters.find((f) => f.key === 'type' || f.key === 'is');
+  const kind = typeFilter ? (/^(series|show|shows|tv)$/.test(typeFilter.value) ? 'tv' : /^(film|films|movie|movies)$/.test(typeFilter.value) ? 'movie' : null) : null;
+  const yearFilter = q.filters.find((f) => f.key === 'year' && f.op === ':' && /^\d{4}$/.test(f.value));
+  return { q, text: freeText(q), kind: kind as 'movie' | 'tv' | null, year: yearFilter?.value ?? null, keep: (i: RawItem) => q.filters.every((f) => passes(f, i)) };
+}
+
+/**
+ * Page `page` (2 and up) of the plain title matches for a query: same filters, ranked inside the page,
+ * appended after what is already shown (the caller drops repeats). People are not included.
+ */
+export async function searchDiscoverMore(input: string, page: number, signal?: AbortSignal): Promise<{ items: TMDBItem[]; hasMore: boolean }> {
+  const { text, kind, year, keep } = searchScope(input);
+  if (!text) return { items: [], hasMore: false };
+  const { results, totalPages } = await fetchSearchPage(text, kind, year, signal, page);
+  const items = rankItems(text, results.filter(isTitle).filter(keep)) as TMDBItem[];
+  return { items, hasMore: page < Math.min(totalPages, MAX_SEARCH_PAGES) };
 }
 
 const withKind = (list: RawItem[] | undefined, kind: 'movie' | 'tv'): RawItem[] =>
@@ -227,26 +257,21 @@ async function collectionGroup(c: CollectionHit, signal?: AbortSignal): Promise<
 }
 
 export async function searchDiscover(input: string, signal?: AbortSignal): Promise<DiscoverResult> {
-  const q = parseQuery(input);
-  const text = freeText(q);
+  const { text, kind, keep, year: yearValue } = searchScope(input);
   const reasons: Record<number, string> = {};
   if (!text) return { items: [], reasons, groups: [] };
-
-  const typeFilter = q.filters.find((f) => f.key === 'type' || f.key === 'is');
-  const kind = typeFilter ? (/^(series|show|shows|tv)$/.test(typeFilter.value) ? 'tv' : /^(film|films|movie|movies)$/.test(typeFilter.value) ? 'movie' : null) : null;
-  const yearFilter = q.filters.find((f) => f.key === 'year' && f.op === ':' && /^\d{4}$/.test(f.value));
-  const keep = (i: RawItem) => q.filters.every((f) => passes(f, i));
 
   // Studios and franchises are looked up in parallel with the title search (a short phrase only:
   // a sentence is never a studio name).
   const smart = normalize(text).length >= 3 && normalize(text).split(' ').length <= 4;
   const aliased = !!STUDIO_ALIASES[normalize(text)];
-  const [raw, companyHits, collectionHits] = await Promise.all([
-    fetchSearch(text, kind, yearFilter?.value ?? null, signal),
+  const [firstPage, companyHits, collectionHits] = await Promise.all([
+    fetchSearchPage(text, kind, yearValue, signal),
     smart && !aliased ? tmdb<{ results?: CompanyHit[] }>('search/company', { query: text }, signal).then((d) => d.results ?? []).catch(() => [] as CompanyHit[]) : Promise.resolve([] as CompanyHit[]),
     smart ? tmdb<{ results?: CollectionHit[] }>('search/collection', { query: text, language: 'en-US' }, signal).then((d) => d.results ?? []).catch(() => [] as CollectionHit[]) : Promise.resolve([] as CollectionHit[]),
   ]);
 
+  const raw = firstPage.results;
   const people = raw.filter((r) => r.media_type === ('person' as never) && (r.popularity ?? 0) > 1);
   let titles = raw.filter(isTitle).filter(keep);
   let correctedTo: string | undefined;
@@ -314,5 +339,7 @@ export async function searchDiscover(input: string, signal?: AbortSignal): Promi
   const topTitle = rest[0]?.popularity ?? 0;
   const peopleFirst = !rest.length || relevanceTier(text, rest[0]) < 2 || (fromPeople.length > 0 && topPerson >= 3 * topTitle);
   const items = peopleFirst ? [...fromPeople, ...rest] : [...rest, ...fromPeople];
-  return { items: items.slice(0, 40) as TMDBItem[], reasons, correctedTo, groups };
+  // More pages only make sense for a straight title search (typo recovery works from shortened queries).
+  const hasMore = !correctedTo && firstPage.totalPages > 1;
+  return { items: items.slice(0, 40) as TMDBItem[], reasons, correctedTo, groups, hasMore };
 }
