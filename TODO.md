@@ -152,9 +152,6 @@ it syncs once they can verify). Unenforce, then look at the *Invalid* numbers pe
 
 ### Ideas, in rough order of value
 
-- [ ] **"On your services" badges and filter.** A badge on watchlist cards for titles that stream on the services ticked in
-      Settings, plus a filter. TMDB watch-provider data, loaded lazily and cached. Needs no new secrets; see the explanation in chat
-      before building (new proxy params, request budget, JustWatch credit).
 - [ ] **Ask about this title.** An AI chat in the details drawer, grounded in the TMDB synopsis, cast and your own notes/rating
       (so it can't invent plot details). Same two ways to be served as the other AI features (own key / shared allowance), one click per question.
 - [ ] **"Why you'd like this" one-liners on For you.** Today each pick says "Because you liked X". A short AI sentence that ties the
@@ -174,8 +171,6 @@ it syncs once they can verify). Unenforce, then look at the *Invalid* numbers pe
       A windowed list (render only what is near the screen) would fix it.
 - [ ] **Watch the ratings quota** (MDBList ~1000 requests a day for everyone). Cards now fetch ratings only after half a second in view, but longer
       scrolling means more titles seen. If "ratings unavailable" starts showing up, batch the lookups or lower the cap.
-- [ ] **Region-aware Discover** (e.g. "streaming in your country"): needs `watch_region` / `with_watch_providers` in the TMDB proxy allowlist
-      (they are not allowed yet). Shares the groundwork with "On your services".
 - [ ] **Remember the era** (New / Last 5 years / All time) per tab between visits; today it resets on reload.
 
 ## Known and accepted (reviewed 2026-11-13)
