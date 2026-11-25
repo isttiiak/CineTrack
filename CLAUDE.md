@@ -28,6 +28,7 @@ api/                    Vercel Functions (files starting with _ are shared code,
                         Relative imports here MUST end in .js (Vercel runs native ES modules); `npm run check:api` verifies it
   tmdb.ts  _tmdb.ts       TMDB proxy: allowlisted paths/params, adds the key server-side
   ratings.ts _ratings.ts  IMDb/RT/Metacritic/Letterboxd ratings via MDBList, OMDb fallback
+  toplist.ts _toplist.ts  GET /api/toplist: the IMDb Top 250 (MDBList list items), CDN 1 day + 6 h memory
   region.ts _region.ts    country from Vercel's x-vercel-ip-country header → does this visitor need consent?
   ai.ts _ai.ts            POST /api/ai {task, input}: the *shared key* path (signed-in only, daily allowance)
   _aiTasks.ts _groq.ts    pure, shared with the browser: one prompt + input validator + output parser per task; Groq transport + model list
@@ -131,7 +132,7 @@ Everything CineTrack stores starts with `cinetrack_`; keep it that way, the eras
 
 Environment variables (`.env.example`): `VITE_FIREBASE_*` (public), `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY`
 (optional App Check), `TMDB_API_KEY`, `MDBLIST_API_KEY`, `OMDB_API_KEY`, `GROQ_API_KEY` (+ optional `GROQ_MODEL`,
-`AI_DAILY_LIMIT`) (server-only, **never** prefix server keys with `VITE_`, which would ship them in the bundle). `.env.local` is gitignored.
+`AI_DAILY_LIMIT`), optional `TOPLIST_IMDB250` (server-only, **never** prefix server keys with `VITE_`, which would ship them in the bundle). `.env.local` is gitignored.
 
 ## Features (where they live)
 
@@ -188,6 +189,14 @@ Environment variables (`.env.example`): `VITE_FIREBASE_*` (public), `VITE_RECAPT
   went from 16,400 DOM nodes / a 95 ms re-render to ~900 nodes / ~10 ms. Trade-off: off-screen cards are not in the DOM, so Tab and
   Ctrl-F don't reach them. The For-you tab and the person/studio groups are short and stay as plain grids.
   Not used on purpose: TMDB's `region` param (no effect without a release type) and `air_date` (mixes in old long-running shows).
+- **Top 250** (Discover tab, `lib/topList.ts`, `api/_toplist.ts`): IMDb has no free API, so `/api/toplist` reads a public MDBList list
+  that mirrors the chart (`GET api.mdblist.com/lists/<user>/<slug>/items?mediatype=movie`; default `linaspuransen/top-250-movies`,
+  override with the server-only `TOPLIST_IMDB250`, validated as `user/slug`). One request returns the whole list; it is cached a day
+  at the CDN and 6 h in memory, never cached on failure, and refused if fewer than 50 films come back (wrong list / outage). The
+  client pages it 24 at a time (`topPage`), resolves each title through TMDB (`getDetails`) and **checks TMDB's `external_ids.imdb_id`
+  against the list's IMDb id**, falling back to `find/{imdb_id}` when the list's TMDB id is missing, unknown or someone else's
+  (the list's `id` field is not documented as a TMDB id, so it is never trusted blindly). Ranks show as the card's `reason` line. It
+  spends MDBList quota (~1000/day, shared with ratings): when that is used up the tab shows a specific message and nothing else breaks.
 - Discover: trending / for-you / **coming soon** / movies / TV, search or pasted IMDb/TMDB link, add
   dialog (status, optional date, rating, platform pre-filled from your services, section).
   Trending is TMDB attention-based, so unreleased blockbusters appear there; cards show

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Film, Tv, TrendingUp, Sparkles, CalendarClock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Film, Tv, TrendingUp, Sparkles, CalendarClock, Trophy, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTMDBDiscover, fetchTMDBDetails, TMDB_IMG, type TMDBItem, type DiscoverTab } from '@/hooks/useTMDBDiscover';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import type { MovieEntry, WatchMeta } from '@/types';
@@ -43,6 +43,7 @@ type Tab = DiscoverTab | 'foryou';
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'trending', label: 'Trending',    icon: <TrendingUp className="h-3.5 w-3.5" /> },
   { id: 'foryou',   label: 'For you',     icon: <Sparkles className="h-3.5 w-3.5" /> },
+  { id: 'top',      label: 'Top 250',     icon: <Trophy className="h-3.5 w-3.5" /> },
   { id: 'soon',     label: 'Coming soon', icon: <CalendarClock className="h-3.5 w-3.5" /> },
   { id: 'movies',   label: 'Movies',      icon: <Film className="h-3.5 w-3.5" /> },
   { id: 'tv',       label: 'TV Shows',    icon: <Tv className="h-3.5 w-3.5" /> },
@@ -227,6 +228,9 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
               </span>
             </div>
           )}
+          {tab === 'top' && (
+            <span style={{ color: 'var(--text-disabled)' }}>IMDb's all-time top films, in IMDb's order · refreshed daily</span>
+          )}
           {tab !== 'foryou' && (
             <label className="flex cursor-pointer items-center gap-1.5 select-none" style={{ color: 'var(--text-muted)' }}>
               <input type="checkbox" checked={hideListed} onChange={(e) => onHideListedChange(e.target.checked)} className="h-3.5 w-3.5 accent-[var(--accent)]" />
@@ -280,7 +284,9 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
           </>
       ) : (
         <>
-          {error && muted('Could not load titles. Check your connection, or set TMDB_API_KEY on the server.')}
+          {error && muted(tab === 'top' && !isSearching
+            ? "The Top 250 can't be loaded right now. Its source (MDBList) may be at its daily limit; it resets at midnight UTC. Try again later, or browse another tab."
+            : 'Could not load titles. Check your connection, or set TMDB_API_KEY on the server.')}
           {loading && !error && skeleton(isSearching ? 10 : 20)}
           {!loading && !error && items.length === 0 && groups.length === 0 && isSearching && (
             <NoResults
@@ -310,6 +316,7 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
               onLoadMore={loadMore}
               skeleton={skeleton(6)}
               endText={isSearching ? "That's all the matches for this search."
+                : tab === 'top' ? "That's the whole Top 250."
                 : tab === 'soon' ? 'That is every release we have dates for, about a year ahead. Dates are TMDB\'s earliest release date and can differ by country.'
                 : "That's the end of this list. Try another tab, or search for something specific."}
             />

@@ -46,7 +46,7 @@ A personal movie and TV series watchlist tracker. Works instantly as a guest, or
 - Posters, genres, runtime and IMDb links filled in automatically from TMDB
 
 ### Discover
-- Trending, **Movies** and **TV Shows** (new releases by default, or the last 5 years / all time), **Coming soon**, and **For you**: every tab keeps loading as you scroll (or press *Load more*), and you can hide titles already in your list. For you: recommendations weighted by how highly you rated things, favouring titles several of your favourites agree on, and ignoring titles you rated 4 or lower
+- **Top 250**: IMDb's all-time top films in IMDb's order, with each film's rank (read from a public MDBList mirror of the chart, so it needs `MDBLIST_API_KEY`). Also Trending, **Movies** and **TV Shows** (new releases by default, or the last 5 years / all time), **Coming soon**, and **For you**: every tab keeps loading as you scroll (or press *Load more*), and you can hide titles already in your list. For you: recommendations weighted by how highly you rated things, favouring titles several of your favourites agree on, and ignoring titles you rated 4 or lower
 - Search any title, or **paste an IMDb / TMDB link** to jump to that exact title
 - Adding asks for status, watch date (optional), rating, platform and section, so already-watched titles can be logged properly
 
@@ -122,6 +122,7 @@ VITE_RECAPTCHA_ENTERPRISE_SITE_KEY=    # optional — enables Firebase App Check
 TMDB_API_KEY=                          # optional — posters & Discover need it (server-side only)
 MDBLIST_API_KEY=                       # optional — IMDb / Rotten Tomatoes / Metacritic / Letterboxd ratings
 OMDB_API_KEY=                          # optional — fallback ratings source (IMDb / RT / Metacritic)
+# TOPLIST_IMDB250=user/list-slug       # optional — the MDBList list behind Discover's Top 250 tab (see .env.example)
 ```
 
 `VITE_*` values are compiled into the browser bundle and are public by design (Firebase web
