@@ -167,8 +167,8 @@ it syncs once they can verify). Unenforce, then look at the *Invalid* numbers pe
       20 a day is a guard, not a vault. The Admin SDK route (service-account secret, rules making the counter server-only) fixes that.
 - [ ] **Discover on a real phone.** Scrolling through the new long lists was checked in a phone-sized desktop window only. Try
       Trending / Movies / Coming soon on an iPhone and an Android phone: smooth scrolling, nothing jumping, *Load more* reachable.
-- [ ] **Window very long lists** if scrolling feels heavy: a long Discover scroll keeps every card in the page (the Movies tab reaches ~600).
-      A windowed list (render only what is near the screen) would fix it.
+      The lists are now windowed (only rows near the screen are rendered), so also watch for blank gaps during a fast fling and for rows
+      shifting when ratings load.
 - [ ] **Watch the ratings quota** (MDBList ~1000 requests a day for everyone). Cards now fetch ratings only after half a second in view, but longer
       scrolling means more titles seen. If "ratings unavailable" starts showing up, batch the lookups or lower the cap.
 - [ ] **Remember the era** (New / Last 5 years / All time) per tab between visits; today it resets on reload.
