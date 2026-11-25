@@ -1,7 +1,9 @@
 # Manual to-do
 
-Tasks that need your accounts, dashboards or devices, so they can't be done from the code.
-Tick them off as you go. Items marked *(optional)* can wait.
+Tasks that need your accounts, dashboards or devices, so they can't be done from the code, plus a short list of feature ideas
+and follow-ups. Tick them off as you go. Items marked *(optional)* can wait.
+
+*Last tidied 2026-11-25. Ticks marked "checked through the API" were verified from the outside; the rest are as reported.*
 
 ## Done
 
@@ -13,13 +15,16 @@ Tick them off as you go. Items marked *(optional)* can wait.
 - [x] Browser API key restricted to the websites (item 1), Dependabot alerts enabled
 - [x] Consent banner for EU/EEA/UK/CH, delete options and account deletion, full-page Settings, Marvel section
 - [x] iPhone home-screen Google sign-in (same-origin auth helper: redirect URI added, `VITE_FIREBASE_AUTH_PROXY=true`; v1.3.1)
+- [x] **AI features (Groq)** shipped in v1.3.0: Ask AI, list filter, Tonight, taste summary, Read with AI; shared key with a daily allowance, or your own key
+- [x] Groq key created and `GROQ_API_KEY` set in Vercel (the live `/api/ai` answers "sign in", not "not configured")
+- [x] Updated `firestore.rules` (including the AI usage counter) published; Ask AI tested while signed in
 
 ---
 
 ## 1. GitHub settings *(a few minutes)*
 
 - [x] Dependabot alerts and security updates enabled (version updates are in `.github/dependabot.yml`)
-- [ ] Settings → **Code security**: enable **Secret scanning** and **Push protection** if not already on.
+- [x] **Secret scanning** and **Push protection** are on (checked through the GitHub API)
 - [ ] After the first CI run has finished on `main`: Settings → **Branches** → add a rule for
       `main` → **Require a pull request before merging** and **Require status checks to pass**
       → select **Lint, test, build**.
@@ -27,15 +32,15 @@ Tick them off as you go. Items marked *(optional)* can wait.
 
 ## 2. AI search setup *(needed before the Ask AI button works)*
 
-- [ ] Create a free key at <https://console.groq.com/keys>.
-- [ ] Vercel → Project → Settings → Environment Variables: add `GROQ_API_KEY` (all environments), redeploy.
+- [x] Create a free key at <https://console.groq.com/keys>.
+- [x] Vercel → Project → Settings → Environment Variables: add `GROQ_API_KEY` (all environments), redeploy.
       Optional: `GROQ_MODEL` (comma separated, tried in order; default `openai/gpt-oss-20b,qwen/qwen3.8-27b`.
       Groq retires models without much notice: if Ask AI says "unavailable", check the Vercel function logs for
       `AI search: <model> answered 404` and update this list from console.groq.com/docs/models) and
       `AI_DAILY_LIMIT` (default 20 per user per UTC day, the rules cap it at 100). For local testing put the same in `.env.local`.
-- [ ] **Publish the updated `firestore.rules`** (Firebase Console → Firestore → Rules, or `firebase deploy --only firestore:rules`).
+- [x] **Publish the updated `firestore.rules`** (Firebase Console → Firestore → Rules, or `firebase deploy --only firestore:rules`).
       Without it, Ask AI answers "unavailable" (the usage counter can't be written).
-- [ ] Test while signed in: Discover → type "scary korean movies from the 2010s" → **Ask AI**. You should see
+- [x] Test while signed in: Discover → type "scary korean movies from the 2010s" → **Ask AI**. You should see
       "Korean horror films…" with chips and "19 of 20 AI searches left today". Try the same query again: no allowance is used.
 - [ ] Settings → AI: paste your own Groq key → **Save key** (it is checked against Groq), choose a model, press **Test AI**.
       Then try each feature without signing in: Discover → Ask AI; the ✨ in the watchlist search box ("comedies i haven't
@@ -45,34 +50,34 @@ Tick them off as you go. Items marked *(optional)* can wait.
 
 ## 3. Check the live site after deploying
 
-- [ ] **Discover loads** (titles and posters appear). If it's blank, open
+- [x] **Discover loads** (titles and posters appear). If it's blank, open
       `https://cine-track-silk.vercel.app/api/tmdb?path=trending/all/week` in a tab: JSON means
       the function is fine; a "500 FUNCTION_INVOCATION_FAILED" page means it's crashing (check
       Vercel → project → Logs).
-- [ ] **Ratings show** (IMDb / Rotten Tomatoes / Metacritic chips on Discover cards).
+- [x] **Ratings show** (IMDb / Rotten Tomatoes / Metacritic chips on Discover cards).
       `https://cine-track-silk.vercel.app/api/ratings?tmdb=27205&type=movie` should return JSON.
-- [ ] **Google sign-in works** (popup). The Content-Security-Policy in `vercel.json` is strict. If
+- [x] **Google sign-in works** (popup). The Content-Security-Policy in `vercel.json` is strict. If
       sign-in fails, open DevTools → Console, look for "Refused to … Content Security Policy",
       and add that origin to `vercel.json` (or ask Claude).
-- [ ] **After the PWA update (first deploy only):** installed copies and open tabs still run the old worker;
+- [x] **After the PWA update (first deploy only):** installed copies and open tabs still run the old worker;
       one refresh (two on the very first load) moves them to the new version. If an install looks stuck,
       Settings → App & offline → *Clear offline cache & reload*.
-- [ ] **Consent banner:** open the live site through a VPN in the EU/UK (or DevTools → Application → clear storage,
+- [x] **Consent banner:** open the live site through a VPN in the EU/UK (or DevTools → Application → clear storage,
       then set `localStorage.cinetrack_region = '1'`): the banner should appear, nothing should load from
       googletagmanager until you click Allow. `https://cine-track-silk.vercel.app/api/region` should return your country.
-- [ ] **Delete account (use a throw-away Google account):** Settings → Delete data → Delete account. Check in
+- [x] **Delete account (use a throw-away Google account):** Settings → Delete data → Delete account. Check in
       Firebase Console that the user is gone from Authentication and `users/{uid}/data/*` from Firestore.
 - [x] **iPhone home-screen app:** add the site to the Home Screen, open it, and sign in (it uses a redirect).
-- [ ] **Two devices:** change different titles on a phone and a laptop at the same time; after a few
+- [x] **Two devices:** change different titles on a phone and a laptop at the same time; after a few
       seconds both should show both changes.
 - [ ] **Android share:** install the app (Chrome → Install app), then in the IMDb app open a title →
       Share → CineTrack. The add dialog should open.
 - [ ] **Letterboxd import:** Letterboxd → Settings → Data → **Export your data** → in CineTrack open
       Settings → Data → Import → choose the `.zip`.
-- [ ] **Bookmarklet:** on a computer, open Settings → Quick add on the live site, drag **+ CineTrack**
+- [x] **Bookmarklet:** on a computer, open Settings → Quick add on the live site, drag **+ CineTrack**
       to the bookmarks bar, then click it on an IMDb page.
-- [ ] **Old platform names:** a title you had marked Torrent or FTB should now show **Other**.
-- [ ] **Phone check:** on an iPhone (or SE-sized screen) open Watchlist, Discover, a title's details,
+- [x] **Old platform names:** a title you had marked Torrent or FTB should now show **Other**.
+- [x] **Phone check:** on an iPhone (or SE-sized screen) open Watchlist, Discover, a title's details,
       Settings and Analytics. Each Discover card should show exactly one Add/Edit button.
 
 ## 4. Later *(not urgent)*
@@ -145,11 +150,28 @@ too (only do that after unenforcing, otherwise enforced requests would all fail)
 networks that block google.com/recaptcha): the app can't reach Firestore for them and the list stays local on that device (nothing is lost;
 it syncs once they can verify). Unenforce, then look at the *Invalid* numbers per platform before trying again.
 
-### Other ideas
+### Ideas, in rough order of value
 
+- [ ] **Ask about this title.** An AI chat in the details drawer, grounded in the TMDB synopsis, cast and your own notes/rating
+      (so it can't invent plot details). Same two ways to be served as the other AI features (own key / shared allowance), one click per question.
+- [ ] **"Why you'd like this" one-liners on For you.** Today each pick says "Because you liked X". A short AI sentence that ties the
+      title to your taste stats (aggregate only, as the Taste summary does), generated on click or for the first few picks.
 - [ ] **Language filter.** The home page filters by *country*. Language (e.g. Bengali vs Hindi,
       both India) needs a new field plus a lookup for existing titles; ask Claude if you want it.
-- [ ] **AI features** (Groq): needs a server-side key with per-user limits; see the discussion in chat.
+
+### Follow-ups from the App Check and Discover work
+
+- [ ] **Turn App Check enforcement on** (section above): monitor, check every platform, enforce Firestore, optionally Authentication.
+      Nothing else changes in the code. If Firestore rejects the forwarded token for Ask AI, move the quota counter to the Admin SDK.
+- [ ] *(optional)* **Make the AI quota a real limit.** Today a user can delete their own counter document (needed for "Delete account"), so
+      20 a day is a guard, not a vault. The Admin SDK route (service-account secret, rules making the counter server-only) fixes that.
+- [ ] **Discover on a real phone.** Scrolling through the new long lists was checked in a phone-sized desktop window only. Try
+      Trending / Movies / Coming soon on an iPhone and an Android phone: smooth scrolling, nothing jumping, *Load more* reachable.
+- [ ] **Window very long lists** if scrolling feels heavy: a long Discover scroll keeps every card in the page (the Movies tab reaches ~600).
+      A windowed list (render only what is near the screen) would fix it.
+- [ ] **Watch the ratings quota** (MDBList ~1000 requests a day for everyone). Cards now fetch ratings only after half a second in view, but longer
+      scrolling means more titles seen. If "ratings unavailable" starts showing up, batch the lookups or lower the cap.
+- [ ] **Remember the era** (New / Last 5 years / All time) per tab between visits; today it resets on reload.
 
 ## Known and accepted (reviewed 2026-11-13)
 
