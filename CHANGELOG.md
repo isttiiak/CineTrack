@@ -4,6 +4,22 @@ All notable changes to CineTrack. Dates are `YYYY-MM-DD`. Versions follow
 [Semantic Versioning](https://semver.org/). Earlier history: see the
 [v1.0.0 release](https://github.com/isttiiak/CineTrack/releases/tag/v1.0.0).
 
+## [Unreleased]
+
+### Fixed
+
+- **Google sign-in in the iPhone home-screen app**: you came back signed out, with no message. Safari blocks the
+  storage Firebase's redirect sign-in shares with its helper on `firebaseapp.com`; the helper is now served from the
+  app's own domain (a `/__/auth/` rewrite, used only by the iOS home-screen app, see *Upgrading*). If a redirect
+  sign-in still comes back without a result, the app now says "Sign-in did not finish" instead of doing nothing.
+- The service worker no longer answers navigations to `/__/*` with the app shell.
+
+### Upgrading (self-hosted)
+
+- Add `https://<your app domain>/__/auth/handler` to the Google OAuth client's authorized redirect URIs, change the
+  `/__/auth/` rewrite in `vercel.json` to your own `<project>.firebaseapp.com`, then set `VITE_FIREBASE_AUTH_PROXY=true`.
+  Without the variable nothing changes.
+
 ## [1.3.0] - 2026-11-15
 
 AI search and four more AI features (bring your own free Groq key if you like), a full-page Settings with real delete options, a Discover search that understands directors, actors, studios and franchises, an opt-in consent banner for the EU/UK, a Marvel section, and an app that installs and works offline.

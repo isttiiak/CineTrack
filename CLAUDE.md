@@ -67,6 +67,7 @@ src/
     watchDate.ts                 "watched on" as YYYY / YYYY-MM / YYYY-MM-DD: parse, format, clamp to the past
     recommend.ts                 "For you" scoring (seed weights, taste profile, quality, variety)
     discoverFeeds.ts             Coming soon feed + isUnreleased()
+    authDomain.ts signInFlag.ts  which host serves Firebase's sign-in helper (own domain on the iOS home-screen app); "sign-in did not finish" flag
     consent.ts                   analytics consent: region requirement, stored choice, useConsentVersion
     pwa.ts                       service-worker registration, install prompt, update nudge, online state, cache reset
     localData.ts                 storage keys, wipeLocalDataAndReload / applyPendingWipe (delete-everything)
@@ -101,7 +102,7 @@ WatchlistState { entries[], meta: Record<id, WatchMeta>, sectionOrder[], lastMod
 base) · `cinetrack_last_uid` · `cinetrack_prefs` display prefs · `cinetrack_theme` ·
 `cinetrack_view` · `cinetrack_ratings_v1` ratings cache (7 days) · `cinetrack_analytics` (`on`/`off`,
 the visitor's usage-statistics choice) · `cinetrack_region` (last `/api/region` answer) ·
-`cinetrack_banner_dismissed_until` · `cinetrack_ai_key` (the user's own Groq key) · `cinetrack_ai_model` ·
+`cinetrack_banner_dismissed_until` · `cinetrack_signin_pending` (a redirect sign-in was started) · `cinetrack_ai_key` (the user's own Groq key) · `cinetrack_ai_model` ·
 `cinetrack_ai_cache` (7 days) · `cinetrack_wipe_pending` (transient, see below).
 Everything CineTrack stores starts with `cinetrack_`; keep it that way, the erase function relies on it.
 
@@ -244,6 +245,21 @@ Environment variables (`.env.example`): `VITE_FIREBASE_*` (public), `VITE_RECAPT
   **Consent**: in the EU/EEA, UK and Switzerland nothing is collected until the visitor clicks Allow
   (`lib/consent.ts`, `ConsentBanner`); elsewhere it is on with an opt-out. One stored value (`cinetrack_analytics`)
   serves both the banner and Settings → Privacy. Until the region is known, nothing is collected.
+- **Sign-in on the iOS home-screen app**: it can't use pop-ups, so it uses `signInWithRedirect`, which keeps its state
+  in a hidden iframe on Firebase's `authDomain` (`<project>.firebaseapp.com`). That is a different site from the app, and
+  Safari 16.1+ blocks the shared storage, so the result was lost and the user came back signed out with no error. Fix
+  (Firebase's "reverse proxy" option): `vercel.json` rewrites `/__/auth/*` to `https://<project>.firebaseapp.com/__/auth/*`
+  (a rewrite is a transparent proxy; a redirect would not work) and, when `VITE_FIREBASE_AUTH_PROXY=true`, the **iOS
+  home-screen app only** uses the app's own host as `authDomain` (`lib/authDomain.ts`); every other browser keeps the
+  default. Needed alongside it: the redirect URI `https://<app domain>/__/auth/handler` in the Google OAuth client; the
+  service worker must never answer `/__/*` navigations (`navigateFallbackDenylist`); and the headers are split in
+  `vercel.json`: the app keeps `DENY` / `frame-ancestors 'none'` / no nonce, while `/__/auth/*` (Google's own static pages)
+  gets `SAMEORIGIN` / `frame-ancestors 'self'` and the helper's fixed nonce (`api/_vercelConfig.test.ts` guards that no
+  path matches both rules). `useAuth` marks a started redirect (`cinetrack_signin_pending`) and, if it comes back with no
+  result and no user, shows "Sign-in did not finish" instead of failing silently. For a fork: change the rewrite
+  destination to your own project's firebaseapp.com, add your redirect URI, then set the flag. `npm run dev|preview`
+  mirror the rewrite when `VITE_FIREBASE_AUTH_DOMAIN` is a firebaseapp.com host (Firebase builds the helper URL as
+  `https://<authDomain>/…`, so the final hop needs https; test the handler over http by hand).
 - Deleting data (Settings → Delete data): delete-all is an ordinary `mutate` (syncs like any edit). Erase /
   account deletion go through `wipeLocalDataAndReload`: it only sets a flag; `applyPendingWipe()` (first line
   of `main.tsx`) removes the `cinetrack_*` keys on the next load, so late writes from the dying page can't

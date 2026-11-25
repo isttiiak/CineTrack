@@ -64,7 +64,7 @@ const SORTERS: Record<string, (a: MovieEntry, b: MovieEntry) => number> = {
 };
 
 export default function App() {
-  const { user, loading, signIn, signOut, confirmRecentSignIn, deleteAccount } = useAuth();
+  const { user, loading, signIn, signOut, confirmRecentSignIn, deleteAccount, signInFailed, ackSignInFailed } = useAuth();
   const uid = user?.uid ?? null;
   const {
     state, initialised, cloudError, retrySync,
@@ -109,6 +109,14 @@ export default function App() {
   useEffect(() => {
     if (user) saveUserProfile(user).catch(() => {});
   }, [user]);
+
+  // A redirect sign-in that came back without a result (see useAuth): say so, don't leave it looking like nothing happened.
+  useEffect(() => {
+    if (!signInFailed) return;
+    addToast('Sign-in did not finish. Please try again. Your list on this device is safe.', 'error');
+    ackSignInFailed();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signInFailed]);
 
   // Android "Share → CineTrack" (Web Share Target) and plain ?url= links open Discover with the
   // shared title; an IMDb/TMDB link opens its add dialog straight away.

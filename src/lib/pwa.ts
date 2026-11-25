@@ -33,6 +33,9 @@ export function isStandalone(): boolean {
   return nav.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
 }
 
+/** The app opened from the iOS home screen (not a Safari tab). Pop-ups and the cross-site auth helper don't work there. */
+export const isIosStandalone = (): boolean => isIos() && isStandalone();
+
 /** iPhone / iPad (including iPadOS, which reports itself as a Mac). */
 export function isIos(): boolean {
   const ua = navigator.userAgent;
