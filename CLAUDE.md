@@ -34,7 +34,7 @@ api/                    Vercel Functions (files starting with _ are shared code,
 src/
   App.tsx               Tabs (Watchlist / Discover / Upcoming), toolbar, dialogs, wiring
   components/
-    discover/           DiscoverPage, DiscoverCard, AddFromDiscoverDialog, LoadMore (infinite scroll footer)
+    discover/           DiscoverPage, DiscoverCard, AddFromDiscoverDialog, LoadMore (infinite scroll footer); ui/VirtualRows (windowed list)
     filters/            SearchBox (tab-row search), FilterBar (dropdown filters + sort)
     import/             ExternalImportDialog (Letterboxd / IMDb CSV & ZIP)
     layout/             Header, UserProfile, PwaStatus (offline chip, "new version" prompt), ConsentBanner
@@ -47,7 +47,7 @@ src/
     ui/                 Radix-based primitives, toast, dialogs, HighlightText, WatchDateField
   hooks/                useWatchlist (state + sync), useFirestore (debounced saves), useAuth,
                         usePreferences, useTMDB (posters), useTMDBDiscover, useRatings,
-                        useRecommendations, useUpcoming, useTitleSuggestions, useToast, useCursorGlow
+                        useColumns, useRecommendations, useUpcoming, useTitleSuggestions, useToast, useCursorGlow
   lib/
     firebase.ts firestore.ts   init (App Check optional) + load / transactional sync / profile
     merge.ts                   three-way merge of watchlist states (the sync algorithm)
@@ -181,6 +181,12 @@ Environment variables (`.env.example`): `VITE_FIREBASE_*` (public), `VITE_RECAPT
   **Search** pages the plain title matches (`searchDiscoverMore`, up to 5 pages; not after typo recovery). Preference
   `hideListedInDiscover` (in `cinetrack_prefs`, toggle under the tabs) hides titles already in the list; they are otherwise
   marked "In list". Cards load ratings only after 0.5 s in view (`useSeen(500)`), so scrolling fast doesn't spend the ratings quota.
+  **Windowed list**: the Movies/TV/Trending/Coming soon/search grid renders only the rows near the screen (`components/ui/VirtualRows`,
+  pure helpers in `lib/virtualRows.ts`, `useColumns` mirrors the `grid-cols-2…xl:6` breakpoints). Rows are measured with a
+  ResizeObserver and estimated from the average until then; spacers stand in for the rest; a row that changes height above the viewport
+  scrolls the page by the difference (`overflow-anchor: none`, so native anchoring doesn't add to it). Measured: Movies at 598 titles
+  went from 16,400 DOM nodes / a 95 ms re-render to ~900 nodes / ~10 ms. Trade-off: off-screen cards are not in the DOM, so Tab and
+  Ctrl-F don't reach them. The For-you tab and the person/studio groups are short and stay as plain grids.
   Not used on purpose: TMDB's `region` param (no effect without a release type) and `air_date` (mixes in old long-running shows).
 - Discover: trending / for-you / **coming soon** / movies / TV, search or pasted IMDb/TMDB link, add
   dialog (status, optional date, rating, platform pre-filled from your services, section).

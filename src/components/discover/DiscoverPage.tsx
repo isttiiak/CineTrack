@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Film, Tv, TrendingUp, Sparkles, CalendarClock, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTMDBDiscover, fetchTMDBDetails, TMDB_IMG, type TMDBItem, type DiscoverTab } from '@/hooks/useTMDBDiscover';
@@ -13,6 +13,9 @@ import { useAiSearch } from '@/hooks/useAiSearch';
 import { aiMode, useAiVersion } from '@/lib/ai';
 import { releaseDate, releaseGroupLabel, ERAS, eraStart, type Era } from '@/lib/discoverFeeds';
 import { LoadMore } from './LoadMore';
+import { VirtualRows } from '@/components/ui/VirtualRows';
+import { useColumns } from '@/hooks/useColumns';
+import { buildRows, type VRow } from '@/lib/virtualRows';
 import type { DiscoverGroup } from '@/lib/discoverSearch';
 
 interface Props {
@@ -45,16 +48,6 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'tv',       label: 'TV Shows',    icon: <Tv className="h-3.5 w-3.5" /> },
 ];
 
-/** Coming soon, grouped under "This week", "December 2026"… (the list is already in date order). */
-function groupByRelease(items: TMDBItem[]): [string, TMDBItem[]][] {
-  const groups = new Map<string, TMDBItem[]>();
-  for (const item of items) {
-    const label = releaseGroupLabel(releaseDate(item));
-    groups.set(label, [...(groups.get(label) ?? []), item]);
-  }
-  return [...groups.entries()];
-}
-
 const REC_CHUNK = 18;
 const GRID = 'grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6';
 
@@ -75,17 +68,24 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
   const [pendingItem, setPendingItem] = useState<TMDBItem | null>(null);
   const [addState, setAddState] = useState<Record<number, 'loading' | 'done'>>({});
 
-  const findExisting = (item: TMDBItem) => findDuplicate(existingEntries, {
+  const findExisting = useCallback((item: TMDBItem) => findDuplicate(existingEntries, {
     title: item.title ?? item.name ?? '',
     year: (item.release_date ?? item.first_air_date ?? '').slice(0, 4),
     type: item.media_type === 'movie' ? 'Film' : 'Series',
     imdbUrl: '',
     tmdbId: item.id,
-  });
+  }), [existingEntries]);
 
   // Titles already in the list stay visible (marked "In list") unless the user hides them. Searching always shows everything.
   const hiding = hideListed && !isSearching && !fromLink;
-  const items = hiding ? fetched.filter((i) => !findExisting(i)) : fetched;
+  const items = useMemo(() => (hiding ? fetched.filter((i) => !findExisting(i)) : fetched), [hiding, fetched, findExisting]);
+
+  // The long list is windowed: rows of cards (plus month headings on Coming soon), only those near the screen are rendered.
+  const columns = useColumns();
+  const feedRows = useMemo(
+    () => buildRows(items, columns, tab === 'soon' && !isSearching ? (i) => releaseGroupLabel(releaseDate(i)) : undefined),
+    [items, columns, tab, isSearching],
+  );
 
   /** Opens the confirm dialog (status, watch date, rating…) instead of adding straight away. */
   function requestAdd(item: TMDBItem) {
@@ -162,6 +162,10 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
       />
     );
   };
+
+  const renderFeedRow = (row: VRow<TMDBItem>) => row.kind === 'heading'
+    ? <h2 className="mb-0 mt-3 text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--text-disabled)' }}>{row.label}</h2>
+    : <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>{row.items.map((item) => card(item, reasons[item.id]))}</div>;
 
   const skeleton = (n: number) => (
     <div className={GRID}>
@@ -287,19 +291,16 @@ export function DiscoverPage({ existingEntries, meta, sections, search, region, 
           {!loading && !error && items.length > 0 && (
             <AnimatePresence mode="wait">
               <motion.div
-                key={isSearching ? `search-${search}` : tab}
+                key={isSearching ? `search-${search}` : `${tab}-${era}`}
                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                 transition={{ duration: 0.18 }}
-                className={GRID}
               >
-                {tab === 'soon' && !isSearching
-                  ? groupByRelease(items).map(([label, list]) => (
-                      <section key={label} className="col-span-full">
-                        <h2 className="mb-2 mt-3 text-xs font-bold uppercase tracking-widest first:mt-0" style={{ color: 'var(--text-disabled)' }}>{label}</h2>
-                        <div className={GRID}>{list.map((item) => card(item))}</div>
-                      </section>
-                    ))
-                  : items.map((item) => card(item, reasons[item.id]))}
+                <VirtualRows
+                  count={feedRows.length}
+                  rowKey={(i) => feedRows[i].key}
+                  estimate={(i, average) => (feedRows[i].kind === 'heading' ? 40 : average)}
+                  renderRow={(i) => renderFeedRow(feedRows[i])}
+                />
               </motion.div>
             </AnimatePresence>
           )}
